@@ -5,15 +5,12 @@
 from __future__ import annotations
 
 import json
+import hmac
+import os
 import sys
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request  # type: ignore[import-not-found]
-
-try:
-    from flask_sock import Sock  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional dependency
-    Sock = None
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -31,7 +28,45 @@ trust_engine = TrustEngine()
 bridge = MQTTBridge(store=store, trust_engine=trust_engine)
 
 app = Flask(__name__)
-sock = Sock(app) if Sock is not None else None
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
+
+
+def _admin_token() -> str | None:
+    token = os.getenv("API_ADMIN_TOKEN", "").strip()
+    return token or None
+
+
+def _require_admin_token() -> tuple[dict[str, str], int] | None:
+    expected = _admin_token()
+    if expected is None:
+        return None
+    provided = request.headers.get("X-Admin-Token", "")
+    if not hmac.compare_digest(provided, expected):
+        return {"error": "unauthorized"}, 401
+    return None
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _validate_telemetry_payload(payload: object) -> tuple[dict[str, str], int] | None:
+    if not isinstance(payload, dict):
+        return {"error": "invalid telemetry payload"}, 400
+
+    device_id = payload.get("device_id")
+    if not isinstance(device_id, str) or not device_id.strip():
+        return {"error": "invalid telemetry payload"}, 400
+
+    for field in ("timestamp", "temperature", "pressure", "sequence"):
+        if field not in payload or not _is_number(payload[field]):
+            return {"error": "invalid telemetry payload"}, 400
+
+    humidity = payload.get("humidity")
+    if humidity is not None and not _is_number(humidity):
+        return {"error": "invalid telemetry payload"}, 400
+
+    return None
 
 for device_id in ("ESP32_001", "ESP32_002"):
     store.seed_device(device_id)
@@ -55,6 +90,9 @@ def get_history():
 
 @app.get("/api/device/<device_id>")
 def get_device(device_id: str):
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     device = store.get_device(device_id)
     if not device:
         return jsonify({"error": "device not found"}), 404
@@ -63,23 +101,35 @@ def get_device(device_id: str):
 
 @app.post("/api/device/<device_id>/isolate")
 def isolate_device(device_id: str):
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     trust_engine.microseg.isolate(device_id)
     return jsonify(store.isolate_device(device_id))
 
 
 @app.post("/api/device/<device_id>/rejoin")
 def rejoin_device(device_id: str):
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     trust_engine.rejoin(device_id)
     return jsonify(store.rejoin_device(device_id))
 
 
 @app.get("/api/logs/<log_type>")
 def get_logs(log_type: str):
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     return jsonify(store.logs(log_type))
 
 
 @app.post("/api/ai/query")
 def ai_query():
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     payload = request.get_json(force=True, silent=True) or {}
     message = str(payload.get("message", ""))
     context = payload.get("context")
@@ -89,6 +139,9 @@ def ai_query():
 
 @app.get("/api/alerts")
 def get_alerts():
+    denied = _require_admin_token()
+    if denied:
+        return jsonify(denied[0]), denied[1]
     return jsonify(store.alerts())
 
 
@@ -113,8 +166,9 @@ def _ingest_telemetry(telemetry: dict[str, object]) -> dict[str, object]:
 @app.post("/api/ingest")
 def ingest_telemetry():
     payload = request.get_json(force=True, silent=True) or {}
-    if not isinstance(payload, dict):
-        return jsonify({"error": "invalid telemetry payload"}), 400
+    denied = _validate_telemetry_payload(payload)
+    if denied:
+        return jsonify(denied[0]), denied[1]
     return jsonify(_ingest_telemetry(payload))
 
 
