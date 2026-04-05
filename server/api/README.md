@@ -12,6 +12,11 @@ Backend API connecting the dashboard to the AI engine, MQTT broker, and log stor
 - `templates/dashboard.html` - browser dashboard UI.
 - `requirements.txt` - Python dependencies for the API.
 
+## Environment
+- `API_ADMIN_TOKEN` protects sensitive routes when set.
+- `MQTT_HOST`, `MQTT_PORT`, `MQTT_USE_TLS`, and `MQTT_CA_CERT` control broker access.
+- `MQTT_USERNAME` and `MQTT_PASSWORD` are optional broker credentials.
+
 ## Endpoints
 - `GET /api/devices`
 - `GET /api/device/<id>`
@@ -20,4 +25,3 @@ Backend API connecting the dashboard to the AI engine, MQTT broker, and log stor
 - `GET /api/logs/<type>`
 - `POST /api/ai/query`
 - `GET /api/alerts`
-- `GET /ws`

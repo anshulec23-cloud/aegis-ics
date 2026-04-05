@@ -17,14 +17,4 @@ certs/*.pem
 certs/*.csr
 certs/*.srl
 server/ai_engine/model/*.pkl
-__pycache__/
-*.pyc
-.venv/
-.env
-certs/*.key
-certs/*.crt
-certs/*.pem
 isolated_devices.json
-data/
-logs/
-server/ai_engine/model/*.pkl
