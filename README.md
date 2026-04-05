@@ -34,16 +34,8 @@ This is a small ICS security demo. It simulates field devices, scores their beha
 - Run: `python -m unittest discover -s tests`
 - Coverage target: policy checks, trust scoring, state store, and API auth.
 
-## CI
-- GitHub Actions runs the test suite on push and pull request.
-
 ## Best Starting Point
 - `QUICKSTART.md` - exact commands to run the demo.
-
-## Top-Level Files
-- `.env.example` - template for local environment values.
-- `.gitignore` - keeps secrets, certs, virtualenvs, and generated data out of git.
-- `README.md` - this overview file.
 
 ## Top-Level Folders
 - `certs/` - certificate generation helper and notes.
