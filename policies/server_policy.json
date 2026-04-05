@@ -1,0 +1,7 @@
+{
+  "allowed_temp_setpoint_range": [0, 50],
+  "allowed_pressure_setpoint_range": [0, 8],
+  "max_commands_per_minute": 10,
+  "can_isolate_devices": true,
+  "can_grant_privileges": false
+}

@@ -1,0 +1,15 @@
+{
+  "device_id": "ESP32_001",
+  "temp_range": [0, 50],
+  "pressure_range": [0, 8],
+  "publish_interval_sec": 10,
+  "api": {
+    "base_url": "http://127.0.0.1:5000"
+  },
+  "mqtt": {
+    "host": "127.0.0.1",
+    "port": 8883,
+    "use_tls": true,
+    "ca_cert": "certs/root-ca.crt"
+  }
+}

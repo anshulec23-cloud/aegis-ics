@@ -1,0 +1,6 @@
+{
+  "device_id": "ESP32_001",
+  "temp_range": [0, 50],
+  "pressure_range": [0, 8],
+  "allowed_commands": ["set_temp", "set_pressure", "ping"]
+}
