@@ -1,4 +1,4 @@
-# AI Zero Trust Cybersecurity for ICS Protocols
+# Aegis ICS
 
 ## Abstract
 This project presents a zero-trust architecture for industrial control systems that combines device-side policy enforcement, MQTT isolation controls, and AI-driven trust scoring.
