@@ -39,11 +39,12 @@ def _admin_token() -> str | None:
 def _require_admin_token() -> tuple[dict[str, str], int] | None:
     expected = _admin_token()
     if expected is None:
-        return None
+        return {"error": "unauthorized"}, 401
     provided = request.headers.get("X-Admin-Token", "")
     if not hmac.compare_digest(provided, expected):
         return {"error": "unauthorized"}, 401
     return None
+
 
 
 def _is_number(value: object) -> bool:

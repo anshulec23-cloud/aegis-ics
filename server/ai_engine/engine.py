@@ -27,6 +27,18 @@ class TrustDecision:
     breakdown: dict[str, float]
 
 
+def canonicalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    canonical = {}
+    for k, v in payload.items():
+        if k in ("temperature", "pressure", "humidity"):
+            canonical[k] = f"{float(v):.2f}"
+        elif k == "timestamp":
+            canonical[k] = f"{float(v):.3f}"
+        else:
+            canonical[k] = v
+    return canonical
+
+
 class TrustEngine:
     def __init__(self, model_path: str | Path = "model/rf_model.pkl", store_path: str | Path = "isolated_devices.json") -> None:
         self.rf_model = RFModel.load(model_path)
@@ -42,9 +54,11 @@ class TrustEngine:
             return False
 
         body = {k: v for k, v in telemetry.items() if k != "signature"}
-        canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        canonical_body = canonicalize_payload(body)
+        canonical = json.dumps(canonical_body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         expected = hmac.new(device_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, str(signature))
+
 
     def score(
         self,

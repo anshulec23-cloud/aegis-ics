@@ -36,9 +36,23 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def canonicalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    canonical = {}
+    for k, v in payload.items():
+        if k in ("temperature", "pressure", "humidity"):
+            canonical[k] = f"{float(v):.2f}"
+        elif k == "timestamp":
+            canonical[k] = f"{float(v):.3f}"
+        else:
+            canonical[k] = v
+    return canonical
+
+
 def sign_message(payload: dict[str, Any], key: str) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    canonical_payload = canonicalize_payload(payload)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
 
 
 @dataclass

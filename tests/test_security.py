@@ -123,5 +123,68 @@ class ApiAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class HardenedSecurityTests(unittest.TestCase):
+    def test_float_signature_canonicalization(self) -> None:
+        from esp32_sim.simulator import sign_message
+        from server.ai_engine.engine import TrustEngine
+
+        key = "testkey"
+        payload = {
+            "device_id": "ESP32_001",
+            "timestamp": 12345.678,
+            "temperature": 24.3,
+            "pressure": 3.456,
+            "humidity": 50.1,
+            "sequence": 42
+        }
+
+        # Client signs it (e.g. timestamp may have representation issues)
+        sig = sign_message(payload, key)
+        payload["signature"] = sig
+
+        # Server verifies it with slightly different representation (e.g. float strings from different env)
+        server_payload = payload.copy()
+        server_payload["temperature"] = 24.300000000000004
+        server_payload["pressure"] = 3.4560000000000004
+        server_payload["timestamp"] = 12345.67800000000004
+
+        self.assertTrue(TrustEngine.verify_signature(server_payload, key))
+
+    def test_auth_fails_closed_when_no_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp_store = StateStore(Path(tmp))
+            # Clear API_ADMIN_TOKEN from env to simulate not configured
+            with patch.object(api_app, "store", temp_store), patch.dict(os.environ, {}, clear=True):
+                client = api_app.app.test_client()
+                response = client.get("/api/alerts")
+                self.assertEqual(response.status_code, 401)
+
+    def test_state_store_thread_safety(self) -> None:
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            store = StateStore(Path(tmp))
+            def worker(idx: int) -> None:
+                for j in range(50):
+                    store.update_device(
+                        f"ESP32_{idx}",
+                        0.9,
+                        {"timestamp": float(j), "temperature": 25.0, "pressure": 4.0, "signature_valid": True},
+                        "NORMAL"
+                    )
+
+            threads = []
+            for i in range(5):
+                t = threading.Thread(target=worker, args=(i,))
+                threads.append(t)
+                t.start()
+
+            for t in threads:
+                t.join()
+
+            # Confirm all devices are seeded and state remains intact
+            self.assertEqual(len(store.devices), 5)
+
+
 if __name__ == "__main__":
     unittest.main()
+
