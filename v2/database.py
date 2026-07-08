@@ -1,0 +1,77 @@
+import os
+from datetime import datetime, timezone
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from werkzeug.security import generate_password_hash
+
+DATABASE_URL = "sqlite:///aegis_v2.db"
+
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    
+    logs = relationship("AuditLog", back_populates="user")
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String(100), nullable=False)
+    location = Column(String(100), nullable=False)  # Coordinate format: "X=..., Y=..., Z=..."
+    details = Column(String(255), nullable=True)
+
+    user = relationship("User", back_populates="logs")
+
+class TelemetryLog(Base):
+    __tablename__ = "telemetry_logs"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(Float, nullable=False)
+    device_id = Column(String(50), nullable=False)
+    temperature = Column(Float, nullable=False)
+    pressure = Column(Float, nullable=False)
+    humidity = Column(Float, nullable=False)
+    rssi = Column(Float, nullable=True)
+    is_anomaly = Column(Boolean, default=False)
+
+class Rule(Base):
+    __tablename__ = "rules"
+    id = Column(Integer, primary_key=True)
+    key = Column(String(50), unique=True, nullable=False)
+    value = Column(Float, nullable=False)
+    description = Column(String(255), nullable=True)
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        # Seed default admin user
+        if not db.query(User).filter_by(username="admin").first():
+            admin = User(
+                username="admin",
+                password_hash=generate_password_hash("admin")
+            )
+            db.add(admin)
+        
+        # Seed safety rules
+        rules = {
+            "temp_max": (60.0, "Absolute maximum allowed temperature setpoint (C)"),
+            "temp_min": (0.0, "Absolute minimum allowed temperature setpoint (C)"),
+            "pressure_max": (8.0, "Absolute maximum allowed pressure setpoint (bar)"),
+            "pressure_min": (0.0, "Absolute minimum allowed pressure setpoint (bar)")
+        }
+        for key, (val, desc) in rules.items():
+            if not db.query(Rule).filter_by(key=key).first():
+                db.add(Rule(key=key, value=val, description=desc))
+        
+        db.commit()
+    finally:
+        db.close()

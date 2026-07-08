@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis SCADA v2 - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #05070a;
+        }
+        .mono {
+            font-family: 'Space Mono', monospace;
+        }
+        .panel {
+            background-color: rgba(13, 17, 23, 0.7);
+            border: 1px solid rgba(30, 41, 59, 0.8);
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex flex-col p-4">
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-4 mb-6 gap-4">
+        <div>
+            <h1 class="text-xl font-bold tracking-tight text-indigo-400 font-mono">AEGIS SCADA TERMINAL v2</h1>
+            <p class="text-xs text-slate-500 font-mono">Status: ACTIVE CONTROL LOOP · ZERO-TRUST SECURITY SCHEME</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 bg-slate-900/60 border border-slate-800 px-4 py-2 rounded-lg text-xs font-mono">
+            <div>
+                <span class="text-slate-500">OPERATOR:</span>
+                <span class="text-indigo-300 font-bold">{{ username }}</span>
+            </div>
+            <div class="h-4 w-[1px] bg-slate-800"></div>
+            <div>
+                <span class="text-slate-500">COORDS:</span>
+                <span class="text-emerald-400 font-bold">{{ location }}</span>
+            </div>
+            <div class="h-4 w-[1px] bg-slate-800"></div>
+            <a href="/logout" class="text-red-400 hover:text-red-300 font-bold hover:underline transition">LOG OUT</a>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
+        <!-- Left Panel: Setpoint Controls & Rules -->
+        <div class="space-y-6 lg:col-span-1">
+            <!-- Controls -->
+            <div class="panel rounded-xl p-6 shadow-xl backdrop-blur-md">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 font-mono border-b border-slate-800 pb-2 mb-4">
+                    SCADA Setpoint Control
+                </h2>
+                <div id="alert-banner" class="hidden text-xs px-4 py-3 rounded-lg mb-4 font-mono"></div>
+                
+                <div class="space-y-6">
+                    <!-- Temp Setpoint -->
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 font-mono mb-2">Target Temperature setpoint</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="temp-input" class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-200 focus:outline-none transition font-mono" placeholder="e.g. 40.0" step="0.1">
+                            <button onclick="updateSetpoint('set_temp')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-mono px-4 py-2 rounded-lg font-bold text-xs transition duration-200">
+                                APPLY
+                            </button>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono block mt-1">Rule Limit: max 60.0°C | Stuxnet Limit: max 45.0°C if pressure is high</span>
+                    </div>
+
+                    <!-- Pressure Setpoint -->
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 font-mono mb-2">Target Pressure setpoint</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="pressure-input" class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-slate-200 focus:outline-none transition font-mono" placeholder="e.g. 5.0" step="0.1">
+                            <button onclick="updateSetpoint('set_pressure')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-mono px-4 py-2 rounded-lg font-bold text-xs transition duration-200">
+                                APPLY
+                            </button>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono block mt-1">Rule Limit: max 8.0 bar | Stuxnet Limit: max 6.0 bar if temp is high</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCADA Rule Indicators -->
+            <div class="panel rounded-xl p-6 shadow-xl">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 font-mono border-b border-slate-800 pb-2 mb-4">
+                    Active Rule Thresholds
+                </h2>
+                <div class="space-y-3 font-mono text-xs text-slate-300">
+                    <div class="flex justify-between py-1 border-b border-slate-800/40">
+                        <span class="text-slate-500">MAX TEMPERATURE:</span>
+                        <span class="text-red-400 font-bold">60.0 °C</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/40">
+                        <span class="text-slate-500">MAX PRESSURE:</span>
+                        <span class="text-red-400 font-bold">8.0 bar</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/40">
+                        <span class="text-slate-500">MIN TEMPERATURE:</span>
+                        <span class="text-indigo-400 font-bold">0.0 °C</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/40">
+                        <span class="text-slate-500">MIN PRESSURE:</span>
+                        <span class="text-indigo-400 font-bold">0.0 bar</span>
+                    </div>
+                    <div class="flex justify-between py-1 text-slate-400 text-[10px] mt-2 italic">
+                        <span>* Dynamic enforcer intercepts and blocks Stuxnet-type coordinated hazards.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Panel: Statistical Telemetry Analytics -->
+        <div class="space-y-6 lg:col-span-2 flex flex-col">
+            <!-- Metrics Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="panel rounded-xl p-4 flex flex-col justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Temp Mean (30s)</span>
+                    <span id="stat-temp-mean" class="text-xl font-bold font-mono text-indigo-400 mt-2">--.- °C</span>
+                </div>
+                <div class="panel rounded-xl p-4 flex flex-col justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Temp Var (30s)</span>
+                    <span id="stat-temp-var" class="text-xl font-bold font-mono text-indigo-400 mt-2">--.--</span>
+                </div>
+                <div class="panel rounded-xl p-4 flex flex-col justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Temp Drift (1m)</span>
+                    <span id="stat-temp-drift" class="text-xl font-bold font-mono text-emerald-400 mt-2">--.- °C/m</span>
+                </div>
+                <div class="panel rounded-xl p-4 flex flex-col justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Pearson Corr (r)</span>
+                    <span id="stat-pearson-r" class="text-xl font-bold font-mono text-amber-400 mt-2">--.--</span>
+                </div>
+            </div>
+
+            <!-- Live Charts -->
+            <div class="panel rounded-xl p-6 shadow-xl flex-grow">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 font-mono border-b border-slate-800 pb-2 mb-4">
+                    Live Statistical Derivations
+                </h2>
+                <div class="h-64 sm:h-80">
+                    <canvas id="telemetryChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Audit Trail Table -->
+            <div class="panel rounded-xl p-6 shadow-xl max-h-80 overflow-y-auto">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 font-mono border-b border-slate-800 pb-2 mb-4">
+                    Secure SCADA Audit Log
+                </h2>
+                <table class="w-full text-xs font-mono text-left">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-800 uppercase tracking-wider">
+                            <th class="py-2">Time</th>
+                            <th class="py-2">User</th>
+                            <th class="py-2">Action</th>
+                            <th class="py-2">Location (X,Y,Z)</th>
+                            <th class="py-2">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Block for Charts & Stats -->
+    <script>
+        const ctx = document.getElementById('telemetryChart').getContext('2d');
+        const telemetryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Temperature (C)',
+                        data: [],
+                        borderColor: '#818cf8',
+                        backgroundColor: '#818cf822',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Pressure (bar)',
+                        data: [],
+                        borderColor: '#34d399',
+                        backgroundColor: '#34d39922',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: '#1e293b' },
+                        ticks: { font: { family: 'Space Mono' }, color: '#64748b' }
+                    },
+                    y: {
+                        position: 'left',
+                        grid: { color: '#1e293b' },
+                        ticks: { font: { family: 'Space Mono' }, color: '#818cf8' }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { font: { family: 'Space Mono' }, color: '#34d399' }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { font: { family: 'Space Mono' }, color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+
+        // Update setpoint commands
+        async function updateSetpoint(type) {
+            const inputId = type === 'set_temp' ? 'temp-input' : 'pressure-input';
+            const value = parseFloat(document.getElementById(inputId).value);
+            if (isNaN(value)) {
+                showAlert('Input must be a numeric value.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/setpoint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, value })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(result.details, 'success');
+                    document.getElementById(inputId).value = '';
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (err) {
+                showAlert('Failed to connect to the backend server.', 'error');
+            }
+        }
+
+        function showAlert(msg, status) {
+            const banner = document.getElementById('alert-banner');
+            banner.classList.remove('hidden', 'bg-emerald-950/40', 'border-emerald-500/50', 'text-emerald-200', 'bg-red-950/40', 'border-red-500/50', 'text-red-200');
+            if (status === 'success') {
+                banner.classList.add('bg-emerald-950/40', 'border', 'border-emerald-500/50', 'text-emerald-200');
+            } else {
+                banner.classList.add('bg-red-950/40', 'border', 'border-red-500/50', 'text-red-200');
+            }
+            banner.innerHTML = msg;
+            setTimeout(() => banner.classList.add('hidden'), 8000);
+        }
+
+        // Live calculation of statistical derivatives
+        function calculateStats(telemetry) {
+            if (telemetry.length === 0) return;
+            
+            const temps = telemetry.map(t => t.temperature);
+            const pressures = telemetry.map(t => t.pressure);
+            const times = telemetry.map(t => t.timestamp);
+            
+            const n = telemetry.length;
+            
+            // 1. Mean
+            const tempMean = temps.reduce((a, b) => a + b, 0) / n;
+            const pressureMean = pressures.reduce((a, b) => a + b, 0) / n;
+            
+            document.getElementById('stat-temp-mean').innerHTML = `${tempMean.toFixed(1)} °C`;
+            
+            // 2. Variance
+            const tempVar = temps.reduce((a, b) => a + Math.pow(b - tempMean, 2), 0) / n;
+            document.getElementById('stat-temp-var').innerHTML = tempVar.toFixed(3);
+            
+            // 3. Drift Rate (Temperature Delta per Minute)
+            if (n >= 15) {
+                const latestTemp = temps[n - 1];
+                const olderTemp = temps[n - 15]; // ~30s ago
+                const timeDiffMins = (times[n - 1] - times[n - 15]) / 60;
+                
+                const drift = (latestTemp - olderTemp) / (timeDiffMins || 1.0);
+                const driftText = `${drift.toFixed(2)} °C/m`;
+                document.getElementById('stat-temp-drift').innerHTML = driftText;
+                
+                if (Math.abs(drift) > 3.0) {
+                    document.getElementById('stat-temp-drift').className = "text-xl font-bold font-mono text-red-400 mt-2";
+                } else {
+                    document.getElementById('stat-temp-drift').className = "text-xl font-bold font-mono text-emerald-400 mt-2";
+                }
+            }
+            
+            // 4. Pearson Correlation Coefficient (r)
+            let num = 0;
+            let denT = 0;
+            let denP = 0;
+            for (let i = 0; i < n; i++) {
+                const diffT = temps[i] - tempMean;
+                const diffP = pressures[i] - pressureMean;
+                num += diffT * diffP;
+                denT += diffT * diffT;
+                denP += diffP * diffP;
+            }
+            const r = num / (Math.sqrt(denT * denP) || 1.0);
+            document.getElementById('stat-pearson-r').innerHTML = r.toFixed(2);
+            
+            // Check for sudden sensor decorrelation
+            if (n > 20 && Math.abs(r) < 0.2) {
+                document.getElementById('stat-pearson-r').className = "text-xl font-bold font-mono text-red-500 mt-2 animate-pulse";
+            } else {
+                document.getElementById('stat-pearson-r').className = "text-xl font-bold font-mono text-amber-400 mt-2";
+            }
+        }
+
+        // Periodically refresh data
+        async function refreshDashboard() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                // Update charts
+                const labels = data.telemetry.map((_, i) => i + 1);
+                telemetryChart.data.labels = labels;
+                telemetryChart.data.datasets[0].data = data.telemetry.map(t => t.temperature);
+                telemetryChart.data.datasets[1].data = data.telemetry.map(t => t.pressure);
+                telemetryChart.update();
+                
+                // Calculate and update metrics
+                calculateStats(data.telemetry);
+                
+                // Populate audit table
+                const tableBody = document.getElementById('audit-table-body');
+                tableBody.innerHTML = '';
+                data.audit_logs.forEach(a => {
+                    const row = document.createElement('tr');
+                    row.className = "border-b border-slate-900/60 hover:bg-slate-900/40 transition";
+                    
+                    let actionClass = "text-slate-400";
+                    if (a.action.includes("VIOLATION")) {
+                        actionClass = "text-red-400 font-bold";
+                    } else if (a.action === "LOGIN") {
+                        actionClass = "text-emerald-400";
+                    }
+                    
+                    const timeStr = new Date(a.timestamp).toLocaleTimeString();
+                    row.innerHTML = `
+                        <td class="py-2 text-slate-500">${timeStr}</td>
+                        <td class="py-2 text-slate-300 font-bold">${a.username}</td>
+                        <td class="py-2 ${actionClass}">${a.action}</td>
+                        <td class="py-2 text-slate-400">${a.location}</td>
+                        <td class="py-2 text-slate-500">${a.details || ''}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } catch (err) {
+                console.error("Dashboard refresh error: ", err);
+            }
+        }
+
+        setInterval(refreshDashboard, 2000);
+        refreshDashboard();
+    </script>
+</body>
+</html>
