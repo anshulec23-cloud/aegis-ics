@@ -1,6 +1,15 @@
 # Aegis ICS
 
+![Tests](https://github.com/anshulec23-cloud/aegis-ics/actions/workflows/tests.yml/badge.svg)
+
+This repository contains two distinct builds implementing zero-trust security for Industrial Control Systems (ICS) and Operational Technology (OT) environments:
+
+### Repository Structure
+- **Root (Version 1.0.0)**: Core zero-trust telemetry ingestion, HMAC signature validation, ML trust engine, and automated micro-segmentation isolation at the broker layer.
+- **[`version-two/`](file:///C:/Users/admin/.gemini/aegis/scratch/aegis-ics/version-two)**: A separate, hardened build featuring a Stuxnet-proof AI proxy command enforcer, SQLite-backed location coordinate auditing, and mathematical statistical analytics dashboard.
+
 Zero-trust micro-segmentation and device-side policy enforcement for industrial telemetry.
+
 
 ## Novel Contributions
 1. Micro-segmentation engine
@@ -38,6 +47,35 @@ Most ICS demos stop at anomaly detection. Aegis ICS goes one step further: it en
 - `docs/` explains architecture, threats, and evaluation.
 - `tests/` verifies the security-critical behavior.
 
+## Live Enforcer in Action (Version 2)
+
+Below is an execution trace showing the Stuxnet-proof enforcer blocking a coordinated physical stress attack:
+
+### 1. SCADA Control Server Logs (`app.py`)
+```text
+ * Running on http://127.0.0.1:5000 (Press CTRL+C to quit)
+[Server] Operator 'admin' logged in from Coordinates: X=12.4, Y=-48.1, Z=3.5.
+[Server] Operator issued setpoint command: set_pressure = 7.0 bar
+[Server] Dispatched control command: set_pressure=7.0
+[Server] Telemetry received: Temp=32.40C, Pressure=7.05 bar (Signature: VALID)
+
+[Server] Operator issued setpoint command: set_temp = 55.0C
+[Server] AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): Blocked raising Temperature to 55.0C because live Pressure is 7.05 bar. Coordinated high-temperature/high-pressure damage profile detected.
+[Server] Security violation audited to DB for operator 'admin' at Coordinate: X=12.4, Y=-48.1, Z=3.5
+```
+
+### 2. Simulated Hardware Device Logs (`simulator.py`)
+```text
+[ESP32_001] Connected to MQTT Broker - Subscribed to ics/control/ESP32_001
+[ESP32_001] Telemetry published: Temp=25.32C, Pres=4.02 bar
+[ESP32_001] Applied Pressure setpoint: 7.0 bar
+[ESP32_001] Telemetry published: Temp=26.45C, Pres=7.05 bar
+
+# If a compromised operator attempts to override safety limits directly at the hardware:
+[ESP32_001] Received direct command: set_temp = 70.0C
+[ESP32_001] SECURITY REJECTION: Temp setpoint 70.0C exceeds hard hardware limit (65.0C)!
+```
+
 ## Quickstart
 1. Read `QUICKSTART.md`.
 2. Copy `.env.example` to `.env` and fill in your local values.
@@ -68,3 +106,6 @@ Most ICS demos stop at anomaly detection. Aegis ICS goes one step further: it en
 - `.gitignore` - keeps secrets, certs, virtualenvs, and generated data out of git.
 - `QUICKSTART.md` - exact commands to run the demo.
 - `README.md` - this overview.
+- `docs/trust_scoring.md` - mathematical formulas and weighting of the live trust scoring engine.
+- `version-two/` - Version 2.0.0 build code.
+
