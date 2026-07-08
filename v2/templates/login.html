@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis SCADA v2 - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #090d16 0%, #05070a 100%);
+        }
+        .mono {
+            font-family: 'Space Mono', monospace;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen text-slate-100 p-4">
+    <div class="w-full max-w-md bg-slate-900/50 border border-slate-800/80 rounded-xl p-8 backdrop-blur-md shadow-2xl">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold tracking-tight text-indigo-400 font-mono">AEGIS SCADA v2</h1>
+            <p class="text-xs text-slate-400 tracking-wider uppercase font-mono mt-1">Secured Control Terminal</p>
+        </div>
+        
+        {% if error %}
+        <div class="bg-red-950/40 border border-red-500/50 text-red-200 text-xs px-4 py-3 rounded-lg mb-6 font-mono">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form action="/login" method="POST" class="space-y-5">
+            <div>
+                <label class="block text-xs uppercase tracking-wider text-slate-400 font-mono mb-2" for="username">Operator Name</label>
+                <input class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none transition font-mono" type="text" id="username" name="username" placeholder="e.g. admin" required>
+            </div>
+            
+            <div>
+                <label class="block text-xs uppercase tracking-wider text-slate-400 font-mono mb-2" for="password">Access Token (Password)</label>
+                <input class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none transition font-mono" type="password" id="password" name="password" placeholder="••••••••" required>
+            </div>
+            
+            <div class="border-t border-slate-800/60 pt-4">
+                <label class="block text-xs uppercase tracking-wider text-slate-400 font-mono mb-3 text-indigo-300">Station Coordinates (3D Location)</label>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <span class="block text-[10px] text-slate-500 font-mono mb-1">X-COORD</span>
+                        <input class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-1.5 text-slate-100 text-center focus:outline-none transition font-mono" type="text" name="coord_x" placeholder="0.0" value="12.4" required>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] text-slate-500 font-mono mb-1">Y-COORD</span>
+                        <input class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-1.5 text-slate-100 text-center focus:outline-none transition font-mono" type="text" name="coord_y" placeholder="0.0" value="-48.1" required>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] text-slate-500 font-mono mb-1">Z-COORD</span>
+                        <input class="w-full bg-slate-950/70 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-1.5 text-slate-100 text-center focus:outline-none transition font-mono" type="text" name="coord_z" placeholder="0.0" value="3.5" required>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-lg font-bold font-mono tracking-wider transition duration-200 mt-2 shadow-lg shadow-indigo-600/20" type="submit">
+                AUTHENTICATE & LOG IN
+            </button>
+        </form>
+    </div>
+</body>
+</html>
