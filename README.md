@@ -77,12 +77,16 @@ Below is an execution trace showing the Stuxnet-proof enforcer blocking a coordi
 ```
 
 ## Quickstart
-1. Read `QUICKSTART.md`.
-2. Copy `.env.example` to `.env` and fill in your local values.
-3. Generate certs in `certs/`.
-4. Start the MQTT broker with TLS and ACLs.
-5. Start the Flask API.
-6. Run one or more simulator instances.
+
+You can use the new automated PowerShell launcher script to boot up the entire stack with a single click:
+
+```powershell
+./start.ps1
+```
+
+This menu-driven script automatically takes care of environment configurations, generating TLS certificates, launching the broker services, starting the servers and simulators in separate visual terminal windows, and loading the web dashboard.
+
+Alternatively, to start services manually, read `QUICKSTART.md` for step-by-step instructions.
 
 ## Validation
 - Run: `python -m unittest discover -s tests`
