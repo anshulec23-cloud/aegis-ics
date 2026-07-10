@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from werkzeug.security import generate_password_hash
 
-DATABASE_URL = "sqlite:///aegis_v2.db"
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///aegis_v2.db")
 
 Base = declarative_base()
 
@@ -38,6 +38,13 @@ class TelemetryLog(Base):
     humidity = Column(Float, nullable=False)
     rssi = Column(Float, nullable=True)
     is_anomaly = Column(Boolean, default=False)
+
+class DeviceState(Base):
+    __tablename__ = "device_states"
+    id = Column(Integer, primary_key=True)
+    device_id = Column(String(50), unique=True, nullable=False)
+    is_isolated = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
 class Rule(Base):
     __tablename__ = "rules"
@@ -72,6 +79,10 @@ def init_db():
             if not db.query(Rule).filter_by(key=key).first():
                 db.add(Rule(key=key, value=val, description=desc))
         
+        # Seed default device state
+        if not db.query(DeviceState).filter_by(device_id="ESP32_001").first():
+            db.add(DeviceState(device_id="ESP32_001", is_isolated=False))
+            
         db.commit()
     finally:
         db.close()

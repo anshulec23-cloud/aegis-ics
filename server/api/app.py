@@ -175,7 +175,13 @@ def ingest_telemetry():
 
 @app.get("/health")
 def health():
-    return jsonify({"ok": True})
+    try:
+        temp_file = store.root / ".health_check"
+        temp_file.write_text("ok", encoding="utf-8")
+        temp_file.unlink()
+        return jsonify({"status": "healthy", "components": {"storage": "writeable"}}), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
 
 @app.get("/")

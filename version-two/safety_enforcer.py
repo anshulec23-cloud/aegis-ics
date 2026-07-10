@@ -9,7 +9,7 @@ def validate_command(command: dict, db: Session) -> tuple[bool, str]:
     value = command.get("value")
     
     if cmd_type not in ("set_temp", "set_pressure"):
-        return True, "Allowed"
+        return False, f"Denied: Unknown command type '{cmd_type}'. Only 'set_temp' and 'set_pressure' are permitted."
         
     if not isinstance(value, (int, float)):
         return False, "Command setpoint value must be numeric."
@@ -39,19 +39,19 @@ def validate_command(command: dict, db: Session) -> tuple[bool, str]:
     # Stuxnet attacked centrifuges by changing speeds while falsifying sensor reports.
     # Our policy checks if we are pushing temperature setpoint high while system pressure is already high, 
     # which leads to high-stress casing ruptures.
-    if cmd_type == "set_temp" and value > 45.0:
+    if cmd_type == "set_temp" and value >= 45.0:
         # Get the latest telemetry pressure reading
         latest_telemetry = db.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).first()
-        if latest_telemetry and latest_telemetry.pressure > 6.0:
+        if latest_telemetry and latest_telemetry.pressure >= 6.0:
             return False, (
                 f"AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): "
                 f"Blocked raising Temperature to {value}C because live Pressure is {latest_telemetry.pressure} bar. "
                 "Coordinated high-temperature/high-pressure damage profile detected."
             )
             
-    if cmd_type == "set_pressure" and value > 6.0:
+    if cmd_type == "set_pressure" and value >= 6.0:
         latest_telemetry = db.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).first()
-        if latest_telemetry and latest_telemetry.temperature > 45.0:
+        if latest_telemetry and latest_telemetry.temperature >= 45.0:
             return False, (
                 f"AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): "
                 f"Blocked raising Pressure to {value} bar because live Temperature is {latest_telemetry.temperature}C. "

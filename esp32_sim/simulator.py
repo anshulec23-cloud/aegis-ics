@@ -36,16 +36,7 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def canonicalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    canonical = {}
-    for k, v in payload.items():
-        if k in ("temperature", "pressure", "humidity"):
-            canonical[k] = f"{float(v):.2f}"
-        elif k == "timestamp":
-            canonical[k] = f"{float(v):.3f}"
-        else:
-            canonical[k] = v
-    return canonical
+from server.utils import canonicalize_payload
 
 
 def sign_message(payload: dict[str, Any], key: str) -> str:

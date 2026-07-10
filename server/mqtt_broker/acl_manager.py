@@ -1,11 +1,16 @@
-from __future__ import annotations
-
 import argparse
 import os
 import re
+import sys
 import subprocess
 from pathlib import Path
 
+# Add project root to sys.path if needed
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from server.utils import FileLock
 
 DEVICE_BLOCK = """# BEGIN DEVICE {device_id}
 user {device_id}
@@ -25,21 +30,34 @@ def write_acl(path: Path, content: str) -> None:
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
+def validate_device_id(device_id: str) -> bool:
+    # Strictly allow only alphanumeric, underscores, and dashes
+    return bool(re.match(r"^[a-zA-Z0-9_-]+$", device_id))
+
+
 def add_device(path: Path, device_id: str) -> None:
-    content = load_acl(path)
-    block_pattern = re.compile(rf"# BEGIN DEVICE {re.escape(device_id)}.*?# END DEVICE {re.escape(device_id)}\n?", re.S)
-    content = block_pattern.sub("", content)
-    if content and not content.endswith("\n"):
-        content += "\n"
-    content += DEVICE_BLOCK.format(device_id=device_id)
-    write_acl(path, content)
+    if not validate_device_id(device_id):
+        raise ValueError(f"Invalid device_id '{device_id}'. Only alphanumeric, underscores, and dashes are allowed.")
+        
+    with FileLock(str(path)) as _:
+        content = load_acl(path)
+        block_pattern = re.compile(rf"# BEGIN DEVICE {re.escape(device_id)}.*?# END DEVICE {re.escape(device_id)}\n?", re.S)
+        content = block_pattern.sub("", content)
+        if content and not content.endswith("\n"):
+            content += "\n"
+        content += DEVICE_BLOCK.format(device_id=device_id)
+        write_acl(path, content)
 
 
 def remove_device(path: Path, device_id: str) -> None:
-    content = load_acl(path)
-    block_pattern = re.compile(rf"\n?# BEGIN DEVICE {re.escape(device_id)}.*?# END DEVICE {re.escape(device_id)}\n?", re.S)
-    content = block_pattern.sub("\n", content)
-    write_acl(path, content)
+    if not validate_device_id(device_id):
+        raise ValueError(f"Invalid device_id '{device_id}'. Only alphanumeric, underscores, and dashes are allowed.")
+        
+    with FileLock(str(path)) as _:
+        content = load_acl(path)
+        block_pattern = re.compile(rf"\n?# BEGIN DEVICE {re.escape(device_id)}.*?# END DEVICE {re.escape(device_id)}\n?", re.S)
+        content = block_pattern.sub("\n", content)
+        write_acl(path, content)
 
 
 def reload_broker() -> None:
