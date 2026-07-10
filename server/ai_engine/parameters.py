@@ -10,7 +10,7 @@ def anomaly_frequency(anomaly_probability: float) -> float:
 
 
 def signature_validity(message: dict[str, Any]) -> float:
-    return 1.0 if message.get("signature_valid", True) else 0.0
+    return 1.0 if message.get("signature_valid", False) else 0.0
 
 
 def time_log_score(history: Sequence[dict[str, Any]], message: dict[str, Any]) -> float:

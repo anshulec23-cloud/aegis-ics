@@ -196,15 +196,35 @@ class StateStore:
             return self.readings
 
     def _append_log(self, event: dict[str, Any]) -> None:
+        from server.utils import FileLock
         with self._lock:
-            with self.log_file.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+            with FileLock(str(self.log_file)) as _:
+                with self.log_file.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+                
+                # Dynamic log rotation (keep last 2000 events if size > 5MB)
+                try:
+                    if self.log_file.exists() and self.log_file.stat().st_size > 5 * 1024 * 1024:
+                        lines = self.log_file.read_text(encoding="utf-8").splitlines()
+                        trimmed = lines[-2000:]
+                        self.log_file.write_text("\n".join(trimmed) + "\n", encoding="utf-8")
+                except Exception as e:
+                    print(f"[StateStore] WARNING: Log rotation failed: {e}")
 
     def _append_alert(self, alert: dict[str, Any]) -> None:
+        from server.utils import FileLock
         with self._lock:
-            alerts = self.alerts()
-            alerts.append(alert)
-            self.alert_file.write_text(json.dumps(alerts, indent=2) + "\n", encoding="utf-8")
+            with FileLock(str(self.alert_file)) as _:
+                alerts = []
+                if self.alert_file.exists():
+                    try:
+                        alerts = json.loads(self.alert_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        alerts = []
+                alerts.append(alert)
+                # Cap alert trail to prevent memory/disk exhaustion
+                alerts = alerts[-100:]
+                self.alert_file.write_text(json.dumps(alerts, indent=2) + "\n", encoding="utf-8")
 
     def trust_devices(self) -> list[dict[str, Any]]:
         with self._lock:

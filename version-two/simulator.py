@@ -34,9 +34,22 @@ def sign_message(payload: dict, key: str) -> str:
     canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
     return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
+mqtt_connected = False
+
 def on_connect(client, userdata, flags, rc, properties=None):
-    client.subscribe(f"ics/control/{DEVICE_ID}")
-    print(f"[{DEVICE_ID}] Connected to MQTT Broker - Subscribed to ics/control/{DEVICE_ID}")
+    global mqtt_connected
+    if rc == 0:
+        mqtt_connected = True
+        client.subscribe(f"ics/control/{DEVICE_ID}")
+        print(f"[{DEVICE_ID}] Connected to MQTT Broker - Subscribed to ics/control/{DEVICE_ID}")
+    else:
+        mqtt_connected = False
+        print(f"[{DEVICE_ID}] MQTT Connection failed with code {rc}")
+
+def on_disconnect(client, userdata, flags, rc, properties=None):
+    global mqtt_connected
+    mqtt_connected = False
+    print(f"[{DEVICE_ID}] Disconnected from MQTT Broker")
 
 def on_message(client, userdata, msg):
     global current_temp, current_pressure
@@ -68,6 +81,7 @@ def on_message(client, userdata, msg):
 def main():
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2, client_id=DEVICE_ID)
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
     
     try:
@@ -99,11 +113,31 @@ def main():
             
             payload["signature"] = sign_message(payload, HMAC_KEY)
             
-            try:
-                client.publish(f"ics/telemetry/{DEVICE_ID}", json.dumps(payload))
-                print(f"[{DEVICE_ID}] Telemetry published: Temp={payload['temperature']}C, Pres={payload['pressure']} bar")
-            except Exception as e:
-                print(f"[{DEVICE_ID}] Failed to publish telemetry: {e}")
+            published = False
+            if mqtt_connected:
+                try:
+                    client.publish(f"ics/telemetry/{DEVICE_ID}", json.dumps(payload))
+                    print(f"[{DEVICE_ID}] Telemetry published via MQTT: Temp={payload['temperature']}C, Pres={payload['pressure']} bar")
+                    published = True
+                except Exception as e:
+                    print(f"[{DEVICE_ID}] MQTT publish failed: {e}. Falling back to HTTP.")
+            
+            if not published:
+                # HTTP Fallback
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:5000/api/telemetry",
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers={"Content-Type": "application/json"}
+                    )
+                    with urllib.request.urlopen(req, timeout=2) as response:
+                        if response.status == 200:
+                            print(f"[{DEVICE_ID}] Telemetry published via HTTP fallback: Temp={payload['temperature']}C, Pres={payload['pressure']} bar")
+                        else:
+                            print(f"[{DEVICE_ID}] HTTP fallback response error: {response.status}")
+                except Exception as e:
+                    print(f"[{DEVICE_ID}] HTTP fallback publish failed: {e}. Ensure Flask server is running.")
                 
             seq += 1
             time.sleep(2)
