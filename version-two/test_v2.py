@@ -5,7 +5,7 @@ import json
 # MUST set before any imports touch database.py
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
-from database import Base, engine, SessionLocal, User, AuditLog, TelemetryLog, Rule, init_db
+from database import Base, engine, SessionLocal, User, AuditLog, TelemetryLog, Rule, DeviceState, init_db
 from safety_enforcer import validate_command
 from app import app
 
@@ -176,6 +176,46 @@ class AegisV2Tests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_type, "application/pdf")
         self.assertTrue(len(response.data) > 0)
+
+    def test_simulate_attack_endpoints(self):
+        # Log in
+        self.client.post("/login", data={
+            "username": "admin",
+            "password": "admin",
+            "coord_x": "5.0",
+            "coord_y": "5.0",
+            "coord_z": "5.0"
+        })
+
+        # 1. Test Stuxnet Attack Simulation
+        resp = self.client.post("/api/simulate-attack", json={"type": "stuxnet"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json["success"])
+        self.assertIn("Stuxnet", resp.json["details"])
+
+        # Verify security violation was written to DB
+        db = SessionLocal()
+        violations = db.query(AuditLog).filter_by(action="SECURITY_VIOLATION_BLOCKED").all()
+        self.assertTrue(len(violations) >= 1)
+        db.close()
+
+        # 2. Test Telemetry Injection Attack Simulation (triggers auto-isolation)
+        resp2 = self.client.post("/api/simulate-attack", json={"type": "injection"})
+        self.assertEqual(resp2.status_code, 200)
+        self.assertTrue(resp2.json["success"])
+        self.assertIn("Injection", resp2.json["details"])
+
+        # Verify device is now isolated in DB
+        db = SessionLocal()
+        state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
+        self.assertTrue(state.is_isolated)
+        db.close()
+
+        # 3. Test Privilege Escalation Attack Simulation
+        resp3 = self.client.post("/api/simulate-attack", json={"type": "privilege"})
+        self.assertEqual(resp3.status_code, 200)
+        self.assertTrue(resp3.json["success"])
+        self.assertIn("Privilege", resp3.json["details"])
 
 
 if __name__ == "__main__":

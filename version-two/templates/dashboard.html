@@ -314,6 +314,28 @@
                             <span id="risk-boundary-level" class="text-white font-mono font-medium">0.0%</span>
                         </div>
                     </div>
+            </div>
+
+            <!-- Attack Simulation Center -->
+            <div class="apple-card rounded-2xl p-6 shadow-lg">
+                <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
+                    Attack Simulation Center
+                </h2>
+                <div class="space-y-4">
+                    <p class="text-[10px] text-[#86868b] leading-relaxed">
+                        Trigger simulated cyberattacks to verify real-time classification, enforcer blocking, auto-isolation, and financial calculations.
+                    </p>
+                    <div class="space-y-2">
+                        <button onclick="triggerAttack('stuxnet')" class="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-xl text-xs font-medium border border-white/10 transition duration-150">
+                            Simulate Stuxnet Attack
+                        </button>
+                        <button onclick="triggerAttack('injection')" class="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-xl text-xs font-medium border border-white/10 transition duration-150">
+                            Simulate Telemetry Injection
+                        </button>
+                        <button onclick="triggerAttack('privilege')" class="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-xl text-xs font-medium border border-white/10 transition duration-150">
+                            Simulate Privilege Escalation
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -620,6 +642,30 @@
                 }
             } catch (err) {
                 showAlert('Failed to contact SCADA backend for device isolation.', 'error');
+            }
+        }
+
+        // Trigger simulated cybersecurity attack
+        async function triggerAttack(type) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            try {
+                const response = await fetch('/api/simulate-attack', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ type })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert(result.details, 'success');
+                    refreshDashboard();
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (err) {
+                showAlert('Failed to trigger attack simulation.', 'error');
             }
         }
 
