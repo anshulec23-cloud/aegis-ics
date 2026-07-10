@@ -47,6 +47,36 @@ Most ICS demos stop at anomaly detection. Aegis ICS goes one step further: it en
 - `docs/` explains architecture, threats, and evaluation.
 - `tests/` verifies the security-critical behavior.
 
+### Zero-Trust Telemetry & Enforcer Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ESP32 as ESP32 Field Device
+    participant Broker as MQTT Broker (TLS Only)
+    participant Server as Aegis Gateway / Server
+    participant AI as Trust Engine (AI Policy)
+    participant DB as SQLite Audit Database
+
+    ESP32->>Broker: Publish signed telemetry (HMAC)
+    Broker->>Server: Forward telemetry payload
+    Server->>Server: Verify HMAC signature
+    alt Signature is Valid
+        Server->>AI: Evaluate trust metrics (temperature, pressure, rates)
+        AI-->>Server: Return Trust Score
+        alt Trust Score < Threshold
+            Server->>Broker: Send client isolation command (Quarantine client ID)
+            Server->>DB: Log automated isolation security event
+            Server->>Server: Set device state = ISOLATED (Reject commands)
+        else Trust Score is Safe
+            Server->>Server: Accept telemetry & update dashboard
+        end
+    else Signature is Invalid (Attack Detected)
+        Server->>Broker: Force disconnect / quarantine client ID
+        Server->>DB: Log critical signature violation event
+    end
+```
+
+
 ## Live Enforcer in Action (Version 2)
 
 Below is an execution trace showing the Stuxnet-proof enforcer blocking a coordinated physical stress attack:
