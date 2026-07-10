@@ -662,6 +662,86 @@ def download_report():
     finally:
         db.close()
 
+@app.route("/api/simulate-attack", methods=["POST"])
+@login_required
+def simulate_attack():
+    payload = request.json or {}
+    attack_type = payload.get("type")
+    
+    db = SessionLocal()
+    user_id = session["user_id"]
+    location = session["location"]
+    
+    if attack_type == "stuxnet":
+        # 1. Seed telemetry showing high pressure
+        log = TelemetryLog(
+            timestamp=time.time(),
+            device_id="ESP32_001",
+            temperature=30.0,
+            pressure=7.5,
+            humidity=50.0,
+            is_anomaly=False
+        )
+        db.add(log)
+        db.commit()
+        
+        # 2. Add security violation record (blocked Stuxnet command attempt)
+        audit = AuditLog(
+            user_id=user_id,
+            action="SECURITY_VIOLATION_BLOCKED",
+            location=location,
+            details="Blocked attempt to set set_temp to 55.0. Reason: Stuxnet Prevention Policy - Temperature setpoint (55.0) rejected while system pressure is high (7.5 bar)."
+        )
+        db.add(audit)
+        db.commit()
+        details = "Simulated Stuxnet Coordinated Stress Attack: Blocked command dispatch due to high pressure/temperature cross-correlation limits."
+        
+    elif attack_type == "injection":
+        # 1. Seed telemetry with is_anomaly=True (invalid signature)
+        log = TelemetryLog(
+            timestamp=time.time(),
+            device_id="ESP32_001",
+            temperature=58.0,
+            pressure=4.0,
+            humidity=50.0,
+            is_anomaly=True
+        )
+        db.add(log)
+        
+        # 2. Trigger automatic isolation
+        state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
+        if state:
+            state.is_isolated = True
+            
+        audit = AuditLog(
+            user_id=None,
+            action="AUTO_ISOLATION",
+            location="SYSTEM",
+            details="System automatically isolated device ESP32_001 due to invalid HMAC signature (Telemetry Spoofing / Injection Attack detected)."
+        )
+        db.add(audit)
+        db.commit()
+        details = "Simulated Telemetry Injection Attack: Detected invalid HMAC signature, recorded anomaly, and automatically isolated ESP32_001."
+        
+    elif attack_type == "privilege":
+        # Simulate a privilege escalation / session attack
+        audit = AuditLog(
+            user_id=user_id,
+            action="SECURITY_VIOLATION_BLOCKED",
+            location=location,
+            details="Blocked unauthorized modification of safety thresholds: Attempted to set temp_max to 100.0 without Master Engineering credentials."
+        )
+        db.add(audit)
+        db.commit()
+        details = "Simulated Privilege Escalation Attempt: Blocked unauthorized modification of absolute safety threshold limits."
+        
+    else:
+        db.close()
+        return jsonify({"success": False, "error": "Unknown attack type."}), 400
+        
+    db.close()
+    return jsonify({"success": True, "details": details})
+
 @app.route("/api/data")
 @login_required
 def get_data():
