@@ -2,6 +2,9 @@
 
 ![Tests](https://github.com/anshulec23-cloud/aegis-ics/actions/workflows/tests.yml/badge.svg)
 
+> [!NOTE]
+> **Official Implementation**: This repository serves as the official open-source implementation for our upcoming peer-reviewed research paper on Zero-Trust Industrial Control Systems (ICS) and Operational Technology (OT) environments.
+
 This repository contains two distinct builds implementing zero-trust security for Industrial Control Systems (ICS) and Operational Technology (OT) environments:
 
 ### Repository Structure
