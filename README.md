@@ -143,3 +143,7 @@ Alternatively, to start services manually, read `QUICKSTART.md` for step-by-step
 - `docs/trust_scoring.md` - mathematical formulas and weighting of the live trust scoring engine.
 - `version-two/` - Version 2.0.0 build code.
 
+## Contact & Authors
+- **Anshul R**: [LinkedIn](https://www.linkedin.com/in/anshul-r-68b50229a/) · [Email](mailto:anshul.ec23@sahyadri.edu.in)
+
+
