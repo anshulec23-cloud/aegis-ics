@@ -7,9 +7,9 @@ import os
 import paho.mqtt.client as mqtt
 
 DEVICE_ID = "ESP32_001"
-HMAC_KEY = "device_key_001"
-MQTT_HOST = "127.0.0.1"
-MQTT_PORT = 1883
+HMAC_KEY = os.environ.get("DEVICE_KEY_ESP32_001", "device_key_001")
+MQTT_HOST = os.environ.get("MQTT_HOST", "127.0.0.1")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
 
 # Hardware-Level Immutable Safety Thresholds (Stuxnet Defense)
 HARDWARE_TEMP_LIMIT = 65.0
