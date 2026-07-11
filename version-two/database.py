@@ -36,6 +36,9 @@ class TelemetryLog(Base):
     temperature = Column(Float, nullable=False)
     pressure = Column(Float, nullable=False)
     humidity = Column(Float, nullable=False)
+    vibration = Column(Float, nullable=True)
+    hall_effect = Column(Float, nullable=True)
+    current = Column(Float, nullable=True)
     rssi = Column(Float, nullable=True)
     is_anomaly = Column(Boolean, default=False)
 
@@ -64,7 +67,7 @@ def init_db():
         if not db.query(User).filter_by(username="admin").first():
             admin = User(
                 username="admin",
-                password_hash=generate_password_hash("admin")
+                password_hash=generate_password_hash(os.environ.get("ADMIN_PASSWORD", "admin"))
             )
             db.add(admin)
         

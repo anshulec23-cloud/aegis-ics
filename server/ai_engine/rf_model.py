@@ -29,16 +29,28 @@ class RFModel:
         features = [[
             float(telemetry.get("temperature", 0.0)),
             float(telemetry.get("pressure", 0.0)),
+            float(telemetry.get("vibration", 0.0) or telemetry.get("pressure", 0.0) if str(telemetry.get("device_id")) == "ESP32_002" else 0.0),
+            float(telemetry.get("hall_effect", 0.0) or telemetry.get("humidity", 0.0) if str(telemetry.get("device_id")) == "ESP32_002" else 0.0),
+            float(telemetry.get("current", 0.0) or telemetry.get("humidity", 0.0) if str(telemetry.get("device_id")) == "ESP32_001" else 0.0),
         ]]
 
         if self.model is None:
             temp = features[0][0]
             pressure = features[0][1]
+            vibration = features[0][2]
+            hall = features[0][3]
+            current = features[0][4]
             anomaly = 0.0
             if temp < 0.0 or temp > 50.0:
-                anomaly += 0.5
+                anomaly += 0.3
             if pressure < 0.0 or pressure > 8.0:
-                anomaly += 0.5
+                anomaly += 0.3
+            if vibration > 6.0:
+                anomaly += 0.4
+            if hall > 1800.0:
+                anomaly += 0.4
+            if current > 8.0:
+                anomaly += 0.4
             return min(1.0, anomaly), 0.35
 
         if hasattr(self.model, "predict_proba"):
