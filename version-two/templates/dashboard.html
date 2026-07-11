@@ -218,6 +218,22 @@
                 </div>
             </div>
 
+            <!-- Physical Sensors Realtime Gauges Grid -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="apple-card rounded-2xl p-5 flex flex-col justify-between shadow-md">
+                    <span class="text-[10px] text-sky-400 uppercase tracking-wider font-semibold">Vibration</span>
+                    <span id="stat-vibration" class="text-2xl font-medium text-white mt-2 font-mono">--.- g</span>
+                </div>
+                <div class="apple-card rounded-2xl p-5 flex flex-col justify-between shadow-md">
+                    <span class="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Hall Effect Speed</span>
+                    <span id="stat-hall" class="text-2xl font-medium text-white mt-2 font-mono">---- RPM</span>
+                </div>
+                <div class="apple-card rounded-2xl p-5 flex flex-col justify-between shadow-md">
+                    <span class="text-[10px] text-pink-400 uppercase tracking-wider font-semibold">CT Current</span>
+                    <span id="stat-current" class="text-2xl font-medium text-white mt-2 font-mono">--.- A</span>
+                </div>
+            </div>
+
             <!-- Chart Panel -->
             <div class="apple-card rounded-2xl p-6 shadow-lg flex-grow flex flex-col">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
@@ -437,7 +453,7 @@
                 labels: [],
                 datasets: [
                     {
-                        label: 'Temperature (C)',
+                        label: 'Temperature (°C)',
                         data: [],
                         borderColor: '#ffffff',
                         backgroundColor: 'transparent',
@@ -455,9 +471,42 @@
                         borderWidth: 1.5,
                         pointRadius: 0,
                         pointHoverRadius: 4,
-                        borderDash: [5, 5],
+                        borderDash: [3, 3],
                         tension: 0.1,
                         yAxisID: 'y1'
+                    },
+                    {
+                        label: 'Vibration (g)',
+                        data: [],
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Hall RPM / 100',
+                        data: [],
+                        borderColor: '#34d399',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: 'CT Current (A)',
+                        data: [],
+                        borderColor: '#f472b6',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0.1,
+                        yAxisID: 'y'
                     }
                 ]
             },
@@ -686,7 +735,18 @@
                 telemetryChart.data.labels = labels;
                 telemetryChart.data.datasets[0].data = data.telemetry.map(t => t.temperature);
                 telemetryChart.data.datasets[1].data = data.telemetry.map(t => t.pressure);
+                telemetryChart.data.datasets[2].data = data.telemetry.map(t => t.vibration || 0.0);
+                telemetryChart.data.datasets[3].data = data.telemetry.map(t => (t.hall_effect || 0.0) / 100);
+                telemetryChart.data.datasets[4].data = data.telemetry.map(t => t.current || 0.0);
                 telemetryChart.update();
+                
+                // Update latest physical sensor gauges
+                const latest = data.telemetry[data.telemetry.length - 1];
+                if (latest) {
+                    document.getElementById('stat-vibration').innerHTML = `${(latest.vibration || 0.0).toFixed(2)} g`;
+                    document.getElementById('stat-hall').innerHTML = `${(latest.hall_effect || 0.0).toFixed(0)} RPM`;
+                    document.getElementById('stat-current').innerHTML = `${(latest.current || 0.0).toFixed(2)} A`;
+                }
                 
                 // Calculate statistical metrics
                 calculateStats(data.telemetry);
