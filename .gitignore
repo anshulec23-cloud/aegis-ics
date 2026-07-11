@@ -17,6 +17,7 @@ certs/*.pem
 certs/*.csr
 certs/*.srl
 server/ai_engine/model/*.pkl
+version-two/model/*.pkl
 isolated_devices.json
 *.db
 *.sqlite

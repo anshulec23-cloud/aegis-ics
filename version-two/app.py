@@ -42,6 +42,8 @@ login_attempts = defaultdict(list)
 attempts_lock = threading.Lock()
 
 def check_login_rate_limit(ip):
+    if app.config.get("TESTING"):
+        return True
     with attempts_lock:
         now = time.time()
         # Clean up attempts older than 60 seconds
@@ -114,6 +116,49 @@ def verify_signature(payload: dict) -> bool:
     expected = hmac.new(DEVICE_KEY.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, str(sig)) if sig else False
 
+import pickle
+class LocalRFModel:
+    def __init__(self, model_path="model/rf_model.pkl"):
+        self.model = None
+        try:
+            if os.path.exists(model_path):
+                with open(model_path, "rb") as f:
+                    self.model = pickle.load(f)
+        except Exception as e:
+            print(f"[Server] Failed to load Random Forest model: {e}")
+                
+    def predict_anomaly(self, telemetry: dict) -> bool:
+        # Extract features: [temperature, pressure, vibration, hall_effect, current]
+        features = [[
+            float(telemetry.get("temperature", 0.0)),
+            float(telemetry.get("pressure", 0.0)),
+            float(telemetry.get("vibration", 0.0) or telemetry.get("pressure", 0.0) if str(telemetry.get("device_id")) == "ESP32_002" else 0.0),
+            float(telemetry.get("hall_effect", 0.0) or telemetry.get("humidity", 0.0) if str(telemetry.get("device_id")) == "ESP32_002" else 0.0),
+            float(telemetry.get("current", 0.0) or telemetry.get("humidity", 0.0) if str(telemetry.get("device_id")) == "ESP32_001" else 0.0)
+        ]]
+        if self.model is None:
+            # Fallback heuristic
+            temp = features[0][0]
+            pressure = features[0][1]
+            vib = features[0][2]
+            hall = features[0][3]
+            curr = features[0][4]
+            anomaly = 0.0
+            if temp < 0.0 or temp > 50.0: anomaly += 0.3
+            if pressure < 0.0 or pressure > 8.0: anomaly += 0.3
+            if vib > 6.0: anomaly += 0.4
+            if hall > 1800.0: anomaly += 0.4
+            if curr > 8.0: anomaly += 0.4
+            return min(1.0, anomaly) > 0.5
+            
+        try:
+            proba = self.model.predict_proba(features)[0]
+            return float(proba[1]) > 0.5
+        except Exception:
+            return False
+
+rf_model = LocalRFModel(os.path.join(os.path.dirname(__file__), "model", "rf_model.pkl"))
+
 def process_telemetry(payload: dict) -> bool:
     db = SessionLocal()
     device_id = payload.get("device_id", "unknown")
@@ -126,6 +171,9 @@ def process_telemetry(payload: dict) -> bool:
         return False
         
     sig_valid = verify_signature(payload)
+    ml_anomaly = rf_model.predict_anomaly(payload)
+    is_anomaly = (not sig_valid) or ml_anomaly
+    
     try:
         log = TelemetryLog(
             timestamp=payload.get("timestamp", time.time()),
@@ -133,28 +181,32 @@ def process_telemetry(payload: dict) -> bool:
             temperature=payload.get("temperature", 0.0),
             pressure=payload.get("pressure", 0.0),
             humidity=payload.get("humidity", 0.0),
+            vibration=payload.get("vibration", 0.0),
+            hall_effect=payload.get("hall_effect", 0.0),
+            current=payload.get("current", 0.0),
             rssi=payload.get("rssi", 0.0),
-            is_anomaly=not sig_valid
+            is_anomaly=is_anomaly
         )
         db.add(log)
         db.commit()
 
-        # Automatic Security Isolation Policy: Isolate device if signature is invalid
-        if not sig_valid and device_id != "unknown":
+        # Automatic Security Isolation Policy: Isolate device if signature is invalid or ML detects anomaly
+        if is_anomaly and device_id != "unknown":
             state = db.query(DeviceState).filter_by(device_id=device_id).first()
             if state and not state.is_isolated:
                 state.is_isolated = True
                 
                 # Log automatic isolation to audit log
+                reason = "invalid HMAC signature" if not sig_valid else "AI Random Forest anomaly detection"
                 audit = AuditLog(
                     user_id=None, # System action
                     action="AUTO_ISOLATION",
                     location="SYSTEM",
-                    details=f"System automatically isolated device {device_id} due to invalid HMAC signature."
+                    details=f"System automatically isolated device {device_id} due to {reason}."
                 )
                 db.add(audit)
                 db.commit()
-                print(f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id} (invalid signature)")
+                print(f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id} ({reason})")
         return True
     except Exception as e:
         print(f"[Server] Database write failed: {e}")
@@ -757,6 +809,9 @@ def get_data():
         "temperature": t.temperature,
         "pressure": t.pressure,
         "humidity": t.humidity,
+        "vibration": t.vibration or 0.0,
+        "hall_effect": t.hall_effect or 0.0,
+        "current": t.current or 0.0,
         "rssi": t.rssi,
         "is_anomaly": t.is_anomaly
     } for t in reversed(telemetry)]

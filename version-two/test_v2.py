@@ -1,6 +1,7 @@
 import unittest
 import os
 import json
+import time
 
 # MUST set before any imports touch database.py
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -216,6 +217,76 @@ class AegisV2Tests(unittest.TestCase):
         self.assertEqual(resp3.status_code, 200)
         self.assertTrue(resp3.json["success"])
         self.assertIn("Privilege", resp3.json["details"])
+
+    def test_five_sensor_architecture(self):
+        # 1. Test CSV and JSON parsing inside serial gateway
+        from serial_gateway import parse_serial_line
+        
+        # Test JSON parsing
+        json_line = '{"temp": 24.5, "pres": 4.1, "vib": 1.2, "hall": 1200, "curr": 4.6}'
+        res_json = parse_serial_line(json_line, "plc")
+        self.assertIsNotNone(res_json)
+        self.assertEqual(res_json["temperature"], 24.5)
+        self.assertEqual(res_json["current"], 4.6)
+        
+        # Test CSV parsing
+        csv_line = "24.5,4.1,1.2,1200,4.6"
+        res_csv = parse_serial_line(csv_line, "plc")
+        self.assertIsNotNone(res_csv)
+        self.assertEqual(res_csv["vibration"], 1.2)
+        
+        # 2. Test telemetry ingestion with 5 parameters
+        self.client.post("/login", data={
+            "username": "admin",
+            "password": "admin",
+            "coord_x": "5.0",
+            "coord_y": "5.0",
+            "coord_z": "5.0"
+        })
+        
+        # Build 5-sensor payload
+        payload = {
+            "timestamp": time.time(),
+            "device_id": "ESP32_001",
+            "temperature": 25.0,
+            "pressure": 4.0,
+            "humidity": 4.5,
+            "vibration": 1.1,
+            "hall_effect": 0.0,
+            "current": 4.5,
+            "rssi": -55.0
+        }
+        
+        # Calculate signature matching key for ESP32_001
+        import hmac
+        import hashlib
+        import json
+        
+        canonical = {
+            "device_id": "ESP32_001",
+            "temperature": f"{float(25.0):.2f}",
+            "pressure": f"{float(4.0):.2f}",
+            "humidity": f"{float(4.5):.2f}",
+            "vibration": f"{float(1.1):.2f}",
+            "hall_effect": f"{float(0.0):.2f}",
+            "current": f"{float(4.5):.2f}",
+            "rssi": f"{float(-55.0):.2f}",
+            "timestamp": f"{float(payload['timestamp']):.3f}"
+        }
+        serialized = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+        key = "device_key_001"
+        signature = hmac.new(key.encode("utf-8"), serialized.encode("utf-8"), hashlib.sha256).hexdigest()
+        payload["signature"] = signature
+
+        resp = self.client.post("/api/telemetry", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        
+        # Verify db log contains the new fields
+        db = SessionLocal()
+        log = db.query(TelemetryLog).filter_by(device_id="ESP32_001").order_by(TelemetryLog.timestamp.desc()).first()
+        self.assertEqual(log.vibration, 1.1)
+        self.assertEqual(log.current, 4.5)
+        db.close()
 
 
 if __name__ == "__main__":
