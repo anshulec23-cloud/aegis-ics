@@ -22,3 +22,10 @@ isolated_devices.json
 *.db
 *.sqlite
 .aegis.pids
+
+# Build artifacts
+dist/
+build_temp/
+obfuscated/
+installer_output/
+*.log
