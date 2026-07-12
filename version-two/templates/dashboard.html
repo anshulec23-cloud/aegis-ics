@@ -104,6 +104,20 @@
     <!-- Alert Banner System -->
     <div id="alert-banner" class="hidden text-xs px-5 py-4 rounded-xl mb-6 font-light transition duration-300"></div>
 
+    <!-- Update Notification Banner (injected by auto-updater) -->
+    <div id="update-banner" class="hidden text-xs px-5 py-4 rounded-xl mb-6 font-light bg-sky-500/10 border border-sky-500/30 text-sky-200 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <svg class="w-4 h-4 text-sky-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            <span id="update-banner-text">A new version is available.</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <a id="update-banner-link" href="#" target="_blank" class="bg-sky-500/20 hover:bg-sky-500/30 px-3 py-1.5 rounded-lg text-sky-100 font-medium transition">Download</a>
+            <button onclick="document.getElementById('update-banner').classList.add('hidden')" class="text-sky-400/60 hover:text-sky-300 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
     <!-- MAIN SCADA MONITOR VIEW -->
     <div id="view-monitor" class="grid grid-cols-1 xl:grid-cols-3 gap-8 flex-grow">
         
@@ -718,9 +732,21 @@
             }
         }
 
-        // Trigger PDF Report download
+        // Trigger PDF Report download (works in both browser and PyWebView)
         function downloadReport() {
-            window.open('/api/report/download', '_blank');
+            fetch('/api/report/download')
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'aegis_incident_report.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(() => showAlert('Failed to download PDF report.', 'error'));
         }
 
         // Periodically refresh data
@@ -807,6 +833,18 @@
 
             } catch (err) {
                 console.error("Dashboard refresh error: ", err);
+            }
+        }
+
+        // --- Update Banner (called by launcher.py via webview.evaluate_js) ---
+        function showUpdateBanner(version, downloadUrl) {
+            const banner = document.getElementById('update-banner');
+            const text = document.getElementById('update-banner-text');
+            const link = document.getElementById('update-banner-link');
+            if (banner && text && link) {
+                text.textContent = `Aegis ICS v${version} is available. You are running v3.0.0.`;
+                link.href = downloadUrl;
+                banner.classList.remove('hidden');
             }
         }
 

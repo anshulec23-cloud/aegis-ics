@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 import threading
@@ -21,6 +22,17 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.graphics.charts.lineplots import LinePlot
 
+# ---------------------------------------------------------------------------
+# PyInstaller / Desktop Mode Resource Path Resolution
+# ---------------------------------------------------------------------------
+def _resource_path(relative_path: str) -> str:
+    """Resolve file path for both dev and frozen PyInstaller builds."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
+from security import require_webview_token
+
 # Initialize database
 init_db()
 
@@ -28,7 +40,11 @@ import secrets
 from datetime import timedelta
 from collections import defaultdict
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=_resource_path('templates'),
+    static_folder=_resource_path('static'),
+)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32).hex())
 
 # Session Security Hardening
@@ -157,7 +173,7 @@ class LocalRFModel:
         except Exception:
             return False
 
-rf_model = LocalRFModel(os.path.join(os.path.dirname(__file__), "model", "rf_model.pkl"))
+rf_model = LocalRFModel(_resource_path(os.path.join("model", "rf_model.pkl")))
 
 def process_telemetry(payload: dict) -> bool:
     db = SessionLocal()
@@ -650,6 +666,7 @@ def generate_incident_report_pdf(db_session, username, location):
 
 @app.route("/api/device/status", methods=["GET"])
 @login_required
+@require_webview_token
 def device_status():
     db = SessionLocal()
     state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
@@ -659,6 +676,7 @@ def device_status():
 
 @app.route("/api/device/isolate", methods=["POST"])
 @login_required
+@require_webview_token
 def isolate_device_v2():
     db = SessionLocal()
     state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
@@ -679,6 +697,7 @@ def isolate_device_v2():
 
 @app.route("/api/device/rejoin", methods=["POST"])
 @login_required
+@require_webview_token
 def rejoin_device_v2():
     db = SessionLocal()
     state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
@@ -699,6 +718,7 @@ def rejoin_device_v2():
 
 @app.route("/api/report/download", methods=["GET"])
 @login_required
+@require_webview_token
 def download_report():
     db = SessionLocal()
     try:
@@ -716,6 +736,7 @@ def download_report():
 
 @app.route("/api/simulate-attack", methods=["POST"])
 @login_required
+@require_webview_token
 def simulate_attack():
     payload = request.json or {}
     attack_type = payload.get("type")
@@ -796,6 +817,7 @@ def simulate_attack():
 
 @app.route("/api/data")
 @login_required
+@require_webview_token
 def get_data():
     db = SessionLocal()
     # Fetch last 50 telemetry readings
@@ -854,5 +876,19 @@ def health():
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
+# --- Version & Health Endpoints (for updater and diagnostics) ---
+@app.route("/api/version", methods=["GET"])
+def api_version():
+    """Returns the current application version. Used by the auto-updater."""
+    try:
+        from security import APP_VERSION
+        version = APP_VERSION
+    except ImportError:
+        version = "3.0.0"
+    return jsonify({"version": version, "name": "Aegis ICS"})
+
+
 if __name__ == "__main__":
+    # Development mode: run Flask directly (not via launcher.py)
+    print("[DEV] Starting Aegis ICS in development mode on http://127.0.0.1:5000")
     app.run(host="127.0.0.1", port=5000, debug=False)

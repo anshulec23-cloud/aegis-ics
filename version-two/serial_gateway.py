@@ -109,52 +109,41 @@ def mock_serial_stream(mode):
             "curr": 0.0
         }) + "\n"
 
-def main():
-    parser = argparse.ArgumentParser(description="Aegis ICS V2 — Edge Serial Gateway Driver")
-    parser.add_argument("--port", type=str, default="COM3", help="Serial COM port name (e.g. COM3 or /dev/ttyUSB0)")
-    parser.add_argument("--baud", type=int, default=9600, help="Baud rate (9600, 115200, etc.)")
-    parser.add_argument("--mode", type=str, choices=["plc", "non-plc"], default="plc", help="Machine Profile Profile")
-    parser.add_argument("--device-id", type=str, default=None, help="Device ID override")
-    parser.add_argument("--key", type=str, default=None, help="HMAC Pre-Shared Key")
-    parser.add_argument("--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis REST Telemetry Ingest URL")
-    parser.add_argument("--mock", action="store_true", help="Emulate serial input (no COM port required)")
-    
-    args = parser.parse_args()
-    
-    device_id = args.device_id or ("ESP32_001" if args.mode == "plc" else "ESP32_002")
-    hmac_key = args.key or os.environ.get(f"DEVICE_KEY_{device_id}", DEFAULT_DEVICE_KEY)
+def start_gateway(port="COM3", baud=9600, mode="plc", device_id=None, hmac_key=None, url=DEFAULT_GATEWAY_URL, mock=False):
+    device_id = device_id or ("ESP32_001" if mode == "plc" else "ESP32_002")
+    hmac_key = hmac_key or os.environ.get(f"DEVICE_KEY_{device_id}", DEFAULT_DEVICE_KEY)
     
     print("=" * 60)
     print(f" Aegis Edge Serial Gateway: {device_id}")
-    print(f" Port         : {args.port} (@ {args.baud} baud)")
-    print(f" Mode Profile : {args.mode.upper()}")
-    print(f" Ingestion URL: {args.url}")
+    print(f" Port         : {port} (@ {baud} baud)")
+    print(f" Mode Profile : {mode.upper()}")
+    print(f" Ingestion URL: {url}")
     print("=" * 60)
 
     ser = None
-    if not args.mock:
+    if not mock:
         if not serial_available:
-            print("[CRITICAL] PySerial not installed. Install it or run with --mock.")
+            print("[CRITICAL] PySerial not installed. Install it or run with mock=True.")
             sys.exit(1)
         try:
-            ser = serial.Serial(args.port, args.baud, timeout=1)
-            print(f"[Gateway] Connected to COM port: {args.port}")
+            ser = serial.Serial(port, baud, timeout=1)
+            print(f"[Gateway] Connected to COM port: {port}")
         except Exception as e:
-            print(f"[Gateway] FAILED to connect to COM port {args.port}: {e}")
+            print(f"[Gateway] FAILED to connect to COM port {port}: {e}")
             print("[Gateway] Falling back to emulation mode.")
-            args.mock = True
+            mock = True
 
     while True:
         try:
-            if args.mock:
-                line = mock_serial_stream(args.mode)
+            if mock:
+                line = mock_serial_stream(mode)
             else:
                 line = ser.readline().decode("utf-8", errors="ignore")
                 if not line:
                     continue
             
             # Parse CSV or JSON
-            raw_data = parse_serial_line(line, args.mode)
+            raw_data = parse_serial_line(line, mode)
             if not raw_data:
                 continue
                 
@@ -164,7 +153,7 @@ def main():
                 "device_id": device_id,
                 "temperature": raw_data["temperature"],
                 "pressure": raw_data["pressure"],
-                "humidity": raw_data["hall_effect"] if args.mode == "non-plc" else raw_data["current"], # Legacy column mapping
+                "humidity": raw_data["hall_effect"] if mode == "non-plc" else raw_data["current"], # Legacy column mapping
                 "vibration": raw_data["vibration"],
                 "hall_effect": raw_data["hall_effect"],
                 "current": raw_data["current"],
@@ -176,7 +165,7 @@ def main():
             
             # Dispatch REST request
             headers = {"Content-Type": "application/json"}
-            resp = requests.post(args.url, json=payload, headers=headers, timeout=3)
+            resp = requests.post(url, json=payload, headers=headers, timeout=3)
             
             if resp.status_code == 200:
                 print(f"[Gateway] Success -> {raw_data}")
@@ -190,4 +179,22 @@ def main():
             time.sleep(2)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Aegis ICS V2 — Edge Serial Gateway Driver")
+    parser.add_argument("--port", type=str, default="COM3", help="Serial COM port name (e.g. COM3 or /dev/ttyUSB0)")
+    parser.add_argument("--baud", type=int, default=9600, help="Baud rate (9600, 115200, etc.)")
+    parser.add_argument("--mode", type=str, choices=["plc", "non-plc"], default="plc", help="Machine Profile Profile")
+    parser.add_argument("--device-id", type=str, default=None, help="Device ID override")
+    parser.add_argument("--key", type=str, default=None, help="HMAC Pre-Shared Key")
+    parser.add_argument("--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis REST Telemetry Ingest URL")
+    parser.add_argument("--mock", action="store_true", help="Emulate serial input (no COM port required)")
+    
+    args = parser.parse_args()
+    start_gateway(
+        port=args.port,
+        baud=args.baud,
+        mode=args.mode,
+        device_id=args.device_id,
+        hmac_key=args.key,
+        url=args.url,
+        mock=args.mock
+    )

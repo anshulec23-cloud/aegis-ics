@@ -20,7 +20,7 @@ class User(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     action = Column(String(100), nullable=False)
     location = Column(String(100), nullable=False)  # Coordinate format: "X=..., Y=..., Z=..."
@@ -47,7 +47,7 @@ class DeviceState(Base):
     id = Column(Integer, primary_key=True)
     device_id = Column(String(50), unique=True, nullable=False)
     is_isolated = Column(Boolean, default=False)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class Rule(Base):
     __tablename__ = "rules"
