@@ -67,51 +67,7 @@ def _create_flask_server(port: int):
     return server, actual_port
 
 
-def _start_serial_gateway(actual_port: int):
-    """
-    Auto-detects an active COM port and starts the serial gateway.
-    Falls back to mock mode if no COM port is found.
-    """
-    try:
-        from serial.tools import list_ports
-        from serial_gateway import start_gateway
-
-        ports = list_ports.comports()
-        selected_port = None
-        for p in ports:
-            # Pick the first available port (e.g., CP210x or CH340 often used for ESP32)
-            # You could filter by hwid if needed, but first available is a good default
-            selected_port = p.device
-            break
-
-        if selected_port:
-            logger.info("Auto-detected COM port: %s. Starting Serial Gateway...", selected_port)
-            gateway_thread = threading.Thread(
-                target=start_gateway,
-                kwargs={
-                    "port": selected_port, 
-                    "mock": False,
-                    "url": f"http://127.0.0.1:{actual_port}/api/telemetry"
-                },
-                daemon=True,
-                name="serial-gateway"
-            )
-            gateway_thread.start()
-        else:
-            logger.warning("No COM port detected. Starting Serial Gateway in MOCK mode.")
-            gateway_thread = threading.Thread(
-                target=start_gateway,
-                kwargs={
-                    "mock": True,
-                    "url": f"http://127.0.0.1:{actual_port}/api/telemetry"
-                },
-                daemon=True,
-                name="serial-gateway"
-            )
-            gateway_thread.start()
-
-    except Exception as exc:
-        logger.error("Failed to start Serial Gateway: %s", exc)
+# Removed _start_serial_gateway function (now handled dynamically by app.py UI)
 
 def _start_update_check(window):
     """Run background update check and notify the UI if an update exists."""
@@ -232,6 +188,8 @@ def main():
 
     # --- Step 2: Start Flask backend ---
     _flask_server, actual_port = _create_flask_server(port)
+    os.environ["FLASK_PORT"] = str(actual_port)  # Let app.py know which port it's on for serial gateway
+    
     flask_thread = threading.Thread(
         target=_flask_server.serve_forever,
         daemon=True,
@@ -239,9 +197,8 @@ def main():
     )
     flask_thread.start()
     logger.info("Flask backend started on thread '%s'", flask_thread.name)
-
-    # --- Step 3: Start Serial Gateway (daemon thread) ---
-    _start_serial_gateway(actual_port)
+    
+    # --- Step 3: (Removed) Serial Gateway now started manually via UI ---
 
     # --- Step 4: Import pywebview (must be before window creation) ---
     try:

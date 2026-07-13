@@ -121,9 +121,44 @@
     <!-- MAIN SCADA MONITOR VIEW -->
     <div id="view-monitor" class="grid grid-cols-1 xl:grid-cols-3 gap-8 flex-grow">
         
-        <!-- Left Side: Setpoint Inputs, Safety Thresholds, and Manual Isolation -->
+        <!-- Left Side: Hardware Connection, Setpoint Inputs, Safety Thresholds, and Manual Isolation -->
         <div class="space-y-8 xl:col-span-1">
             
+            <!-- Hardware Connection Card -->
+            <div class="apple-card rounded-2xl p-6 shadow-lg">
+                <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
+                    Hardware Connection
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-[#86868b]">Active Port:</span>
+                        <span id="active-com-port" class="font-medium px-2 py-1 rounded text-amber-400 bg-amber-500/10 border border-amber-500/30">DISCONNECTED</span>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label class="block text-xs text-[#86868b] uppercase tracking-wider font-semibold">Select Device Port</label>
+                        <div class="flex gap-2">
+                            <select id="com-port-select" class="w-full apple-input rounded-xl px-3 py-2.5 text-sm appearance-none cursor-pointer">
+                                <option value="">Select a port...</option>
+                                <option value="MOCK">MOCK (Software Emulation)</option>
+                            </select>
+                            <button onclick="scanComPorts()" title="Scan for devices" class="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-4 py-2.5 rounded-xl transition duration-150">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-2 border-t border-white/5">
+                        <button onclick="connectComPort()" class="flex-1 bg-white text-black hover:bg-[#e8e8ed] py-2.5 rounded-xl text-xs font-semibold tracking-wide transition duration-150">
+                            Connect
+                        </button>
+                        <button onclick="disconnectComPort()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-2.5 rounded-xl text-xs font-semibold tracking-wide transition duration-150">
+                            Disconnect
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Setpoint Control Card -->
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
@@ -428,6 +463,12 @@
     <!-- Script Block for Charts & Stats -->
     <script>
         let currentDeviceIsolated = false;
+        let activeComPort = null;
+
+        // On load, fetch status
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchComPortStatus();
+        });
 
         // Tab Navigation
         function switchTab(tab) {
@@ -729,6 +770,107 @@
                 }
             } catch (err) {
                 showAlert('Failed to trigger attack simulation.', 'error');
+            }
+        }
+
+        // --- Hardware COM Port Management JS ---
+        async function fetchComPortStatus() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            try {
+                const response = await fetch('/api/com_ports/status', {
+                    headers: { 'X-CSRF-Token': csrfToken }
+                });
+                const result = await response.json();
+                const statusEl = document.getElementById('active-com-port');
+                if (result.success && result.port) {
+                    activeComPort = result.port;
+                    statusEl.innerHTML = activeComPort;
+                    statusEl.className = "font-medium px-2 py-1 rounded text-emerald-400 bg-emerald-500/10 border border-emerald-500/30";
+                } else {
+                    activeComPort = null;
+                    statusEl.innerHTML = "DISCONNECTED";
+                    statusEl.className = "font-medium px-2 py-1 rounded text-amber-400 bg-amber-500/10 border border-amber-500/30";
+                }
+            } catch (err) {
+                console.error("Failed to fetch COM port status", err);
+            }
+        }
+
+        async function scanComPorts() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            try {
+                const response = await fetch('/api/com_ports', {
+                    headers: { 'X-CSRF-Token': csrfToken }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    const selectEl = document.getElementById('com-port-select');
+                    // Retain MOCK and current selection if possible
+                    const currentVal = selectEl.value;
+                    selectEl.innerHTML = '<option value="">Select a port...</option><option value="MOCK">MOCK (Software Emulation)</option>';
+                    result.ports.forEach(port => {
+                        const opt = document.createElement('option');
+                        opt.value = port;
+                        opt.text = port;
+                        selectEl.appendChild(opt);
+                    });
+                    selectEl.value = currentVal;
+                    showAlert('COM Ports scanned successfully.', 'success');
+                }
+            } catch (err) {
+                showAlert('Failed to scan COM ports.', 'error');
+            }
+        }
+
+        async function connectComPort() {
+            const selectEl = document.getElementById('com-port-select');
+            const port = selectEl.value;
+            if (!port) {
+                showAlert('Please select a port from the list first.', 'error');
+                return;
+            }
+            
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            try {
+                const response = await fetch('/api/com_ports/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ port })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert(result.details, 'success');
+                    setTimeout(fetchComPortStatus, 1000);
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (err) {
+                showAlert('Failed to connect to COM port.', 'error');
+            }
+        }
+
+        async function disconnectComPort() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            try {
+                const response = await fetch('/api/com_ports/disconnect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert(result.details, 'success');
+                    setTimeout(fetchComPortStatus, 500);
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (err) {
+                showAlert('Failed to disconnect COM port.', 'error');
             }
         }
 

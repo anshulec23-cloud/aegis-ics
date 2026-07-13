@@ -1,6 +1,11 @@
-# Aegis ICS v3.0.0 - Standalone Production Release
+# Aegis ICS v2.2.1 - Hardware Connection & Stability Update
 
-This release introduces the fully packaged, standalone Windows desktop application for Aegis ICS, eliminating the need for complex environment setups or batch scripts.
+This release addresses critical hardware connection stability and introduces a manual COM port connection interface.
+
+## Key Changes
+- **"Dead Bug" Fix:** Refactored PySerial initialization in `serial_gateway.py` to disable DTR and RTS signals before opening the port. This prevents connected ESP32 boards from entering a continuous reset loop when the software connects.
+- **Manual COM Port Connection UI:** Disabled the risky automatic port scanning on startup. Added a new "Hardware Connection" panel to the dashboard where operators can securely scan for devices, select a specific COM port, and connect/disconnect manually.
+- **Dynamic Thread Management:** The backend now controls the telemetry ingestion daemon via new REST APIs, allowing the user to seamlessly switch devices without restarting the application.
 
 ### 🚀 Key Features & Changes
 - **Standalone Executable**: The entire software suite is now bundled into a single `AegisICS.exe` binary. No external dependencies, Python installation, or batch scripts (`aegis.bat`) are required for the end user.
