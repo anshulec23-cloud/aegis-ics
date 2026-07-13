@@ -664,6 +664,96 @@ def generate_incident_report_pdf(db_session, username, location):
     buffer.seek(0)
     return buffer.getvalue()
 
+# --- Hardware COM Port Management APIs ---
+@app.route("/api/com_ports", methods=["GET"])
+@login_required
+@require_webview_token
+def list_com_ports():
+    try:
+        from serial.tools import list_ports
+        ports = [p.device for p in list_ports.comports()]
+        return jsonify({"success": True, "ports": ports})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route("/api/com_ports/status", methods=["GET"])
+@login_required
+@require_webview_token
+def com_port_status():
+    try:
+        from serial_gateway import get_active_port
+        port = get_active_port()
+        return jsonify({"success": True, "port": port})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route("/api/com_ports/connect", methods=["POST"])
+@login_required
+@require_webview_token
+def connect_com_port():
+    payload = request.json or {}
+    port = payload.get("port")
+    if not port:
+        return jsonify({"success": False, "error": "No port specified."})
+    try:
+        import serial_gateway
+        import threading
+        
+        # Stop existing gateway
+        serial_gateway.stop_gateway()
+        time.sleep(0.2) # Briefly wait for thread termination
+        
+        flask_port = os.environ.get("FLASK_PORT", "5000")
+        url = f"http://127.0.0.1:{flask_port}/api/telemetry"
+        
+        mock = (port == "MOCK")
+        gateway_thread = threading.Thread(
+            target=serial_gateway.start_gateway,
+            kwargs={"port": port if not mock else None, "mock": mock, "url": url},
+            daemon=True,
+            name="serial-gateway"
+        )
+        gateway_thread.start()
+        
+        # Log action
+        db = SessionLocal()
+        audit = AuditLog(
+            user_id=session.get("user_id"),
+            action="CONNECT_COM_PORT",
+            location=session.get("location"),
+            details=f"Connected hardware gateway to port {port}."
+        )
+        db.add(audit)
+        db.commit()
+        db.close()
+        
+        return jsonify({"success": True, "details": f"Gateway connecting to {port}."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route("/api/com_ports/disconnect", methods=["POST"])
+@login_required
+@require_webview_token
+def disconnect_com_port():
+    try:
+        import serial_gateway
+        serial_gateway.stop_gateway()
+        
+        db = SessionLocal()
+        audit = AuditLog(
+            user_id=session.get("user_id"),
+            action="DISCONNECT_COM_PORT",
+            location=session.get("location"),
+            details="Disconnected hardware gateway manually."
+        )
+        db.add(audit)
+        db.commit()
+        db.close()
+        
+        return jsonify({"success": True, "details": "Disconnected COM port successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route("/api/device/status", methods=["GET"])
 @login_required
 @require_webview_token

@@ -25,6 +25,16 @@ except ImportError:
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:5000/api/telemetry"
 DEFAULT_DEVICE_KEY = os.environ.get("DEVICE_KEY_ESP32_001", "device_key_001")
 
+import threading
+_gateway_stop_event = threading.Event()
+_active_port = None
+
+def stop_gateway():
+    _gateway_stop_event.set()
+
+def get_active_port():
+    return _active_port if not _gateway_stop_event.is_set() else None
+
 def canonicalize_payload(payload: dict) -> dict:
     canonical = {}
     for k, v in payload.items():
@@ -110,6 +120,10 @@ def mock_serial_stream(mode):
         }) + "\n"
 
 def start_gateway(port="COM3", baud=9600, mode="plc", device_id=None, hmac_key=None, url=DEFAULT_GATEWAY_URL, mock=False):
+    global _active_port
+    _gateway_stop_event.clear()
+    _active_port = port if not mock else "MOCK_PORT"
+    
     device_id = device_id or ("ESP32_001" if mode == "plc" else "ESP32_002")
     hmac_key = hmac_key or os.environ.get(f"DEVICE_KEY_{device_id}", DEFAULT_DEVICE_KEY)
     
@@ -126,17 +140,26 @@ def start_gateway(port="COM3", baud=9600, mode="plc", device_id=None, hmac_key=N
             print("[CRITICAL] PySerial not installed. Install it or run with mock=True.")
             sys.exit(1)
         try:
-            ser = serial.Serial(port, baud, timeout=1)
+            # Fix "Dead Bug": Initialize without opening, disable DTR/RTS, then open
+            ser = serial.Serial()
+            ser.port = port
+            ser.baudrate = baud
+            ser.timeout = 1
+            ser.setDTR(False)
+            ser.setRTS(False)
+            ser.open()
             print(f"[Gateway] Connected to COM port: {port}")
         except Exception as e:
             print(f"[Gateway] FAILED to connect to COM port {port}: {e}")
             print("[Gateway] Falling back to emulation mode.")
             mock = True
 
-    while True:
+    while not _gateway_stop_event.is_set():
         try:
             if mock:
                 line = mock_serial_stream(mode)
+                if _gateway_stop_event.is_set():
+                    break
             else:
                 line = ser.readline().decode("utf-8", errors="ignore")
                 if not line:
@@ -177,6 +200,16 @@ def start_gateway(port="COM3", baud=9600, mode="plc", device_id=None, hmac_key=N
         except Exception as e:
             print(f"[Gateway] Telemetry acquisition exception: {e}")
             time.sleep(2)
+
+    # Cleanup when stop_event is set
+    if ser and ser.is_open:
+        try:
+            ser.close()
+            print(f"[Gateway] COM port {port} closed safely.")
+        except Exception as e:
+            print(f"[Gateway] Error closing COM port: {e}")
+    _active_port = None
+    print("[Gateway] Shutdown complete.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Aegis ICS V2 — Edge Serial Gateway Driver")
