@@ -6,32 +6,32 @@ ephemeral port allocation, path resolution for PyInstaller builds, cryptographic
 secret generation, and basic anti-debug detection.
 """
 
-import ctypes
-import functools
-import os
-import secrets
-import socket
-import sys
-from typing import Callable, Any
+import ctypes 
+import functools 
+import os 
+import secrets 
+import socket 
+import sys 
+from typing import Callable ,Any 
 
-from flask import jsonify, request
+from flask import jsonify ,request 
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
-APP_VERSION: str = "3.0.0"
+
+
+
+APP_VERSION :str ="3.0.0"
 """Current application version string."""
 
-GITHUB_REPO: str = "anshulsc/aegis-ics"
+GITHUB_REPO :str ="anshulsc/aegis-ics"
 """GitHub repository identifier used for update checks."""
 
 
-# ---------------------------------------------------------------------------
-# Networking
-# ---------------------------------------------------------------------------
 
-def find_free_port() -> int:
+
+
+
+def find_free_port ()->int :
     """Find a random available ephemeral port on localhost.
 
     Binds a TCP socket to ``127.0.0.1:0`` and lets the operating system
@@ -40,18 +40,18 @@ def find_free_port() -> int:
     Returns:
         int: An available port number assigned by the OS.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        _, port = s.getsockname()
-        return port
+    with socket .socket (socket .AF_INET ,socket .SOCK_STREAM )as s :
+        s .bind (("127.0.0.1",0 ))
+        s .setsockopt (socket .SOL_SOCKET ,socket .SO_REUSEADDR ,1 )
+        _ ,port =s .getsockname ()
+        return port 
 
 
-# ---------------------------------------------------------------------------
-# Path Resolution
-# ---------------------------------------------------------------------------
 
-def resource_path(relative_path: str) -> str:
+
+
+
+def resource_path (relative_path :str )->str :
     """Resolve a file path for both development and frozen PyInstaller builds.
 
     When the application is bundled with PyInstaller, files are extracted to a
@@ -64,16 +64,16 @@ def resource_path(relative_path: str) -> str:
     Returns:
         str: The absolute path to the requested resource.
     """
-    # PyInstaller stores the temp extraction path in sys._MEIPASS
-    base_path: str = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_path, relative_path)
+
+    base_path :str =getattr (sys ,"_MEIPASS",os .path .dirname (os .path .abspath (__file__ )))
+    return os .path .join (base_path ,relative_path )
 
 
-# ---------------------------------------------------------------------------
-# Request Authentication
-# ---------------------------------------------------------------------------
 
-def require_webview_token(f: Callable[..., Any]) -> Callable[..., Any]:
+
+
+
+def require_webview_token (f :Callable [...,Any ])->Callable [...,Any ]:
     """Flask route decorator that validates the ``X-PYWEBVIEW-TOKEN`` header.
 
     The decorator enforces that every decorated request carries a valid
@@ -96,34 +96,34 @@ def require_webview_token(f: Callable[..., Any]) -> Callable[..., Any]:
         The decorated function with token validation applied.
     """
 
-    @functools.wraps(f)
-    def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        # Skip token validation when not running in desktop mode
-        if not os.environ.get("AEGIS_DESKTOP_MODE"):
-            return f(*args, **kwargs)
+    @functools .wraps (f )
+    def decorated_function (*args :Any ,**kwargs :Any )->Any :
 
-        # Conditional import to avoid hard dependency on pywebview
-        try:
-            import webview  # type: ignore[import-untyped]
-        except ImportError:
-            # If pywebview is not installed but desktop mode is set, deny access
-            return jsonify({"error": "Forbidden – webview module unavailable"}), 403
-
-        token: str | None = request.headers.get("X-PYWEBVIEW-TOKEN")
-
-        if not token or token != webview.token:
-            return jsonify({"error": "Forbidden – invalid or missing token"}), 403
-
-        return f(*args, **kwargs)
-
-    return decorated_function
+        if not os .environ .get ("AEGIS_DESKTOP_MODE"):
+            return f (*args ,**kwargs )
 
 
-# ---------------------------------------------------------------------------
-# Cryptographic Utilities
-# ---------------------------------------------------------------------------
+        try :
+            import webview 
+        except ImportError :
 
-def generate_runtime_secret() -> str:
+            return jsonify ({"error":"Forbidden – webview module unavailable"}),403 
+
+        token :str |None =request .headers .get ("X-PYWEBVIEW-TOKEN")
+
+        if not token or token !=webview .token :
+            return jsonify ({"error":"Forbidden – invalid or missing token"}),403 
+
+        return f (*args ,**kwargs )
+
+    return decorated_function 
+
+
+
+
+
+
+def generate_runtime_secret ()->str :
     """Generate a cryptographically secure runtime secret.
 
     Uses :func:`secrets.token_hex` to produce a 64-character hexadecimal
@@ -133,14 +133,14 @@ def generate_runtime_secret() -> str:
     Returns:
         str: A 64-character hex string.
     """
-    return secrets.token_hex(32)
+    return secrets .token_hex (32 )
 
 
-# ---------------------------------------------------------------------------
-# Anti-Debug Detection
-# ---------------------------------------------------------------------------
 
-def check_debugger() -> bool:
+
+
+
+def check_debugger ()->bool :
     """Perform basic anti-debug detection on Windows.
 
     Calls ``kernel32.IsDebuggerPresent()`` via :mod:`ctypes` to determine
@@ -151,8 +151,8 @@ def check_debugger() -> bool:
               Always returns ``False`` on non-Windows platforms or if the
               check fails for any reason.
     """
-    try:
-        return bool(ctypes.windll.kernel32.IsDebuggerPresent())  # type: ignore[attr-defined]
-    except (AttributeError, OSError):
-        # ctypes.windll is only available on Windows
-        return False
+    try :
+        return bool (ctypes .windll .kernel32 .IsDebuggerPresent ())
+    except (AttributeError ,OSError ):
+
+        return False 

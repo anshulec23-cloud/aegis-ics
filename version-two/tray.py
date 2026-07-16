@@ -6,18 +6,18 @@ on Windows. Handles tray icon creation, menu actions, and window
 show/restore operations via pystray and Pillow.
 """
 
-import os
-import sys
-import logging
-from typing import Any, Callable, Optional
+import os 
+import sys 
+import logging 
+from typing import Any ,Callable ,Optional 
 
-import pystray
-from PIL import Image, ImageDraw
+import pystray 
+from PIL import Image ,ImageDraw 
 
-logger = logging.getLogger(__name__)
+logger =logging .getLogger (__name__ )
 
 
-def _resource_path(relative_path: str) -> str:
+def _resource_path (relative_path :str )->str :
     """Resolve a resource path, compatible with PyInstaller bundles.
 
     When the application is bundled with PyInstaller, resources are
@@ -31,12 +31,12 @@ def _resource_path(relative_path: str) -> str:
     Returns:
         Absolute path to the resource.
     """
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+    if hasattr (sys ,"_MEIPASS"):
+        return os .path .join (sys ._MEIPASS ,relative_path )
+    return os .path .join (os .path .dirname (os .path .abspath (__file__ )),relative_path )
 
 
-def create_default_icon() -> Image.Image:
+def create_default_icon ()->Image .Image :
     """Create a simple fallback 64×64 tray icon using Pillow.
 
     Draws a filled green circle (#34d399) centred on a dark
@@ -47,18 +47,18 @@ def create_default_icon() -> Image.Image:
         A 64×64 RGBA :class:`PIL.Image.Image` suitable for use as a
         system-tray icon.
     """
-    size = 64
-    image = Image.new("RGBA", (size, size), "#1a1a1a")
-    draw = ImageDraw.Draw(image)
-    padding = 8
-    draw.ellipse(
-        [padding, padding, size - padding, size - padding],
-        fill="#34d399",
+    size =64 
+    image =Image .new ("RGBA",(size ,size ),"#1a1a1a")
+    draw =ImageDraw .Draw (image )
+    padding =8 
+    draw .ellipse (
+    [padding ,padding ,size -padding ,size -padding ],
+    fill ="#34d399",
     )
-    return image
+    return image 
 
 
-class AegisTray:
+class AegisTray :
     """System-tray icon and menu for the Aegis ICS application.
 
     The tray icon provides quick access to the main dashboard, an
@@ -75,108 +75,108 @@ class AegisTray:
             *Check for Updates* from the tray menu.
     """
 
-    def __init__(
-        self,
-        window: Any,
-        on_quit_callback: Callable[[], None],
-        on_check_updates: Callable[[], None],
-    ) -> None:
-        self.window: Any = window
-        self._on_quit_callback: Callable[[], None] = on_quit_callback
-        self._on_check_updates: Callable[[], None] = on_check_updates
+    def __init__ (
+    self ,
+    window :Any ,
+    on_quit_callback :Callable [[],None ],
+    on_check_updates :Callable [[],None ],
+    )->None :
+        self .window :Any =window 
+        self ._on_quit_callback :Callable [[],None ]=on_quit_callback 
+        self ._on_check_updates :Callable [[],None ]=on_check_updates 
 
-        icon_image = self._load_icon()
+        icon_image =self ._load_icon ()
 
-        menu = pystray.Menu(
-            pystray.MenuItem(
-                "Open Dashboard",
-                self._show_window,
-                default=True,
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Check for Updates",
-                self._check_updates,
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Quit Aegis ICS",
-                self._quit,
-            ),
+        menu =pystray .Menu (
+        pystray .MenuItem (
+        "Open Dashboard",
+        self ._show_window ,
+        default =True ,
+        ),
+        pystray .Menu .SEPARATOR ,
+        pystray .MenuItem (
+        "Check for Updates",
+        self ._check_updates ,
+        ),
+        pystray .Menu .SEPARATOR ,
+        pystray .MenuItem (
+        "Quit Aegis ICS",
+        self ._quit ,
+        ),
         )
 
-        self.icon: pystray.Icon = pystray.Icon(
-            name="AegisICS",
-            icon=icon_image,
-            title="Aegis ICS \u2014 Industrial Security v3.0.0",
-            menu=menu,
+        self .icon :pystray .Icon =pystray .Icon (
+        name ="AegisICS",
+        icon =icon_image ,
+        title ="Aegis ICS \u2014 Industrial Security v3.0.0",
+        menu =menu ,
         )
 
-        logger.info("AegisTray initialised.")
+        logger .info ("AegisTray initialised.")
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
-    @staticmethod
-    def _load_icon() -> Image.Image:
+
+
+
+    @staticmethod 
+    def _load_icon ()->Image .Image :
         """Load the tray icon from disk, falling back to a generated one."""
-        icon_path = _resource_path(os.path.join("static", "icon.png"))
-        if os.path.isfile(icon_path):
-            logger.debug("Loading tray icon from %s", icon_path)
-            return Image.open(icon_path)
-        logger.warning(
-            "Icon file not found at %s; using generated fallback icon.",
-            icon_path,
+        icon_path =_resource_path (os .path .join ("static","icon.png"))
+        if os .path .isfile (icon_path ):
+            logger .debug ("Loading tray icon from %s",icon_path )
+            return Image .open (icon_path )
+        logger .warning (
+        "Icon file not found at %s; using generated fallback icon.",
+        icon_path ,
         )
-        return create_default_icon()
+        return create_default_icon ()
 
-    # ------------------------------------------------------------------
-    # Menu action callbacks
-    # ------------------------------------------------------------------
 
-    def _show_window(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
+
+
+
+    def _show_window (self ,icon :pystray .Icon ,item :pystray .MenuItem )->None :
         """Show and restore the pywebview window.
 
         Safely handles the case where ``self.window`` is ``None`` (e.g.
         if the window has not been created yet).
         """
-        if self.window is None:
-            logger.warning("Cannot show window: window reference is None.")
-            return
-        try:
-            self.window.show()
-            self.window.restore()
-            logger.debug("Window shown and restored.")
-        except Exception:
-            logger.exception("Failed to show/restore the window.")
+        if self .window is None :
+            logger .warning ("Cannot show window: window reference is None.")
+            return 
+        try :
+            self .window .show ()
+            self .window .restore ()
+            logger .debug ("Window shown and restored.")
+        except Exception :
+            logger .exception ("Failed to show/restore the window.")
 
-    def _check_updates(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
+    def _check_updates (self ,icon :pystray .Icon ,item :pystray .MenuItem )->None :
         """Invoke the update-check callback provided at construction."""
-        logger.info("Check for Updates requested from tray menu.")
-        self._on_check_updates()
+        logger .info ("Check for Updates requested from tray menu.")
+        self ._on_check_updates ()
 
-    def _quit(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
+    def _quit (self ,icon :pystray .Icon ,item :pystray .MenuItem )->None :
         """Stop the tray icon and invoke the quit callback."""
-        logger.info("Quit requested from tray menu.")
-        self.icon.stop()
-        self._on_quit_callback()
+        logger .info ("Quit requested from tray menu.")
+        self .icon .stop ()
+        self ._on_quit_callback ()
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
-    def run(self) -> None:
+
+
+
+    def run (self )->None :
         """Start the tray icon event loop (**blocking**).
 
         This method blocks the calling thread.  It should typically be
         launched inside a daemon thread so that the main thread remains
         free for the pywebview event loop.
         """
-        logger.info("Starting tray icon event loop.")
-        self.icon.run()
+        logger .info ("Starting tray icon event loop.")
+        self .icon .run ()
 
-    def stop(self) -> None:
+    def stop (self )->None :
         """Stop the tray icon gracefully."""
-        logger.info("Stopping tray icon.")
-        self.icon.stop()
+        logger .info ("Stopping tray icon.")
+        self .icon .stop ()
