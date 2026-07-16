@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero Trust ICS Dashboard</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: #10182f;
+  --panel-2: #151f3a;
+  --line: #243155;
+  --text: #e8eefc;
+  --muted: #93a4ca;
+  --ok: #3ddc97;
+  --warn: #ffcc66;
+  --crit: #ff6b6b;
+  --accent: #7aa2ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #162040 0, var(--bg) 45%);
+  color: var(--text);
+}
+.wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.topbar {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 18px 20px; border: 1px solid var(--line); border-radius: 18px;
+  background: rgba(16, 24, 47, 0.9); backdrop-filter: blur(8px);
+}
+.brand h1 { margin: 0; font-size: 22px; }
+.brand p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.status {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  font-size: 13px; color: var(--muted);
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border-radius: 999px; background: #0f1730; border: 1px solid var(--line); color: var(--text);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.dot.live { background: var(--ok); box-shadow: 0 0 14px rgba(61, 220, 151, 0.55); }
+.grid { display: grid; gap: 16px; margin-top: 16px; }
+.cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.card, .panel {
+  border: 1px solid var(--line); border-radius: 18px; background: rgba(16, 24, 47, 0.9);
+}
+.card { padding: 18px; }
+.label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; }
+.value { margin-top: 12px; font-size: 34px; font-weight: 700; }
+.sub { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.value.ok { color: var(--ok); }
+.value.warn { color: var(--warn); }
+.value.crit { color: var(--crit); }
+.layout { grid-template-columns: 1.5fr 1fr; align-items: start; }
+.panel { padding: 18px; }
+.panel h2 { margin: 0 0 14px; font-size: 16px; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 11px 10px; border-bottom: 1px solid var(--line); font-size: 13px; text-align: left; }
+.table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+.badge {
+  display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.badge.ok { background: rgba(61, 220, 151, 0.14); color: var(--ok); }
+.badge.warn { background: rgba(255, 204, 102, 0.14); color: var(--warn); }
+.badge.crit { background: rgba(255, 107, 107, 0.14); color: var(--crit); }
+.devices { display: grid; gap: 12px; }
+.device {
+  border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--panel-2);
+}
+.device-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.device-name { font-weight: 700; }
+.device-meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.meter { height: 8px; background: #0c1328; border-radius: 999px; overflow: hidden; margin-top: 10px; }
+.meter > div { height: 100%; border-radius: inherit; }
+.feed { display: grid; gap: 10px; }
+.event {
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2);
+}
+.event-head { display: flex; justify-content: space-between; gap: 12px; }
+.event-title { font-weight: 700; }
+.event-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+@media (max-width: 1100px) {
+  .cards, .layout { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .wrap { padding: 14px; }
+  .topbar, .status { align-items: flex-start; flex-direction: column; }
+  .cards, .layout { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <h1>Zero Trust ICS Dashboard</h1>
+      <p>Live telemetry from `esp32_sim` via `/api/ingest` and `/api/latest`</p>
+    </div>
+    <div class="status">
+      <div class="pill"><span id="live-dot" class="dot"></span><span id="connection-state">Connecting</span></div>
+      <div id="last-updated">Waiting for telemetry</div>
+    </div>
+  </div>
+
+  <div class="grid cards">
+    <div class="card"><div class="label">Readings</div><div class="value" id="readings-count">0</div><div class="sub" id="readings-sub">No data yet</div></div>
+    <div class="card"><div class="label">Anomalies</div><div class="value crit" id="anomaly-count">0</div><div class="sub" id="anomaly-sub">Waiting for telemetry</div></div>
+    <div class="card"><div class="label">Devices</div><div class="value ok" id="device-count">0</div><div class="sub" id="device-sub">No devices detected</div></div>
+    <div class="card"><div class="label">System</div><div class="value warn" id="system-state">INIT</div><div class="sub" id="system-sub">Polling `/api/latest`</div></div>
+  </div>
+
+  <div class="grid layout">
+    <div class="panel">
+      <h2>Latest Readings</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Time</th><th>Device</th><th>Trust</th><th>Temperature</th><th>Humidity</th><th>Pressure</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="readings-body"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Devices</h2>
+      <div id="devices" class="devices"></div>
+      <h2 style="margin-top:18px;">Anomaly Feed</h2>
+      <div id="anomaly-feed" class="feed"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fmtTime = (value) => new Date(value * 1000 || value).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+const fmtNum = (value, digits = 1) => (typeof value === 'number' ? value.toFixed(digits) : '—');
+const scoreClass = (score) => score >= 80 ? 'ok' : score >= 60 ? 'warn' : 'crit';
+let lastState = null;
+
+function setConnection(ok, label) {
+  document.getElementById('live-dot').className = ok ? 'dot live' : 'dot';
+  document.getElementById('connection-state').textContent = label;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderSummary(latest) {
+  const readings = latest.readings || [];
+  const anomalies = latest.anomalies || [];
+  const devices = latest.devices || [];
+  document.getElementById('readings-count').textContent = readings.length;
+  document.getElementById('anomaly-count').textContent = anomalies.length;
+  document.getElementById('device-count').textContent = devices.length;
+
+  document.getElementById('readings-sub').textContent = readings.length ? `Latest ${Math.min(15, readings.length)} samples` : 'No live samples yet';
+  document.getElementById('anomaly-sub').textContent = anomalies.length ? `${anomalies.length} flagged events` : 'No anomalies detected';
+  document.getElementById('device-sub').textContent = devices.length ? `${devices.length} tracked devices` : 'No devices detected';
+
+  const state = anomalies.some((a) => a.severity === 'critical') ? 'CRITICAL' : anomalies.length ? 'WARNING' : 'OK';
+  const stateEl = document.getElementById('system-state');
+  stateEl.textContent = state;
+  stateEl.className = `value ${state === 'OK' ? 'ok' : state === 'WARNING' ? 'warn' : 'crit'}`;
+  document.getElementById('system-sub').textContent = readings.length ? 'Receiving live telemetry' : 'Waiting for the simulator';
+}
+
+function renderReadings(readings) {
+  const rows = (readings || []).slice(0, 15).map((r) => {
+    const p = r.payload || {};
+    const bad = r.has_anomaly;
+    return `<tr>
+      <td>${escapeHtml(fmtTime(r.timestamp))}</td>
+      <td>${escapeHtml(r.device_id || '—')}</td>
+      <td>${escapeHtml(fmtNum(r.trust_score, 0))}</td>
+      <td>${escapeHtml(fmtNum(p.temperature))} °C</td>
+      <td>${escapeHtml(fmtNum(p.humidity))} %</td>
+      <td>${escapeHtml(fmtNum(p.pressure))} bar</td>
+      <td><span class="badge ${bad ? 'crit' : 'ok'}">${bad ? 'ALERT' : 'OK'}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('readings-body').innerHTML = rows || '<tr><td colspan="7" class="empty">No readings yet</td></tr>';
+}
+
+function renderDevices(devices) {
+  const container = document.getElementById('devices');
+  container.innerHTML = (devices || []).map((d) => {
+    const cls = scoreClass(d.score);
+    return `<div class="device">
+      <div class="device-top">
+        <div class="device-name">${escapeHtml(d.device_id)}</div>
+        <div class="badge ${cls}">${escapeHtml(d.score)}%</div>
+      </div>
+      <div class="device-meta">Last seen ${escapeHtml(fmtTime(d.last_seen))}</div>
+      <div class="meter"><div style="width:${d.score}%;background:var(--${cls});"></div></div>
+      <div class="device-meta">Status: ${escapeHtml(cls.toUpperCase())}</div>
+    </div>`;
+  }).join('') || '<div class="empty">No devices yet</div>';
+}
+
+function renderAnomalies(anomalies) {
+  const container = document.getElementById('anomaly-feed');
+  container.innerHTML = (anomalies || []).map((a) => `
+    <div class="event">
+      <div class="event-head">
+        <div class="event-title">${escapeHtml(a.device_id || 'unknown device')}</div>
+        <div class="badge ${a.severity === 'critical' ? 'crit' : 'warn'}">${escapeHtml(a.severity || 'warning')}</div>
+      </div>
+      <div class="event-sub">${escapeHtml(a.sensor_name || 'telemetry')} · value ${escapeHtml(a.value ?? '—')} · expected ${escapeHtml(a.expected || '—')}</div>
+      <div class="event-sub">${escapeHtml(fmtTime(a.timestamp))}</div>
+    </div>`).join('') || '<div class="empty">No anomalies yet</div>';
+}
+
+async function refresh() {
+  try {
+    const latest = await fetch('/api/latest', { cache: 'no-store' }).then((r) => r.json());
+    lastState = latest;
+    renderSummary(latest);
+    renderReadings(latest.readings);
+    renderDevices(latest.devices);
+    renderAnomalies(latest.anomalies);
+    setConnection(true, 'Live');
+    document.getElementById('last-updated').textContent = `Updated ${new Date().toLocaleTimeString('en-GB')}`;
+  } catch (err) {
+    setConnection(false, 'Disconnected');
+    document.getElementById('last-updated').textContent = 'Connection error, retrying';
+  }
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

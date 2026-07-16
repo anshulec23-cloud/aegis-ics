@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""
+Aegis ICS V2 — Production Serial COM Port Telemetry Gateway Driver
+
+Listens to the designated serial COM port (USB connection from the ESP32),
+parses the sensor readings (supporting both CSV and JSON formats), signs
+the payload using HMAC-SHA256, and forwards it to the Aegis REST API.
+"""
+
+import sys
+import os
+import time
+import json
+import hmac
+import hashlib
+import argparse
+import requests
+
+try:
+    import serial
+    serial_available = True
+except ImportError:
+    serial_available = False
+
+DEFAULT_GATEWAY_URL = "http://127.0.0.1:5000/api/telemetry"
+DEFAULT_DEVICE_KEY = os.environ.get("DEVICE_KEY_ESP32_001", "device_key_001")
+
+def canonicalize_payload(payload: dict) -> dict:
+    canonical = {}
+    for k, v in payload.items():
+        if k in ("temperature", "pressure", "humidity", "rssi", "vibration", "hall_effect", "current"):
+            canonical[k] = f"{float(v):.2f}"
+        elif k == "timestamp":
+            canonical[k] = f"{float(v):.3f}"
+        else:
+            canonical[k] = v
+    return canonical
+
+def sign_message(payload: dict, key: str) -> str:
+    canonical_payload = canonicalize_payload(payload)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+def parse_serial_line(line: str, mode: str):
+    line = line.strip()
+    if not line:
+        return None
+
+    # Try parsing as JSON
+    if line.startswith("{") and line.endswith("}"):
+        try:
+            data = json.loads(line)
+            # Map standard keys
+            return {
+                "temperature": float(data.get("temp", data.get("temperature", 0.0))),
+                "pressure": float(data.get("pres", data.get("pressure", 0.0))),
+                "vibration": float(data.get("vib", data.get("vibration", 0.0))),
+                "hall_effect": float(data.get("hall", data.get("hall_effect", 0.0))),
+                "current": float(data.get("curr", data.get("current", 0.0)))
+            }
+        except Exception:
+            pass
+
+    # Try parsing as CSV
+    try:
+        parts = [p.strip() for p in line.split(",")]
+        # If it has 5 parameters: temp, pres, vib, hall, curr
+        if len(parts) >= 5:
+            return {
+                "temperature": float(parts[0]),
+                "pressure": float(parts[1]),
+                "vibration": float(parts[2]),
+                "hall_effect": float(parts[3]),
+                "current": float(parts[4])
+            }
+        # If 2 parameters (legacy simulation compatibility)
+        elif len(parts) == 2:
+            return {
+                "temperature": float(parts[0]),
+                "pressure": float(parts[1]),
+                "vibration": 0.0,
+                "hall_effect": 0.0,
+                "current": 0.0
+            }
+    except Exception as e:
+        print(f"[Gateway] CSV Parse error on line: '{line}' ({e})")
+    
+    return None
+
+def mock_serial_stream(mode):
+    import random
+    time.sleep(2)
+    if mode == "plc":
+        # Output as CSV
+        temp = round(25.0 + random.uniform(-1, 1), 1)
+        pres = round(4.5 + random.uniform(-0.2, 0.2), 2)
+        vib = round(1.2 + random.uniform(-0.1, 0.1), 2)
+        current = round(4.5 + random.uniform(-0.2, 0.2), 2)
+        return f"{temp},{pres},{vib},0.0,{current}\n"
+    else:
+        # Output as JSON
+        vib = round(0.8 + random.uniform(-0.05, 0.05), 2)
+        rpm = float(random.choice([1000, 1200, 1500, 1800]))
+        return json.dumps({
+            "temp": 0.0,
+            "pres": vib,
+            "vib": vib,
+            "hall": rpm,
+            "curr": 0.0
+        }) + "\n"
+
+def main():
+    parser = argparse.ArgumentParser(description="Aegis ICS V2 — Edge Serial Gateway Driver")
+    parser.add_argument("--port", type=str, default="COM3", help="Serial COM port name (e.g. COM3 or /dev/ttyUSB0)")
+    parser.add_argument("--baud", type=int, default=9600, help="Baud rate (9600, 115200, etc.)")
+    parser.add_argument("--mode", type=str, choices=["plc", "non-plc"], default="plc", help="Machine Profile Profile")
+    parser.add_argument("--device-id", type=str, default=None, help="Device ID override")
+    parser.add_argument("--key", type=str, default=None, help="HMAC Pre-Shared Key")
+    parser.add_argument("--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis REST Telemetry Ingest URL")
+    parser.add_argument("--mock", action="store_true", help="Emulate serial input (no COM port required)")
+    
+    args = parser.parse_args()
+    
+    device_id = args.device_id or ("ESP32_001" if args.mode == "plc" else "ESP32_002")
+    hmac_key = args.key or os.environ.get(f"DEVICE_KEY_{device_id}", DEFAULT_DEVICE_KEY)
+    
+    print("=" * 60)
+    print(f" Aegis Edge Serial Gateway: {device_id}")
+    print(f" Port         : {args.port} (@ {args.baud} baud)")
+    print(f" Mode Profile : {args.mode.upper()}")
+    print(f" Ingestion URL: {args.url}")
+    print("=" * 60)
+
+    ser = None
+    if not args.mock:
+        if not serial_available:
+            print("[CRITICAL] PySerial not installed. Install it or run with --mock.")
+            sys.exit(1)
+        try:
+            ser = serial.Serial(args.port, args.baud, timeout=1)
+            print(f"[Gateway] Connected to COM port: {args.port}")
+        except Exception as e:
+            print(f"[Gateway] FAILED to connect to COM port {args.port}: {e}")
+            print("[Gateway] Falling back to emulation mode.")
+            args.mock = True
+
+    while True:
+        try:
+            if args.mock:
+                line = mock_serial_stream(args.mode)
+            else:
+                line = ser.readline().decode("utf-8", errors="ignore")
+                if not line:
+                    continue
+            
+            # Parse CSV or JSON
+            raw_data = parse_serial_line(line, args.mode)
+            if not raw_data:
+                continue
+                
+            # Build payload
+            payload = {
+                "timestamp": time.time(),
+                "device_id": device_id,
+                "temperature": raw_data["temperature"],
+                "pressure": raw_data["pressure"],
+                "humidity": raw_data["hall_effect"] if args.mode == "non-plc" else raw_data["current"], # Legacy column mapping
+                "vibration": raw_data["vibration"],
+                "hall_effect": raw_data["hall_effect"],
+                "current": raw_data["current"],
+                "rssi": -55.0
+            }
+            
+            # HMAC Signature
+            payload["signature"] = sign_message(payload, hmac_key)
+            
+            # Dispatch REST request
+            headers = {"Content-Type": "application/json"}
+            resp = requests.post(args.url, json=payload, headers=headers, timeout=3)
+            
+            if resp.status_code == 200:
+                print(f"[Gateway] Success -> {raw_data}")
+            elif resp.status_code == 403:
+                print(f"[Gateway] ACCESS DENIED: Device is isolated by Gateway.")
+            else:
+                print(f"[Gateway] Error status {resp.status_code}: {resp.text}")
+                
+        except Exception as e:
+            print(f"[Gateway] Telemetry acquisition exception: {e}")
+            time.sleep(2)
+
+if __name__ == "__main__":
+    main()

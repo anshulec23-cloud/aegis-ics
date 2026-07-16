@@ -1,0 +1,7 @@
+Flask==3.0.3
+SQLAlchemy==2.0.31
+paho-mqtt==2.1.0
+alembic==1.13.2
+gunicorn==22.0.0
+reportlab==5.0.0
+
