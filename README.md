@@ -9,7 +9,7 @@ This repository contains two distinct builds implementing zero-trust security fo
 
 ### Repository Structure
 - **Root (Version 1.0.0)**: Core zero-trust telemetry ingestion, HMAC signature validation, ML trust engine, and automated micro-segmentation isolation at the broker layer.
-- **[`version-two/`](file:///C:/Users/morbi/.gemini/antigravity/scratch/aegis-ics/version-two)**: A separate, hardened build featuring a Stuxnet-proof AI proxy command enforcer, SQLite-backed location coordinate auditing, and mathematical statistical analytics dashboard.
+- **[`version-two/`](file:///C:/Users/admin/.gemini/aegis/scratch/aegis-ics/version-two)**: A separate, hardened build featuring a Stuxnet-proof AI proxy command enforcer, SQLite-backed location coordinate auditing, and mathematical statistical analytics dashboard.
 
 Zero-trust micro-segmentation and device-side policy enforcement for industrial telemetry.
 
