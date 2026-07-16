@@ -132,6 +132,8 @@ def mock_serial_stream(mode):
 
 def start_gateway(port="COM3", baud=9600, mode="plc", device_id=None, hmac_key=None, url=DEFAULT_GATEWAY_URL, mock=False):
     global _active_port
+    import time
+    time.sleep(2.5) # Wait for any previous thread to finish (mock thread sleeps 2s)
     _gateway_stop_event.clear()
     _active_port = port if not mock else "MOCK_PORT"
     
