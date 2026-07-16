@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aegis SCADA Terminal — Live Overview</title>
-    <!-- CSRF Token Meta -->
+    
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -61,7 +61,7 @@
 </head>
 <body class="min-h-screen flex flex-col p-6 sm:p-10 select-none">
 
-    <!-- Minimal Header -->
+    
     <header class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/10 pb-6 mb-8 gap-4">
         <div>
             <h1 class="text-2xl font-medium tracking-tight text-white">Aegis SCADA Overview</h1>
@@ -69,7 +69,7 @@
         </div>
         
         <div class="flex flex-wrap items-center gap-6">
-            <!-- Tabs Menu -->
+            
             <nav class="flex gap-1 bg-white/[0.02] border border-white/5 p-1 rounded-xl text-xs">
                 <button id="tab-btn-monitor" onclick="switchTab('monitor')" class="px-4 py-2 rounded-lg font-medium text-white bg-white/5 transition duration-150">
                     SCADA Monitor
@@ -79,7 +79,7 @@
                 </button>
             </nav>
 
-            <!-- Download PDF Incident Report -->
+            
             <button onclick="downloadReport()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-4 py-2 rounded-xl text-xs transition duration-150 flex items-center gap-2">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Download PDF Incident Report
@@ -101,10 +101,10 @@
         </div>
     </header>
 
-    <!-- Alert Banner System -->
+    
     <div id="alert-banner" class="hidden text-xs px-5 py-4 rounded-xl mb-6 font-light transition duration-300"></div>
 
-    <!-- Update Notification Banner (injected by auto-updater) -->
+    
     <div id="update-banner" class="hidden text-xs px-5 py-4 rounded-xl mb-6 font-light bg-sky-500/10 border border-sky-500/30 text-sky-200 flex items-center justify-between">
         <div class="flex items-center gap-3">
             <svg class="w-4 h-4 text-sky-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -118,13 +118,13 @@
         </div>
     </div>
 
-    <!-- MAIN SCADA MONITOR VIEW -->
+    
     <div id="view-monitor" class="grid grid-cols-1 xl:grid-cols-3 gap-8 flex-grow">
         
-        <!-- Left Side: Hardware Connection, Setpoint Inputs, Safety Thresholds, and Manual Isolation -->
+        
         <div class="space-y-8 xl:col-span-1">
             
-            <!-- Hardware Connection Card -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Hardware Connection
@@ -159,14 +159,14 @@
                 </div>
             </div>
 
-            <!-- Setpoint Control Card -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Setpoint Commands
                 </h2>
                 
                 <div class="space-y-6">
-                    <!-- Temperature Input -->
+                    
                     <div class="space-y-2">
                         <label class="block text-xs text-[#86868b] uppercase tracking-wider font-semibold">Temperature (C)</label>
                         <div class="flex gap-3">
@@ -180,7 +180,7 @@
                         </p>
                     </div>
 
-                    <!-- Pressure Input -->
+                    
                     <div class="space-y-2">
                         <label class="block text-xs text-[#86868b] uppercase tracking-wider font-semibold">Pressure (bar)</label>
                         <div class="flex gap-3">
@@ -196,7 +196,7 @@
                 </div>
             </div>
 
-            <!-- Manual Device Isolation Card -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Device Network Isolation
@@ -215,7 +215,7 @@
                 </div>
             </div>
 
-            <!-- Active Safeguard Threshold Rules -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Safeguard Boundaries
@@ -244,10 +244,10 @@
             </div>
         </div>
 
-        <!-- Right Side: Analytics, Statistics and System Logs -->
+        
         <div class="xl:col-span-2 space-y-8 flex flex-col">
             
-            <!-- Statistics Derivations Grid -->
+            
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="apple-card rounded-2xl p-5 flex flex-col justify-between shadow-md">
                     <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">Mean Temp (30s)</span>
@@ -267,7 +267,7 @@
                 </div>
             </div>
 
-            <!-- Physical Sensors Realtime Gauges Grid -->
+            
             <div class="grid grid-cols-3 gap-4">
                 <div class="apple-card rounded-2xl p-5 flex flex-col justify-between shadow-md">
                     <span class="text-[10px] text-sky-400 uppercase tracking-wider font-semibold">Vibration</span>
@@ -283,7 +283,7 @@
                 </div>
             </div>
 
-            <!-- Chart Panel -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg flex-grow flex flex-col">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Real-time Sensor Telemetry
@@ -293,7 +293,7 @@
                 </div>
             </div>
 
-            <!-- Audit Logs Panel -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg max-h-96 overflow-y-auto">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Security Audit Trail
@@ -310,7 +310,7 @@
                             </tr>
                         </thead>
                         <tbody id="audit-table-body" class="divide-y divide-white/5">
-                            <!-- Filled dynamically -->
+                            
                         </tbody>
                     </table>
                 </div>
@@ -318,12 +318,12 @@
         </div>
     </div>
 
-    <!-- BREACH AND RISK PROJECTIONS VIEW -->
+    
     <div id="view-risk" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8 flex-grow">
         
-        <!-- Left Side: Risk Index & Expected Loss Projections -->
+        
         <div class="space-y-8 lg:col-span-1">
-            <!-- Expected Loss Card -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Financial Projections & Damages
@@ -349,7 +349,7 @@
                 </div>
             </div>
 
-            <!-- Real-time Breach Risk Index -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Threat Index
@@ -381,7 +381,7 @@
                     </div>
             </div>
 
-            <!-- Attack Simulation Center -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Attack Simulation Center
@@ -405,16 +405,16 @@
             </div>
         </div>
 
-        <!-- Right Side: Cyberattack Vectors Details -->
+        
         <div class="lg:col-span-2 space-y-8">
-            <!-- Attack Vector Breakdown -->
+            
             <div class="apple-card rounded-2xl p-6 shadow-lg">
                 <h2 class="text-sm font-semibold tracking-tight text-white border-b border-white/5 pb-3 mb-5">
                     Cybersecurity Breach Attack Vectors
                 </h2>
 
                 <div class="space-y-6 text-xs font-light">
-                    <!-- Vector 1: Stuxnet Coordinated Stress -->
+                    
                     <div class="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="text-white font-medium text-sm">V1: Coordinated Stress Attack (Stuxnet-style)</span>
@@ -428,7 +428,7 @@
                         </p>
                     </div>
 
-                    <!-- Vector 2: Telemetry Injection & Spoofing -->
+                    
                     <div class="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="text-white font-medium text-sm">V2: Telemetry Ingest & Replay Attack</span>
@@ -442,7 +442,7 @@
                         </p>
                     </div>
 
-                    <!-- Vector 3: Privilege Escalation -->
+                    
                     <div class="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="text-white font-medium text-sm">V3: Session Hijacking & Credential Spraying</span>
@@ -460,7 +460,7 @@
         </div>
     </div>
 
-    <!-- Script Block for Charts & Stats -->
+    
     <script>
         let currentDeviceIsolated = false;
         let activeComPort = null;
