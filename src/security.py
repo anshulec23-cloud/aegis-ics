@@ -20,7 +20,7 @@ from flask import jsonify, request
 # Constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION: str = "3.0.0"
+APP_VERSION: str = "2.2.2"
 """Current application version string."""
 
 GITHUB_REPO: str = "anshulsc/aegis-ics"
