@@ -27,12 +27,11 @@ class TestCoreModules(unittest.TestCase):
         if os.path.exists(db_path):
             os.remove(db_path)
         try:
-            engine, Session = init_db(db_path)
-            self.assertIsNotNone(engine)
-            self.assertIsNotNone(Session)
+            init_db()
+            self.assertTrue(os.path.exists("aegis_v2.db"))
         finally:
-            if os.path.exists(db_path):
-                os.remove(db_path)
+            if os.path.exists("aegis_v2.db"):
+                os.remove("aegis_v2.db")
 
 if __name__ == '__main__':
     unittest.main()
