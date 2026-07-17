@@ -4,4 +4,4 @@ paho-mqtt==2.1.0
 alembic==1.13.2
 gunicorn==22.0.0
 reportlab==5.0.0
-
+requests==2.31.0
