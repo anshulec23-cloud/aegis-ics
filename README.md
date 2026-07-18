@@ -146,6 +146,17 @@ Alternatively, to start services manually, read `QUICKSTART.md` for step-by-step
 - `docs/trust_scoring.md` - mathematical formulas and weighting of the live trust scoring engine.
 - `version-two/` - Version 2.0.0 build code.
 
+## Changelog / Diff: Version 2.2.2 vs 2.2.3
+**Security & Vulnerability Fixes:**
+- **Unauthenticated Endpoints Fixed**: Addressed critical issues where certain API endpoints lacked proper session or token validation.
+- **Session Management Improvements**: Added explicit `@login_required` decorators to the dashboard and API routes in `app.py` to prevent unauthorized access.
+- **File Disclosure Prevention**: Removed static file paths that were serving the `.git` directory (`src/static/.gitkeep` added and static folders restructured) which could expose the entire source history.
+- **Exposed Credentials**: Audited the repository for any exposed API keys or hardcoded secrets; ensured proper `.env` usage.
+
+**UI/UX & Performance Optimizations:**
+- **Dashboard Layout Fix**: Adjusted alignment and CSS styling in `src/templates/dashboard.html` for better operator visibility and removed overlapping widgets.
+- **Serial Gateway Enhancements**: Improved the robustness of `src/serial_gateway.py` with better error handling.
+
 ## Contact & Authors
 - **Anshul R**: [LinkedIn](https://www.linkedin.com/in/anshul-r-68b50229a/) · [Email](mailto:anshul.ec23@sahyadri.edu.in)
 

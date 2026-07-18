@@ -6,7 +6,7 @@ import socket
 import sys
 from typing import Callable, Any
 from flask import jsonify, request
-APP_VERSION: str = '2.2.2'
+APP_VERSION: str = '2.2.3'
 'Current application version string.'
 GITHUB_REPO: str = 'anshulsc/aegis-ics'
 'GitHub repository identifier used for update checks.'

@@ -27,7 +27,7 @@ class AegisTray:
         self._on_check_updates: Callable[[], None] = on_check_updates
         icon_image = self._load_icon()
         menu = pystray.Menu(pystray.MenuItem('Open Dashboard', self._show_window, default=True), pystray.Menu.SEPARATOR, pystray.MenuItem('Check for Updates', self._check_updates), pystray.Menu.SEPARATOR, pystray.MenuItem('Quit Aegis ICS', self._quit))
-        self.icon: pystray.Icon = pystray.Icon(name='AegisICS', icon=icon_image, title='Aegis ICS — Industrial Security v2.2.2', menu=menu)
+        self.icon: pystray.Icon = pystray.Icon(name='AegisICS', icon=icon_image, title='Aegis ICS — Industrial Security v2.2.3', menu=menu)
         logger.info('AegisTray initialised.')
 
     @staticmethod

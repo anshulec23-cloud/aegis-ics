@@ -41,7 +41,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='AegisICS_v2.2.2',
+    name='AegisICS_v2.2.3',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
