@@ -11,6 +11,7 @@ Implements standard OT/ICS quantitative risk governance methodologies:
 """
 
 import math
+from typing import Dict, Any, List, Optional
 try:
     from database import TelemetryLog, AuditLog, DeviceState
 except ImportError:
@@ -83,6 +84,12 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     try:
         import serial_gateway
         active_attacks = serial_gateway.get_active_attacks()
+    except (ImportError, ModuleNotFoundError):
+        try:
+            from src import serial_gateway
+            active_attacks = serial_gateway.get_active_attacks()
+        except Exception:
+            active_attacks = {}
     except Exception:
         active_attacks = {}
 
@@ -139,13 +146,9 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         num = sum((temps[i] - t_mean) * (pressures[i] - p_mean) for i in range(n_valid))
         den_t = sum((temps[i] - t_mean) ** 2 for i in range(n_valid))
         den_p = sum((pressures[i] - p_mean) ** 2 for i in range(n_valid))
-        r = num / ((den_t * den_p) ** 0.5 or 1.0)
-
-        if n_valid > 20 and den_t > 0.5 and den_p > 0.05:
-            abs_r = abs(r)
-            if abs_r < 0.2:
-                corr_risk = 40.0
-            elif abs_r < 0.5:
+        if den_t > 0 and den_p > 0:
+            pearson_r = num / (math.sqrt(den_t) * math.sqrt(den_p))
+            if pearson_r < -0.6 or pearson_r > 0.8:
                 corr_risk = 20.0
 
         if temps[-1] >= 45.0:
@@ -158,8 +161,10 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     # If an attack is actively injected onto hardware/simulation, reflect true threat level
     if target_attack == "stuxnet":
         threat_index = max(threat_index, 94.5)
-    elif target_attack == "fdi_spike":
+    elif target_attack in ("fdi_spike", "injection"):
         threat_index = max(threat_index, 88.0)
+    elif target_attack == "ddos":
+        threat_index = max(threat_index, 85.0)
     elif target_attack == "hmac_tamper":
         threat_index = max(threat_index, 76.0)
     elif target_attack == "thermal_drift":
@@ -200,9 +205,12 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     if target_attack == "stuxnet":
         active_incident_loss = base_sle * 0.55
         active_incurred_fines = max_epa + max_nerc
-    elif target_attack == "fdi_spike":
+    elif target_attack in ("fdi_spike", "injection"):
         active_incident_loss = 65000.0
         active_incurred_fines = max_epa * 0.4
+    elif target_attack == "ddos":
+        active_incident_loss = 95000.0 + (active_hourly_outage * 1.5 if is_target_isolated else 45000.0)
+        active_incurred_fines = 50000.0
     elif target_attack == "hmac_tamper":
         active_incident_loss = 25000.0
         active_incurred_fines = 100000.0
@@ -211,11 +219,11 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         active_incurred_fines = 0.0
 
     if is_target_isolated:
-        active_incident_loss += active_hourly_outage * 0.5
+        active_incident_loss += max(active_hourly_outage * 0.5, 12500.0)
 
-    incurred_cost = round(violation_count * 2500.0 + (active_incident_loss if target_attack else 0.0), 2)
-    prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if target_attack else 0.0)), 2)
-    expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if target_attack else 5000.0), 2)
+    incurred_cost = round(violation_count * 2500.0 + (active_incident_loss if (target_attack or is_target_isolated) else 0.0), 2)
+    prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if (target_attack or is_target_isolated) else 0.0)), 2)
+    expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if (target_attack or is_target_isolated) else 5000.0), 2)
 
     # FAIR Model
     has_active_incident = bool(target_attack) or is_target_isolated or (boundary_risk > 0) or (violation_count > 0)

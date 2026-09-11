@@ -25,7 +25,10 @@ except ImportError :
 import secrets 
 import queue 
 
-from security import get_device_key 
+try:
+    from security import get_device_key
+except ImportError:
+    from src.security import get_device_key
 
 DEFAULT_GATEWAY_URL ="http://127.0.0.1:5000/api/telemetry"
 
@@ -248,7 +251,9 @@ _thermal_drift_offsets = {}
 def inject_attack(device_id: str, attack_type: str):
     """Dynamically activates an ICS cyber-physical attack vector on a simulated device node."""
     global _active_attacks, _thermal_drift_offsets
-    valid_attacks = {"stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike"}
+    if attack_type == "injection":
+        attack_type = "fdi_spike"
+    valid_attacks = {"stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike", "ddos"}
     if attack_type not in valid_attacks:
         return {"success": False, "error": f"Invalid attack type '{attack_type}'. Choose from: {list(valid_attacks)}"}
     _active_attacks[device_id] = attack_type
@@ -325,6 +330,13 @@ def mock_serial_stream(mode):
         packet["vib"] = 5.8
         if dev["hall_base"] > 0: packet["hall"] = 3500.0
         packet["curr"] = 19.2
+    elif attack == "ddos":
+        # Denial of Service: High bus latency, buffer saturation, signal degradation
+        packet["temp"] = round(dev["temp_base"] + random.uniform(-0.5, 0.5), 2)
+        packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
+        packet["vib"] = dev["vib_base"]
+        packet["rssi"] = -98.0
+        packet["is_anomaly"] = True
     else:
         # Normal baseline telemetry
         active_sensors = dev["sensors"]

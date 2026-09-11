@@ -275,6 +275,13 @@
                             </div>
                             <div class="text-[9px] text-[#86868b] leading-tight mt-1">Critical boundary trip</div>
                         </button>
+                        <button onclick="injectAttackVector('ddos')" class="p-2.5 bg-blue-950/30 hover:bg-blue-900/50 border border-blue-500/30 rounded-xl text-left transition group col-span-2">
+                            <div class="text-[11px] font-bold text-blue-300 group-hover:text-blue-200 flex items-center gap-1.5">
+                                <span class="px-1 py-0.5 bg-blue-500/20 text-blue-300 rounded text-[9px] font-mono">V5</span>
+                                <span>Bus DDoS / RS-485 Packet Flood</span>
+                            </div>
+                            <div class="text-[9px] text-[#86868b] leading-tight mt-1">Channel saturation, latency degradation & packet starvation</div>
+                        </button>
                     </div>
 
                     <button onclick="resetAttackVectors()" class="w-full bg-white/5 hover:bg-white/10 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 py-2 rounded-xl text-xs font-semibold tracking-wide transition flex items-center justify-center gap-1.5">
@@ -1251,9 +1258,9 @@
                         const nis2El = document.getElementById('reg-nis2-val');
                         const epaEl = document.getElementById('reg-epa-val');
                         const isAttacking = Boolean(f.active_attack);
-                        if (nercEl) nercEl.innerText = isAttacking && (f.active_attack === 'stuxnet') ? `$${f.regulatory_exposure.nerc_cip_critical_infra.toLocaleString()}` : '$0.00';
-                        if (nis2El) nis2El.innerText = isAttacking && (f.active_attack === 'hmac_tamper') ? `$${f.regulatory_exposure.nis2_directive.toLocaleString()}` : '$0.00';
-                        if (epaEl) epaEl.innerText = isAttacking && (f.active_attack === 'stuxnet' || f.active_attack === 'fdi_spike') ? `$${f.regulatory_exposure.epa_environmental.toLocaleString()}` : '$0.00';
+                        if (nercEl) nercEl.innerText = isAttacking && (f.active_attack === 'stuxnet' || f.active_attack === 'ddos') ? `$${f.regulatory_exposure.nerc_cip_critical_infra.toLocaleString()}` : '$0.00';
+                        if (nis2El) nis2El.innerText = isAttacking && (f.active_attack === 'hmac_tamper' || f.active_attack === 'ddos') ? `$${f.regulatory_exposure.nis2_directive.toLocaleString()}` : '$0.00';
+                        if (epaEl) epaEl.innerText = isAttacking && (f.active_attack === 'stuxnet' || f.active_attack === 'fdi_spike' || f.active_attack === 'injection') ? `$${f.regulatory_exposure.epa_environmental.toLocaleString()}` : '$0.00';
                     }
                 }
 
@@ -2283,6 +2290,12 @@
 
                 // Update live forensic audit stream
                 fetchAuditLogsStream();
+
+                // Auto-refresh Risk & Financial view if currently visible
+                const viewRisk = document.getElementById('view-risk');
+                if (viewRisk && !viewRisk.classList.contains('hidden') && viewRisk.style.display !== 'none') {
+                    refreshRiskView();
+                }
 
             } catch (err) {
                 console.error("Dashboard refresh error: ", err);
