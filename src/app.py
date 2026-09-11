@@ -1066,6 +1066,15 @@ def get_devices_locations():
     try:
         import serial_gateway
         locations = serial_gateway.get_device_locations()
+        db = SessionLocal()
+        try:
+            states = {d.device_id: d for d in db.query(DeviceState).all()}
+            for loc in locations:
+                dev_state = states.get(loc["device_id"])
+                loc["is_isolated"] = dev_state.is_isolated if dev_state else False
+                loc["is_active"] = not loc["is_isolated"]
+        finally:
+            db.close()
         return jsonify({"success": True, "locations": locations})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1247,7 +1256,28 @@ def get_data ():
         query = query .filter_by (device_id =device_id )
     if data_mode == "real":
         query = query .filter (TelemetryLog .is_simulated == False )
-    telemetry = query .order_by (TelemetryLog .timestamp .desc ()).limit (50 ).all ()
+    telemetry = query .order_by (TelemetryLog .timestamp .desc ()).limit (100 ).all ()
+
+    # Dedicated per-node telemetry streams for 4-node multi-grid
+    node_ids = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
+    telemetry_by_node = {}
+    for nid in node_ids:
+        n_query = db.query(TelemetryLog).filter_by(device_id=nid)
+        if data_mode == "real":
+            n_query = n_query.filter(TelemetryLog.is_simulated == False)
+        n_logs = n_query.order_by(TelemetryLog.timestamp.desc()).limit(30).all()
+        telemetry_by_node[nid] = [{
+            "timestamp": t.timestamp,
+            "device_id": t.device_id,
+            "temperature": t.temperature,
+            "pressure": t.pressure,
+            "humidity": t.humidity,
+            "vibration": t.vibration,
+            "hall_effect": t.hall_effect,
+            "current": t.current,
+            "rssi": t.rssi,
+            "is_anomaly": t.is_anomaly
+        } for t in reversed(n_logs)]
 
     audit_logs =db .query (AuditLog ).options (joinedload (AuditLog .user )).order_by (AuditLog .timestamp .desc ()).limit (30 ).all ()
 
@@ -1280,6 +1310,7 @@ def get_data ():
     db .close ()
     return jsonify ({
     "telemetry":telemetry_data ,
+    "telemetry_by_node":telemetry_by_node ,
     "audit_logs":audit_data ,
     "financials":financials ,
     "trust":trust 

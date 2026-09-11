@@ -63,6 +63,8 @@ hiddenimports = [
     'werkzeug',
     'werkzeug.serving',
     'jinja2',
+    'analytics',
+    'reporting',
 ]
 
 a = Analysis(

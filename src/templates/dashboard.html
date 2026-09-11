@@ -9,53 +9,79 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --scada-bg: #070a0f;
+            --scada-panel: #0d131f;
+            --scada-panel-alt: #111a2b;
+            --scada-border: #1a2638;
+            --scada-border-light: #24344d;
+            --scada-accent: #0284c7;
+            --scada-text: #e2e8f0;
+            --scada-muted: #64748b;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #000000;
-            color: #f5f5f7;
+            background-color: var(--scada-bg);
+            color: var(--scada-text);
         }
-        .apple-card {
-            background-color: rgba(22, 22, 23, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+        .apple-card, .scada-card {
+            background-color: var(--scada-panel);
+            border: 1px solid var(--scada-border);
+            border-radius: 8px !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+        }
+        .apple-card:hover, .scada-card:hover {
+            border-color: var(--scada-border-light);
         }
         .apple-border {
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--scada-border);
         }
         .apple-input {
-            background-color: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            color: #f5f5f7;
-            transition: all 0.2s ease;
+            background-color: #080c14;
+            border: 1px solid var(--scada-border);
+            border-radius: 6px;
+            color: #f1f5f9;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            transition: border-color 0.15s ease;
         }
         .apple-input:focus {
-            border-color: rgba(255, 255, 255, 0.3);
-            background-color: rgba(255, 255, 255, 0.06);
+            border-color: #38bdf8;
+            background-color: #0c121d;
             outline: none;
+            box-shadow: 0 0 0 1px #38bdf8;
         }
         .apple-btn {
-            background-color: #ffffff;
-            color: #000000;
-            transition: all 0.2s ease;
+            background-color: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            transition: all 0.15s ease;
         }
         .apple-btn:hover {
-            background-color: #e8e8ed;
+            background-color: #334155;
+            border-color: #475569;
         }
-        /* Custom scrollbar for minimalist scroll style */
+        .scada-badge {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            letter-spacing: 0.05em;
+        }
+        /* Custom scrollbar for tactical industrial control room */
         ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
+            width: 5px;
+            height: 5px;
         }
         ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
+            background: #070a0f;
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
+            background: #1e293b;
+            border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: #334155;
         }
     </style>
 </head>
@@ -539,52 +565,52 @@
                 <!-- 2. 4-Node Multi-Grid Dedicated View -->
                 <div id="chart-view-grid" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
                     <!-- Node 1: ESP32_001 -->
-                    <div class="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col">
-                        <div class="flex items-center justify-between text-xs mb-2">
-                            <div class="flex items-center gap-1.5">
+                    <div class="p-3 bg-[#090e17] border border-[#1b273b] rounded flex flex-col">
+                        <div class="flex items-center justify-between text-xs mb-2 border-b border-[#1b273b]/60 pb-1.5">
+                            <div class="flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                                 <span class="font-semibold text-white font-mono">ESP32_001</span>
-                                <span class="text-[10px] text-[#86868b]">Catalytic Reactor 01</span>
+                                <span class="text-[10px] text-slate-400 font-mono">[Catalytic Reactor 01]</span>
                             </div>
-                            <span id="grid-status-ESP32_001" class="text-[10px] font-mono text-emerald-400">ONLINE</span>
+                            <span id="grid-status-ESP32_001" class="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">[ONLINE - STREAMING]</span>
                         </div>
-                        <div class="relative w-full h-44 flex-grow"><canvas id="chart-node-ESP32_001"></canvas></div>
+                        <div class="relative w-full h-48 flex-grow"><canvas id="chart-node-ESP32_001"></canvas></div>
                     </div>
                     <!-- Node 2: ESP32_002 -->
-                    <div class="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col">
-                        <div class="flex items-center justify-between text-xs mb-2">
-                            <div class="flex items-center gap-1.5">
+                    <div class="p-3 bg-[#090e17] border border-[#1b273b] rounded flex flex-col">
+                        <div class="flex items-center justify-between text-xs mb-2 border-b border-[#1b273b]/60 pb-1.5">
+                            <div class="flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-sky-400"></span>
                                 <span class="font-semibold text-white font-mono">ESP32_002</span>
-                                <span class="text-[10px] text-[#86868b]">Centrifugal Pump 02</span>
+                                <span class="text-[10px] text-slate-400 font-mono">[Centrifugal Pump 02]</span>
                             </div>
-                            <span id="grid-status-ESP32_002" class="text-[10px] font-mono text-emerald-400">ONLINE</span>
+                            <span id="grid-status-ESP32_002" class="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">[ONLINE - STREAMING]</span>
                         </div>
-                        <div class="relative w-full h-44 flex-grow"><canvas id="chart-node-ESP32_002"></canvas></div>
+                        <div class="relative w-full h-48 flex-grow"><canvas id="chart-node-ESP32_002"></canvas></div>
                     </div>
                     <!-- Node 3: ESP32_003 -->
-                    <div class="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col">
-                        <div class="flex items-center justify-between text-xs mb-2">
-                            <div class="flex items-center gap-1.5">
+                    <div class="p-3 bg-[#090e17] border border-[#1b273b] rounded flex flex-col">
+                        <div class="flex items-center justify-between text-xs mb-2 border-b border-[#1b273b]/60 pb-1.5">
+                            <div class="flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
                                 <span class="font-semibold text-white font-mono">ESP32_003</span>
-                                <span class="text-[10px] text-[#86868b]">Cooling Cryo 03</span>
+                                <span class="text-[10px] text-slate-400 font-mono">[Cooling Cryo 03]</span>
                             </div>
-                            <span id="grid-status-ESP32_003" class="text-[10px] font-mono text-emerald-400">ONLINE</span>
+                            <span id="grid-status-ESP32_003" class="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">[ONLINE - STREAMING]</span>
                         </div>
-                        <div class="relative w-full h-44 flex-grow"><canvas id="chart-node-ESP32_003"></canvas></div>
+                        <div class="relative w-full h-48 flex-grow"><canvas id="chart-node-ESP32_003"></canvas></div>
                     </div>
                     <!-- Node 4: ESP32_004 -->
-                    <div class="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col">
-                        <div class="flex items-center justify-between text-xs mb-2">
-                            <div class="flex items-center gap-1.5">
+                    <div class="p-3 bg-[#090e17] border border-[#1b273b] rounded flex flex-col">
+                        <div class="flex items-center justify-between text-xs mb-2 border-b border-[#1b273b]/60 pb-1.5">
+                            <div class="flex items-center gap-2">
                                 <span class="w-2 h-2 rounded-full bg-purple-400"></span>
                                 <span class="font-semibold text-white font-mono">ESP32_004</span>
-                                <span class="text-[10px] text-[#86868b]">Turbine Generator 04</span>
+                                <span class="text-[10px] text-slate-400 font-mono">[Turbine Generator 04]</span>
                             </div>
-                            <span id="grid-status-ESP32_004" class="text-[10px] font-mono text-emerald-400">ONLINE</span>
+                            <span id="grid-status-ESP32_004" class="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">[ONLINE - STREAMING]</span>
                         </div>
-                        <div class="relative w-full h-44 flex-grow"><canvas id="chart-node-ESP32_004"></canvas></div>
+                        <div class="relative w-full h-48 flex-grow"><canvas id="chart-node-ESP32_004"></canvas></div>
                     </div>
                 </div>
             </div>
@@ -639,23 +665,23 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="apple-card rounded-2xl p-5 shadow-lg flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">Annualized Loss Expectancy</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white font-mono">ALE = SLE x ARO</span>
+                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold font-mono">[01] ACTIVE INCIDENT LOSS</span>
+                    <span id="risk-incident-status-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">NOMINAL BASELINE</span>
                 </div>
                 <p id="risk-ale-val" class="text-2xl font-bold text-white mt-2 font-mono">$0.00</p>
-                <span id="risk-aro-val" class="text-[10px] text-[#86868b] font-mono mt-1">ARO: 0.05 events/yr</span>
+                <span id="risk-aro-val" class="text-[10px] text-[#86868b] font-mono mt-1">Direct Physical & Triage Liability</span>
             </div>
             <div class="apple-card rounded-2xl p-5 shadow-lg flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">Single Loss Expectancy</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">SLE (Base Capital)</span>
+                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold font-mono">[02] ASSET VALUATION (SLE)</span>
+                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">CAPITAL RISK</span>
                 </div>
                 <p id="risk-sle-val" class="text-2xl font-bold text-sky-300 mt-2 font-mono">$0.00</p>
-                <span class="text-[10px] text-[#86868b] font-mono mt-1">Primary Asset + Remediation</span>
+                <span class="text-[10px] text-[#86868b] font-mono mt-1">Maximum Subsystem Replacement Value</span>
             </div>
             <div class="apple-card rounded-2xl p-5 shadow-lg flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">Live Outage Downtime Cost</span>
+                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold font-mono">[03] OUTAGE DOWNTIME RATE</span>
                     <span id="risk-outage-status-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">ALL NOMINAL</span>
                 </div>
                 <p id="risk-hourly-outage-val" class="text-2xl font-bold text-amber-400 mt-2 font-mono">$0.00 /hr</p>
@@ -663,11 +689,11 @@
             </div>
             <div class="apple-card rounded-2xl p-5 shadow-lg flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">Regulatory Fine Exposure</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-mono">NERC / NIS2 / EPA</span>
+                    <span class="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold font-mono">[04] REGULATORY EXPOSURE</span>
+                    <span id="risk-regulatory-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">$0 ACTIVE FINES</span>
                 </div>
                 <p id="risk-total-regulatory" class="text-2xl font-bold text-red-400 mt-2 font-mono">$0.00</p>
-                <span class="text-[10px] text-[#86868b] font-mono mt-1">Critical Infrastructure Liability</span>
+                <span id="risk-statutory-cap" class="text-[10px] text-[#86868b] font-mono mt-1">Statutory Cap: $0.00 (NERC/NIS2/EPA)</span>
             </div>
         </div>
 
@@ -877,13 +903,13 @@
             refreshRiskView();
             setInterval(refreshDashboard, 2000);
             setInterval(fetchAuditLogsStream, 4000);
-            setInterval(fetchDeviceLocations, 8000);
+            setInterval(fetchDeviceLocations, 2000);
             setInterval(() => {
                 const viewRisk = document.getElementById('view-risk');
                 if (viewRisk && !viewRisk.classList.contains('hidden')) {
                     refreshRiskView();
                 }
-            }, 3000);
+            }, 2500);
         }
 
         // On load, fetch status
@@ -935,15 +961,44 @@
             const btnGrid = document.getElementById('btn-chart-mode-grid');
 
             if (mode === 'combined') {
-                if (viewCombined) viewCombined.classList.remove('hidden');
-                if (viewGrid) viewGrid.classList.add('hidden');
-                if (btnCombined) btnCombined.className = "px-2.5 py-0.5 rounded font-medium bg-white text-black transition";
-                if (btnGrid) btnGrid.className = "px-2.5 py-0.5 rounded font-medium text-[#86868b] hover:text-white transition";
+                if (viewCombined) {
+                    viewCombined.classList.remove('hidden');
+                    viewCombined.style.display = 'block';
+                }
+                if (viewGrid) {
+                    viewGrid.classList.add('hidden');
+                    viewGrid.style.display = 'none';
+                }
+                if (btnCombined) btnCombined.className = "px-2.5 py-1 rounded text-xs font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 transition";
+                if (btnGrid) btnGrid.className = "px-2.5 py-1 rounded text-xs font-mono text-slate-400 hover:text-white border border-transparent transition";
+                if (telemetryChart) {
+                    telemetryChart.resize();
+                    telemetryChart.update();
+                }
             } else {
-                if (viewCombined) viewCombined.classList.add('hidden');
-                if (viewGrid) viewGrid.classList.remove('hidden');
-                if (btnCombined) btnCombined.className = "px-2.5 py-0.5 rounded font-medium text-[#86868b] hover:text-white transition";
-                if (btnGrid) btnGrid.className = "px-2.5 py-0.5 rounded font-medium bg-white text-black transition";
+                if (viewCombined) {
+                    viewCombined.classList.add('hidden');
+                    viewCombined.style.display = 'none';
+                }
+                if (viewGrid) {
+                    viewGrid.classList.remove('hidden');
+                    viewGrid.style.display = 'grid';
+                }
+                if (btnCombined) btnCombined.className = "px-2.5 py-1 rounded text-xs font-mono text-slate-400 hover:text-white border border-transparent transition";
+                if (btnGrid) btnGrid.className = "px-2.5 py-1 rounded text-xs font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 transition";
+
+                // Immediate resize & refresh on all 4 node charts to avoid zero-dimension canvas
+                setTimeout(() => {
+                    const nodeIds = ['ESP32_001', 'ESP32_002', 'ESP32_003', 'ESP32_004'];
+                    nodeIds.forEach(id => {
+                        const nChart = nodeCharts[id];
+                        if (nChart) {
+                            nChart.resize();
+                            nChart.update();
+                        }
+                    });
+                    window.dispatchEvent(new Event('resize'));
+                }, 25);
             }
         }
 
@@ -959,15 +1014,15 @@
             nodeIds.forEach(id => {
                 const canvas = document.getElementById(`chart-node-${id}`);
                 if (!canvas) return;
-                const c = colors[id] || { temp: '#fff', pres: '#888', vib: '#38bdf8' };
+                const c = colors[id] || { temp: '#34d399', pres: '#10b981', vib: '#38bdf8' };
                 nodeCharts[id] = new Chart(canvas.getContext('2d'), {
                     type: 'line',
                     data: {
                         labels: [],
                         datasets: [
-                            { label: 'Temp (°C)', data: [], borderColor: c.temp, borderWidth: 1.5, pointRadius: 0, tension: 0.1, yAxisID: 'y' },
-                            { label: 'Pres (bar)', data: [], borderColor: c.pres, borderWidth: 1.5, pointRadius: 0, borderDash: [2, 2], tension: 0.1, yAxisID: 'y1' },
-                            { label: 'Vib (g)', data: [], borderColor: c.vib, borderWidth: 1.5, pointRadius: 0, tension: 0.1, yAxisID: 'y' }
+                            { label: 'Temp (°C)', data: [], borderColor: c.temp, borderWidth: 1.8, pointRadius: 0, tension: 0.15, yAxisID: 'y' },
+                            { label: 'Pres (bar)', data: [], borderColor: c.pres, borderWidth: 1.8, pointRadius: 0, borderDash: [3, 2], tension: 0.15, yAxisID: 'y1' },
+                            { label: 'Vib (g)', data: [], borderColor: c.vib, borderWidth: 1.5, pointRadius: 0, tension: 0.15, yAxisID: 'y' }
                         ]
                     },
                     options: {
@@ -977,10 +1032,10 @@
                         interaction: { mode: 'index', intersect: false },
                         scales: {
                             x: { display: false },
-                            y: { position: 'left', grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { font: { size: 9 }, color: '#a1a1aa' } },
-                            y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 9 }, color: '#71717a' } }
+                            y: { position: 'left', grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9, family: 'monospace' }, color: '#94a3b8' } },
+                            y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 9, family: 'monospace' }, color: '#64748b' } }
                         },
-                        plugins: { legend: { display: true, labels: { boxWidth: 8, font: { size: 9 }, color: '#d4d4d8' } } }
+                        plugins: { legend: { display: true, labels: { boxWidth: 8, font: { size: 9, family: 'monospace' }, color: '#cbd5e1' } } }
                     }
                 });
             });
@@ -1048,40 +1103,52 @@
                     const cx = Math.max(-85, Math.min(85, loc.grid_x * 1.5));
                     const cy = Math.max(-85, Math.min(85, -loc.grid_y * 1.1));
 
-                    const devState = clusterDevices.find(d => d.device_id === loc.device_id);
-                    const isIsolated = devState ? devState.is_isolated : false;
+                    // Use loc.is_isolated directly from API (with fallback to clusterDevices)
+                    const isIsolated = (loc.is_isolated !== undefined) ? loc.is_isolated : (clusterDevices.find(d => d.device_id === loc.device_id)?.is_isolated || false);
                     const pinColor = isIsolated ? '#f43f5e' : '#10b981';
 
                     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     circle.setAttribute('cx', cx);
                     circle.setAttribute('cy', cy);
-                    circle.setAttribute('r', '4');
+                    circle.setAttribute('r', '4.5');
                     circle.setAttribute('fill', pinColor);
                     circle.setAttribute('stroke', '#ffffff');
-                    circle.setAttribute('stroke-width', '0.8');
+                    circle.setAttribute('stroke-width', '0.9');
                     circle.setAttribute('id', `radar-pin-${loc.device_id}`);
+                    circle.style.cursor = 'pointer';
+                    circle.onclick = () => { onControlDeviceChange(loc.device_id); };
 
                     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     text.setAttribute('x', cx + 6);
                     text.setAttribute('y', cy + 2.5);
                     text.setAttribute('fill', pinColor);
-                    text.setAttribute('font-size', '5.5');
+                    text.setAttribute('font-size', '6');
                     text.setAttribute('font-family', 'monospace');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('id', `radar-txt-${loc.device_id}`);
+                    text.style.cursor = 'pointer';
+                    text.onclick = () => { onControlDeviceChange(loc.device_id); };
                     text.textContent = loc.device_id;
 
                     radarGroup.appendChild(circle);
                     radarGroup.appendChild(text);
 
                     const item = document.createElement('div');
-                    item.className = "p-2 bg-white/[0.03] border border-white/5 rounded-lg flex flex-col gap-0.5 hover:border-sky-500/40 transition cursor-pointer";
-                    item.onclick = () => showAlert(`[EDGE GPS] ${loc.name} (${loc.device_id}): Lat ${loc.latitude.toFixed(6)}, Lon ${loc.longitude.toFixed(6)}, Elev ${loc.elevation_m}m [${loc.grid}]`, 'info');
+                    item.className = "p-2.5 bg-[#090e17] border border-[#1b273b] rounded flex flex-col gap-0.5 hover:border-sky-500/50 transition cursor-pointer";
+                    item.onclick = () => {
+                        onControlDeviceChange(loc.device_id);
+                        showAlert(`[GPS RADAR] Focused on ${loc.name} (${loc.device_id}) @ Grid [${loc.grid}]`, 'info');
+                    };
                     item.innerHTML = `
-                        <div class="flex justify-between items-center text-[11px]">
-                            <span class="font-bold text-white">${escapeHTML(loc.device_id)}</span>
-                            <span class="text-sky-400 text-[10px]">${escapeHTML(loc.grid)}</span>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="font-bold font-mono text-white flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full ${isIsolated ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
+                                ${escapeHTML(loc.device_id)}
+                            </span>
+                            <span class="text-sky-400 font-mono text-[10px]">[${escapeHTML(loc.grid)}]</span>
                         </div>
-                        <div class="text-[10px] text-[#86868b]">${escapeHTML(loc.zone)}</div>
-                        <div class="text-[9px] text-zinc-400 font-mono">GPS: ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)} (${loc.elevation_m}m)</div>
+                        <div class="text-[11px] text-slate-300 font-sans">${escapeHTML(loc.name)} (${escapeHTML(loc.zone)})</div>
+                        <div class="text-[10px] text-slate-500 font-mono">GPS: ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)} (${loc.elevation_m}m)</div>
                     `;
                     locList.appendChild(item);
                 });
@@ -1113,21 +1180,51 @@
                     const proj24El = document.getElementById('risk-outage-proj-24h');
                     const regTotalEl = document.getElementById('risk-total-regulatory');
 
-                    if (aleEl && f.ale_framework) aleEl.innerText = `$${f.ale_framework.ale.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-                    if (aroEl && f.ale_framework) aroEl.innerText = `ARO: ${f.ale_framework.aro} events/yr`;
+                    if (aleEl && f.ale_framework) {
+                        const incLoss = (f.active_incident_loss !== undefined) ? f.active_incident_loss : (f.incurred_cost || 0.0);
+                        aleEl.innerText = `$${incLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                        const incBadge = document.getElementById('risk-incident-status-badge');
+                        if (incBadge) {
+                            if (f.active_attack || incLoss > 0) {
+                                incBadge.innerText = `ATTACK: ${(f.active_attack || 'INCIDENT').toUpperCase()}`;
+                                incBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-bold animate-pulse';
+                            } else {
+                                incBadge.innerText = 'NOMINAL BASELINE ($0.00)';
+                                incBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono';
+                            }
+                        }
+                    }
+                    if (aroEl && f.ale_framework) {
+                        aroEl.innerText = f.active_attack ? `ARO: ${f.ale_framework.aro} events/yr · ALE: $${f.ale_framework.ale.toLocaleString()}` : `ALE: $0.00 (Nominal baseline)`;
+                    }
                     if (sleEl && f.ale_framework) sleEl.innerText = `$${f.ale_framework.sle.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
                     if (hourlyEl && f.downtime_liability) hourlyEl.innerText = `$${f.downtime_liability.active_outage_hourly_loss.toLocaleString('en-US', { minimumFractionDigits: 2 })} /hr`;
                     if (badgeEl && f.downtime_liability) {
                         if (f.downtime_liability.is_outage_active) {
                             badgeEl.innerText = 'OUTAGE ACTIVE';
-                            badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40 font-mono animate-pulse';
+                            badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono animate-pulse';
                         } else {
                             badgeEl.innerText = 'ALL NOMINAL';
                             badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono';
                         }
                     }
                     if (proj24El && f.downtime_liability) proj24El.innerText = `24h MTTR Exposure: $${f.downtime_liability.projected_24h_mttr.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-                    if (regTotalEl && f.regulatory_exposure) regTotalEl.innerText = `$${f.regulatory_exposure.total_regulatory_exposure.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                    if (regTotalEl && f.regulatory_exposure) {
+                        const actFines = f.regulatory_exposure.active_incurred_fines || 0.0;
+                        regTotalEl.innerText = `$${actFines.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                        const regBadge = document.getElementById('risk-regulatory-badge');
+                        if (regBadge) {
+                            if (actFines > 0) {
+                                regBadge.innerText = 'PENALTIES INCURRED';
+                                regBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono animate-pulse';
+                            } else {
+                                regBadge.innerText = '$0 ACTIVE FINES';
+                                regBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono';
+                            }
+                        }
+                        const statCap = document.getElementById('risk-statutory-cap');
+                        if (statCap) statCap.innerText = `Statutory Cap: $${f.regulatory_exposure.total_regulatory_exposure.toLocaleString()} (NERC/NIS2/EPA)`;
+                    }
 
                     if (f.fair_model) {
                         const tefEl = document.getElementById('fair-tef');
@@ -1145,7 +1242,7 @@
                         if (redEl && f.ale_framework) redEl.innerText = `${f.ale_framework.risk_reduction_pct}%`;
                         if (tierEl) {
                             tierEl.innerText = `${f.fair_model.risk_tier} RISK`;
-                            tierEl.className = f.fair_model.risk_tier === 'CRITICAL' ? 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-red-500/20 text-red-300 border border-red-500/40' : (f.fair_model.risk_tier === 'ELEVATED' ? 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30');
+                            tierEl.className = f.fair_model.risk_tier === 'CRITICAL' ? 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40' : (f.fair_model.risk_tier === 'ELEVATED' ? 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30');
                         }
                     }
 
@@ -1153,9 +1250,10 @@
                         const nercEl = document.getElementById('reg-nerc-val');
                         const nis2El = document.getElementById('reg-nis2-val');
                         const epaEl = document.getElementById('reg-epa-val');
-                        if (nercEl) nercEl.innerText = `$${f.regulatory_exposure.nerc_cip_critical_infra.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-                        if (nis2El) nis2El.innerText = `$${f.regulatory_exposure.nis2_directive.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-                        if (epaEl) epaEl.innerText = `$${f.regulatory_exposure.epa_environmental.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                        const isAttacking = Boolean(f.active_attack);
+                        if (nercEl) nercEl.innerText = isAttacking && (f.active_attack === 'stuxnet') ? `$${f.regulatory_exposure.nerc_cip_critical_infra.toLocaleString()}` : '$0.00';
+                        if (nis2El) nis2El.innerText = isAttacking && (f.active_attack === 'hmac_tamper') ? `$${f.regulatory_exposure.nis2_directive.toLocaleString()}` : '$0.00';
+                        if (epaEl) epaEl.innerText = isAttacking && (f.active_attack === 'stuxnet' || f.active_attack === 'fdi_spike') ? `$${f.regulatory_exposure.epa_environmental.toLocaleString()}` : '$0.00';
                     }
                 }
 
@@ -1483,6 +1581,15 @@
         }
 
         async function isolateDevice(deviceId) {
+            // Immediate DOM mutation for zero-latency operator feedback (<50ms)
+            const pin = document.getElementById(`radar-pin-${deviceId}`);
+            const txt = document.getElementById(`radar-txt-${deviceId}`);
+            if (pin) pin.setAttribute('fill', '#f43f5e');
+            if (txt) txt.setAttribute('fill', '#f43f5e');
+            const dev = clusterDevices.find(d => d.device_id === deviceId);
+            if (dev) dev.is_isolated = true;
+            updateControlCardUI();
+
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             try {
                 const response = await fetch('/api/device/isolate', {
@@ -1493,6 +1600,7 @@
                 const result = await response.json();
                 if (result.success) {
                     showAlert(result.details, 'success');
+                    fetchDeviceLocations();
                     refreshDashboard();
                 } else {
                     showAlert(result.error || 'Isolation failed.', 'error');
@@ -1503,6 +1611,15 @@
         }
 
         async function rejoinDevice(deviceId) {
+            // Immediate DOM mutation for zero-latency operator feedback (<50ms)
+            const pin = document.getElementById(`radar-pin-${deviceId}`);
+            const txt = document.getElementById(`radar-txt-${deviceId}`);
+            if (pin) pin.setAttribute('fill', '#10b981');
+            if (txt) txt.setAttribute('fill', '#10b981');
+            const dev = clusterDevices.find(d => d.device_id === deviceId);
+            if (dev) dev.is_isolated = false;
+            updateControlCardUI();
+
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             try {
                 const response = await fetch('/api/device/rejoin', {
@@ -1513,6 +1630,7 @@
                 const result = await response.json();
                 if (result.success) {
                     showAlert(result.details, 'success');
+                    fetchDeviceLocations();
                     refreshDashboard();
                 } else {
                     showAlert(result.error || 'Rejoin failed.', 'error');
@@ -2071,24 +2189,32 @@
                         const nChart = nodeCharts[nid];
                         const gridStatusEl = document.getElementById(`grid-status-${nid}`);
                         const devState = clusterDevices.find(d => d.device_id === nid);
+                        const isIsolated = devState ? devState.is_isolated : false;
                         if (gridStatusEl) {
-                            if (devState && devState.is_isolated) {
-                                gridStatusEl.innerText = 'QUARANTINED';
-                                gridStatusEl.className = 'text-[10px] font-mono text-red-400 font-bold';
+                            if (isIsolated) {
+                                gridStatusEl.innerText = '[QUARANTINED - TELEMETRY FROZEN]';
+                                gridStatusEl.className = 'text-[9px] font-mono text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30';
                             } else {
-                                gridStatusEl.innerText = 'ONLINE';
-                                gridStatusEl.className = 'text-[10px] font-mono text-emerald-400';
+                                gridStatusEl.innerText = '[ONLINE - STREAMING]';
+                                gridStatusEl.className = 'text-[9px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30';
                             }
                         }
 
                         if (nChart) {
-                            const nodeTelemetry = data.telemetry.filter(t => t.device_id === nid);
-                            const nSlice = nodeTelemetry.slice(-Math.min(nodeTelemetry.length, Math.max(10, Math.floor(chartWindowSeconds * 1.5))));
-                            nChart.data.labels = nSlice.map((_, idx) => idx + 1);
-                            nChart.data.datasets[0].data = nSlice.map(t => t.temperature);
-                            nChart.data.datasets[1].data = nSlice.map(t => t.pressure);
-                            nChart.data.datasets[2].data = nSlice.map(t => t.vibration);
-                            nChart.update('none');
+                            const nodeTelemetry = (data.telemetry_by_node && data.telemetry_by_node[nid]) ?
+                                data.telemetry_by_node[nid] :
+                                data.telemetry.filter(t => t.device_id === nid);
+                            if (nodeTelemetry && nodeTelemetry.length > 0) {
+                                const nSlice = nodeTelemetry.slice(-Math.min(nodeTelemetry.length, Math.max(10, Math.floor(chartWindowSeconds * 1.5))));
+                                nChart.data.labels = nSlice.map((_, idx) => idx + 1);
+                                nChart.data.datasets[0].data = nSlice.map(t => t.temperature);
+                                nChart.data.datasets[1].data = nSlice.map(t => t.pressure);
+                                nChart.data.datasets[2].data = nSlice.map(t => t.vibration);
+                                if (nChart.width === 0 || nChart.height === 0) {
+                                    nChart.resize();
+                                }
+                                nChart.update('none');
+                            }
                         }
                     });
                 }
@@ -2597,8 +2723,8 @@
     </script>
 
     <!-- Trust Engine Diagnostics Modal -->
-    <div id="trust-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div class="apple-card rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-white/10 space-y-6">
+    <div id="trust-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="apple-card rounded max-w-2xl w-full p-6 shadow-2xl border border-slate-700/60 space-y-6">
             <div class="flex justify-between items-start border-b border-white/5 pb-4">
                 <div>
                     <div class="flex items-center gap-2.5">

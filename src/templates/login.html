@@ -6,50 +6,67 @@
     <title>Aegis SCADA - Operator Authentication</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --scada-bg: #070a0f;
+            --scada-panel: #0d131f;
+            --scada-border: #1a2638;
+            --scada-accent: #0284c7;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #000000;
-            color: #f5f5f7;
+            background-color: var(--scada-bg);
+            color: #e2e8f0;
         }
         .apple-blur {
-            background: rgba(22, 22, 23, 0.8);
-            backdrop-filter: saturate(180%) blur(20px);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            background: var(--scada-panel);
+            border: 1px solid var(--scada-border);
+            border-radius: 8px !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
         }
         .apple-border {
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--scada-border);
         }
         .apple-input {
-            background-color: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #f5f5f7;
-            transition: all 0.2s ease-in-out;
+            background-color: #080c14;
+            border: 1px solid var(--scada-border);
+            border-radius: 6px;
+            color: #f1f5f9;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            transition: border-color 0.15s ease-in-out;
         }
         .apple-input:focus {
-            border-color: rgba(255, 255, 255, 0.4);
-            background-color: rgba(255, 255, 255, 0.08);
+            border-color: #38bdf8;
+            background-color: #0c121d;
             outline: none;
+            box-shadow: 0 0 0 1px #38bdf8;
         }
         .apple-btn {
-            background-color: #ffffff;
-            color: #000000;
-            font-weight: 500;
-            transition: all 0.2s ease;
+            background-color: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 600;
+            transition: all 0.15s ease;
         }
         .apple-btn:hover {
-            background-color: #e8e8ed;
-            transform: scale(0.99);
+            background-color: #334155;
+            border-color: #475569;
         }
         .apple-btn:active {
-            transform: scale(0.97);
+            background-color: #0f172a;
         }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 select-none">
-    <div class="w-full max-w-md apple-blur apple-border rounded-2xl p-10 shadow-2xl">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-semibold tracking-tight text-white mb-2">Aegis SCADA</h1>
-            <p class="text-sm text-[#86868b] tracking-normal font-light">Version 2.5.0 — Secure Control Terminal</p>
+    <div class="w-full max-w-md apple-blur rounded p-8 shadow-2xl">
+        <div class="text-center mb-8 border-b border-[#1a2638] pb-6">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[10px] font-mono mb-3">
+                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                NIST SP 800-82 REV 3 OT CONTROL
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white font-mono">Aegis SCADA Terminal</h1>
+            <p class="text-xs text-slate-400 mt-1 font-mono">v2.5.0 // Operator Gateway Access</p>
         </div>
         
         {% if error %}

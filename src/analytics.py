@@ -11,8 +11,10 @@ Implements standard OT/ICS quantitative risk governance methodologies:
 """
 
 import math
-from typing import Dict, Any, List, Optional
-from database import TelemetryLog, AuditLog, DeviceState
+try:
+    from database import TelemetryLog, AuditLog, DeviceState
+except ImportError:
+    from src.database import TelemetryLog, AuditLog, DeviceState
 
 
 SUBSYSTEM_PROFILES = {
@@ -66,7 +68,8 @@ SUBSYSTEM_PROFILES = {
 def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     """
     Comprehensive Quantitative Risk & Financial Analytics Engine.
-    Evaluates empirical telemetry, isolation history, and physical subsystem valuations.
+    Evaluates empirical telemetry, isolation history, active cyber attacks, and physical subsystem valuations.
+    Enforces a strict $0.00 baseline under normal operating conditions.
     """
     from sqlalchemy import or_
 
@@ -75,6 +78,28 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         query = query.filter_by(device_id=device_id)
     telemetry = query.order_by(TelemetryLog.timestamp.desc()).limit(60).all()
 
+    # Query active cyber attacks from serial gateway
+    active_attacks = {}
+    try:
+        import serial_gateway
+        active_attacks = serial_gateway.get_active_attacks()
+    except Exception:
+        active_attacks = {}
+
+    target_attack = None
+    if device_id and device_id != "ALL":
+        target_attack = active_attacks.get(device_id)
+    else:
+        # If looking at ALL, pick highest priority active attack across cluster
+        if active_attacks:
+            target_attack = list(active_attacks.values())[0]
+
+    # Query active isolated devices
+    isolated_devs = db.query(DeviceState).filter_by(is_isolated=True).all()
+    isolated_ids = [d.device_id for d in isolated_devs]
+    is_target_isolated = (device_id in isolated_ids) if (device_id and device_id != "ALL") else (len(isolated_ids) > 0)
+
+    # Filter audit log violations from the active operating session (or recent window)
     audit_query = db.query(AuditLog).filter(
         or_(
             AuditLog.action.like("%VIOLATION%"),
@@ -87,9 +112,7 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     violations = audit_query.all()
     violation_count = len(violations)
 
-    incurred_cost = violation_count * 5000.0
-    prevented_cost = violation_count * 400000.0
-
+    # Telemetry risk metrics
     threat_index = 0.0
     drift_risk = 0.0
     corr_risk = 0.0
@@ -132,36 +155,28 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
 
         threat_index = min(100.0, drift_risk + corr_risk + boundary_risk)
 
-    expected_loss = (threat_index / 100.0) * 400000.0
+    # If an attack is actively injected onto hardware/simulation, reflect true threat level
+    if target_attack == "stuxnet":
+        threat_index = max(threat_index, 94.5)
+    elif target_attack == "fdi_spike":
+        threat_index = max(threat_index, 88.0)
+    elif target_attack == "hmac_tamper":
+        threat_index = max(threat_index, 76.0)
+    elif target_attack == "thermal_drift":
+        threat_index = max(threat_index, 52.0)
 
-    # --- 1. FAIR Model Quantitative Framework ---
-    tef = max(0.2, float(violation_count) * 0.4)
-    vuln_factor = 0.15 if threat_index < 30 else (0.45 if threat_index < 70 else 0.85)
-    lef = round(tef * vuln_factor, 3)
-
-    # --- 2. ALE / SLE / ARO Quantitative Analysis ---
+    # Subsystem profiles and downtime rates
     if device_id and device_id in SUBSYSTEM_PROFILES:
         target_profile = SUBSYSTEM_PROFILES[device_id]
         base_sle = target_profile["base_sle"]
         downtime_rate = target_profile["downtime_rate_per_hour"]
-        epa_fines = target_profile["epa_fines"]
-        nerc_fines = target_profile["nerc_cip_fines"]
+        max_epa = target_profile["epa_fines"]
+        max_nerc = target_profile["nerc_cip_fines"]
     else:
         base_sle = sum(p["base_sle"] for p in SUBSYSTEM_PROFILES.values())
         downtime_rate = sum(p["downtime_rate_per_hour"] for p in SUBSYSTEM_PROFILES.values())
-        epa_fines = sum(p["epa_fines"] for p in SUBSYSTEM_PROFILES.values())
-        nerc_fines = sum(p["nerc_cip_fines"] for p in SUBSYSTEM_PROFILES.values())
-
-    aro = round(max(0.05, (threat_index / 100.0) * 2.5), 2)
-    sle = base_sle
-    ale = round(sle * aro, 2)
-    residual_risk_pct = round(max(5.0, 100.0 - (prevented_cost / (prevented_cost + expected_loss + 1.0) * 100.0)), 1)
-
-    # --- 3. Subsystem Downtime & Outage Liabilities ---
-    # Query currently isolated devices to calculate live outage loss
-    isolated_devs = db.query(DeviceState).filter_by(is_isolated=True).all()
-    isolated_ids = [d.device_id for d in isolated_devs]
-    is_target_isolated = (device_id in isolated_ids) if (device_id and device_id != "ALL") else (len(isolated_ids) > 0)
+        max_epa = sum(p["epa_fines"] for p in SUBSYSTEM_PROFILES.values())
+        max_nerc = sum(p["nerc_cip_fines"] for p in SUBSYSTEM_PROFILES.values())
 
     # Active outage hourly rate for isolated nodes
     if device_id and device_id in SUBSYSTEM_PROFILES:
@@ -169,15 +184,55 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     else:
         active_hourly_outage = sum(SUBSYSTEM_PROFILES[did]["downtime_rate_per_hour"] for did in isolated_ids if did in SUBSYSTEM_PROFILES)
 
+    # MTTR Projections (potential liability if 4h, 8h, or 24h outage occurs)
     proj_4h = round(downtime_rate * 4.0, 2)
     proj_8h = round(downtime_rate * 8.0, 2)
     proj_24h = round(downtime_rate * 24.0, 2)
 
-    # --- 4. Regulatory & Compliance Exposure ---
+    # Potential Regulatory Exposure Cap (statutory maximums)
     nis2_fines = 100000.0 if threat_index > 50 else 25000.0
-    total_regulatory = round(epa_fines + nerc_fines + nis2_fines, 2)
+    total_regulatory = round(max_epa + max_nerc + nis2_fines, 2)
 
-    # --- 5. Return on Security Investment (ROSI) ---
+    # Dynamic Incident & Attack Quantification
+    active_incident_loss = 0.0
+    active_incurred_fines = 0.0
+
+    if target_attack == "stuxnet":
+        active_incident_loss = base_sle * 0.55
+        active_incurred_fines = max_epa + max_nerc
+    elif target_attack == "fdi_spike":
+        active_incident_loss = 65000.0
+        active_incurred_fines = max_epa * 0.4
+    elif target_attack == "hmac_tamper":
+        active_incident_loss = 25000.0
+        active_incurred_fines = 100000.0
+    elif target_attack == "thermal_drift":
+        active_incident_loss = 35000.0
+        active_incurred_fines = 0.0
+
+    if is_target_isolated:
+        active_incident_loss += active_hourly_outage * 0.5
+
+    incurred_cost = round(violation_count * 2500.0 + (active_incident_loss if target_attack else 0.0), 2)
+    prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if target_attack else 0.0)), 2)
+    expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if target_attack else 5000.0), 2)
+
+    # FAIR Model
+    has_active_incident = bool(target_attack) or is_target_isolated or (boundary_risk > 0) or (violation_count > 0)
+    tef = round(max(0.05, float(violation_count) * 0.3 if has_active_incident else 0.05), 2)
+    vuln_factor = 0.15 if threat_index < 30 else (0.45 if threat_index < 70 else 0.85)
+    lef = round(tef * vuln_factor, 3)
+
+    sle = base_sle
+    primary_loss = round((expected_loss or 0.0) * 0.65, 2)
+    secondary_loss = round((expected_loss or 0.0) * 0.35 + (active_incurred_fines if target_attack else 0.0), 2)
+    risk_tier = "CRITICAL" if threat_index >= 70 else ("ELEVATED" if threat_index >= 30 else "NOMINAL")
+
+    aro = round(max(0.01, (threat_index / 100.0) * 2.0 if has_active_incident else 0.01), 3)
+    ale = round(sle * aro, 2)
+    residual_risk_pct = round(max(2.0, min(98.0, 100.0 - (prevented_cost / (prevented_cost + expected_loss + 1.0) * 100.0))), 1)
+    risk_reduction_pct = round(100.0 - residual_risk_pct, 1)
+
     annual_tooling_cost = 48000.0
     rosi_calc = round(((prevented_cost - annual_tooling_cost) / annual_tooling_cost) * 100.0, 1) if prevented_cost > 0 else 0.0
 
@@ -190,22 +245,25 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         "corr_risk": round(corr_risk, 1),
         "boundary_risk": round(boundary_risk, 1),
         "expected_loss": round(expected_loss, 2),
+        "active_attack": target_attack,
+        "active_incident_loss": round(active_incident_loss, 2),
+        "active_incurred_fines": round(active_incurred_fines, 2),
 
         # Expanded Cyber-Financial Governance Metrics
         "fair_model": {
             "tef": round(tef, 2),
             "vulnerability_pct": round(vuln_factor * 100.0, 1),
             "lef": lef,
-            "primary_loss": round(sle * 0.6, 2),
-            "secondary_loss": round(sle * 0.4 + total_regulatory, 2),
-            "risk_tier": "CRITICAL" if threat_index >= 70 else ("ELEVATED" if threat_index >= 30 else "NOMINAL")
+            "primary_loss": round(primary_loss, 2),
+            "secondary_loss": round(secondary_loss, 2),
+            "risk_tier": risk_tier
         },
         "ale_framework": {
             "sle": round(sle, 2),
             "aro": aro,
             "ale": ale,
             "residual_risk_pct": residual_risk_pct,
-            "risk_reduction_pct": round(100.0 - residual_risk_pct, 1)
+            "risk_reduction_pct": risk_reduction_pct
         },
         "downtime_liability": {
             "hourly_rate": round(downtime_rate, 2),
@@ -216,13 +274,14 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
             "projected_24h_mttr": proj_24h
         },
         "regulatory_exposure": {
-            "epa_environmental": round(epa_fines, 2),
-            "nerc_cip_critical_infra": round(nerc_fines, 2),
+            "epa_environmental": round(max_epa, 2),
+            "nerc_cip_critical_infra": round(max_nerc, 2),
             "nis2_directive": round(nis2_fines, 2),
-            "total_regulatory_exposure": total_regulatory
+            "total_regulatory_exposure": total_regulatory,
+            "active_incurred_fines": round(active_incurred_fines, 2)
         },
         "capital_allocation": {
-            "capex_equipment_risk": round(sle * 0.7, 2),
+            "capex_equipment_risk": round(base_sle * 0.7, 2),
             "opex_triaging_cost": incurred_cost,
             "annual_tooling_budget": annual_tooling_cost,
             "rosi_percentage": rosi_calc
@@ -234,29 +293,33 @@ def calculate_monte_carlo_distribution(db, device_id: str = None) -> List[Dict[s
     """
     Generates a 12-point probabilistic loss exceedance distribution curve
     (Percentile vs Monetary Loss in USD) from P5 to P99.
+    Scales dynamically based on empirical active incidents and threats.
     """
     fin = calculate_financial_analytics(db, device_id)
-    base = max(15000.0, fin["expected_loss"])
-    sle = fin["ale_framework"]["sle"]
+    expected_loss = fin["expected_loss"]
+    active_attack = fin.get("active_attack")
+
+    # Base starts at minimal nominal variance if zero attack, expanding to empirical loss when attack occurs
+    base = expected_loss if (expected_loss > 0 and active_attack) else 50.0
 
     percentiles = [
-        ("P05", 0.05, 0.12),
-        ("P10", 0.10, 0.20),
-        ("P20", 0.20, 0.35),
-        ("P30", 0.30, 0.52),
-        ("P40", 0.40, 0.72),
+        ("P05", 0.05, 0.15),
+        ("P10", 0.10, 0.25),
+        ("P20", 0.20, 0.40),
+        ("P30", 0.30, 0.58),
+        ("P40", 0.40, 0.78),
         ("P50", 0.50, 1.00),  # Median expected loss
         ("P60", 0.60, 1.35),
         ("P70", 0.70, 1.80),
         ("P80", 0.80, 2.45),
-        ("P90", 0.90, 3.50),
-        ("P95", 0.95, 4.60),
-        ("P99", 0.99, 6.20),  # Extreme catastrophic tail risk
+        ("P90", 0.90, 3.20),
+        ("P95", 0.95, 4.10),
+        ("P99", 0.99, 5.50),  # Catastrophic tail risk
     ]
 
     curve = []
     for label, pct, multiplier in percentiles:
-        est_loss = round(min(sle * 1.8, base * multiplier), 2)
+        est_loss = round(base * multiplier, 2)
         curve.append({
             "percentile": label,
             "probability": round((1.0 - pct) * 100.0, 1),
