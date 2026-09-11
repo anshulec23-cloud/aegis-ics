@@ -1,6 +1,27 @@
-# Aegis ICS v2.2.2 Release Notes
+# Aegis ICS v2.5.0 Release Notes
 
-**Aegis ICS (Industrial Control System) v2.2.2** is a major feature, stability, and security update to the zero-trust industrial security gateway and enforcer software application.
+**Aegis ICS (Industrial Control System) v2.5.0** is the official **Hardware-Hardened Production Release**, concluding physical validation across multi-node ESP32 microcontroller clusters communicating over RS-485 differential buses and USB-CDC Serial gateways.
+
+---
+
+## 🌟 Highlights & Key Features in v2.5.0
+
+- **Physical Downstream Actuator Interlocks**: Active supervisory interlock commands (`ISOLATE` / `REARM`) dispatched over serial UART down to field microcontrollers. On-board optocoupler relays on GPIO 25 de-energize to trip physical process lines upon automated microsegmentation (NIST SC-7).
+- **Subsystem-Aware Overspeed Intelligence**: Refactored `LocalRFModel` with node-specific rotational dynamics. The `ESP32_004` Main Turbine Generator operates at a baseline 2200.0 RPM with a calibrated safety trip ceiling at 3000.0 RPM, preventing false-positive quarantining while catching mechanical runaway conditions.
+- **Non-Blocking Serial Communications**: Master concentrator (`esp32_master_bridge.ino`) and edge slave nodes (`esp32_slave_sensor.ino`) utilize non-blocking ring-buffer line state machines (`readNonBlockingLine()`), eliminating serial line delays and blocking timeouts.
+- **Edge Policy Boundary Safeguards**: Embedded firmware independently validates supervisory setpoint frames against physical envelope boundaries (`0.0 <= temp <= 50.0°C`, `0.0 <= pres <= 8.0 bar`) before local hardware actuation.
+- **Multi-Node Cluster Telemetry Exemption**: Applied `@limiter.exempt` to `/api/telemetry` to ensure high-frequency multi-node packet ingestion without HTTP 429 packet loss.
+- **Steady-State Variance Protection**: Added variance guards (`den_t > 0.5` and `den_p > 0.05`) to Pearson correlation risk modeling, eliminating spurious +40% threat index spikes on normal steady-state plant operations.
+- **Live RS-485 Hardware Cluster Matrix**: The dashboard UI dynamically identifies active physical nodes transmitting on the bus, rendering live transmission pulses, standby states, and active bus node counters (`${activeCount} ACTIVE ON RS-485 BUS / ${total} CONFIGURED`).
+- **NIST SP 800-82 Incident Reporting**: Fully functional PDF forensic report generator implementing the FAIR quantitative risk model (TEF, LEF, SLE, ALE, ARO) with spatial operator audits.
+- **Modernized Standalone Executable**: Completely overhauled build suite (`AegisICS.spec`, `build.ps1`, `build.py`) compiling a self-contained 348 MB standalone executable (`dist/AegisICS.exe`).
+- **100% Test Validation & Database Isolation**: 33/33 automated tests passing (`pytest`) with an isolated test database, guaranteeing zero pollution of production database baseline rules.
+
+---
+
+# Aegis ICS v2.3.0 Release Notes
+
+**Aegis ICS (Industrial Control System) v2.3.0** is a major feature, stability, and security update to the zero-trust industrial security gateway and enforcer software application.
 
 ---
 

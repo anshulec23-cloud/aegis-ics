@@ -1,18 +1,25 @@
+import math
+import time
 from sqlalchemy .orm import Session 
 from database import Rule ,TelemetryLog 
 
-def validate_command (command :dict ,db :Session )->tuple [bool ,str ]:
+def validate_command (command :dict ,db :Session ,target_device :str =None )->tuple [bool ,str ]:
     """
     Validates a SCADA command against safety rules and Stuxnet correlation hazards.
+    Scopes physical correlation checks to the specific target device.
     """
     cmd_type =command .get ("type")
     value =command .get ("value")
+    device_id = target_device or command.get("target_device") or command.get("device_id")
 
     if cmd_type not in ("set_temp","set_pressure"):
         return False ,f"Denied: Unknown command type '{cmd_type }'. Only 'set_temp' and 'set_pressure' are permitted."
 
-    if not isinstance (value ,(int ,float )):
+    if isinstance (value ,bool )or not isinstance (value ,(int ,float )):
         return False ,"Command setpoint value must be numeric."
+
+    if math.isnan(value) or math.isinf(value):
+        return False ,"Command setpoint value must be a finite numeric value."
 
 
     if cmd_type =="set_temp":
@@ -36,24 +43,35 @@ def validate_command (command :dict ,db :Session )->tuple [bool ,str ]:
             return False ,f"Rule violation: Pressure setpoint {value } bar exceeds boundaries ({p_min }-{p_max } bar)."
 
 
+    # Multi-variable Stuxnet Coordinated Stress Check (scoped to target device)
+    telemetry_query = db.query(TelemetryLog)
+    if device_id:
+        telemetry_query = telemetry_query.filter_by(device_id=device_id)
+    latest_telemetry = telemetry_query.order_by(TelemetryLog.timestamp.desc()).first()
 
+    dev_label = f" on {device_id}" if device_id else ""
 
+    # Telemetry Freshness Check: Stuxnet coordinated check requires active telemetry (< 120s old)
+    # Stale/offline readings from hours or days ago do not indefinitely lock out setpoints
+    is_fresh = bool(
+        latest_telemetry 
+        and latest_telemetry.timestamp is not None 
+        and abs(time.time() - latest_telemetry.timestamp) <= 120.0
+    )
 
-    if cmd_type == "set_temp" and value >= 45.0:
-        latest_telemetry = db.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).first()
-        if latest_telemetry and latest_telemetry.pressure is not None and latest_telemetry.pressure >= 6.0:
+    if is_fresh and cmd_type == "set_temp" and value >= 45.0:
+        if latest_telemetry.pressure is not None and latest_telemetry.pressure >= 6.0:
             return False, (
                 f"AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): "
-                f"Blocked raising Temperature to {value}C because live Pressure is {latest_telemetry.pressure} bar. "
+                f"Blocked raising Temperature to {value}C{dev_label} because live Pressure is {latest_telemetry.pressure} bar. "
                 "Coordinated high-temperature/high-pressure damage profile detected."
             )
 
-    if cmd_type == "set_pressure" and value >= 6.0:
-        latest_telemetry = db.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).first()
-        if latest_telemetry and latest_telemetry.temperature is not None and latest_telemetry.temperature >= 45.0:
+    if is_fresh and cmd_type == "set_pressure" and value >= 6.0:
+        if latest_telemetry.temperature is not None and latest_telemetry.temperature >= 45.0:
             return False, (
                 f"AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): "
-                f"Blocked raising Pressure to {value} bar because live Temperature is {latest_telemetry.temperature}C. "
+                f"Blocked raising Pressure to {value} bar{dev_label} because live Temperature is {latest_telemetry.temperature}C. "
                 "Coordinated high-temperature/high-pressure damage profile detected."
             )
 

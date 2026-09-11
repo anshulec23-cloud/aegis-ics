@@ -1,46 +1,106 @@
-# Quickstart
+# Quickstart Guide — Aegis ICS v2.3.0
 
-## 1. Set up env
-1. Copy `.env.example` to `.env`.
-2. Fill in `FLASK_SECRET_KEY`.
-3. Set `DEVICE_KEY_ESP32_001` and `DEVICE_KEY_ESP32_002`.
-4. If you want to protect admin routes, set `API_ADMIN_TOKEN`.
+This quickstart guide helps you set up, verify, and run the Aegis ICS Industrial Security Gateway on Windows or Linux.
 
-## 2. Generate certs
-Run this from the repo root:
+---
 
-```bash
-python certs/generate_certs.py --out-dir certs --device-id ESP32_001 --device-id ESP32_002
+## 1. Prerequisites & Environment Setup
+
+Ensure you have **Python 3.12+** installed.
+
+```powershell
+# 1. Set up a virtual environment
+python -m venv .venv
+
+# 2. Activate the virtual environment
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Linux/macOS:
+source .venv/bin/activate
+
+# 3. Install required dependencies
+pip install -r src/requirements.txt
 ```
 
-## 3. Start MQTT broker
-Use the Mosquitto config in `server/mqtt_broker/`.
+---
 
-```bash
-mosquitto -c server/mqtt_broker/mosquitto.conf
+## 2. Configuration (`.env`)
+
+Copy the template configuration file:
+
+```powershell
+copy .env.example .env
 ```
 
-## 4. Start the API
-From the repo root:
+Key environment variables:
+* `FLASK_SECRET_KEY`: Random 64-character hex secret for operator sessions.
+* `DEVICE_KEY_ESP32_001`: Pre-shared HMAC-SHA256 key for ESP32 edge microcontroller 001.
+* `ADMIN_PASSWORD`: Custom master administrator password (defaults to `admin` in local dev).
 
-```bash
-python -m server.api.app
+---
+
+## 3. Run the Automated Test Suite
+
+Execute the complete 10-module pytest test suite:
+
+```powershell
+python -m pytest tests/ -v
 ```
 
-## 5. Start the simulator
-Run one device at a time:
+This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, and multi-threaded stress concurrency.
 
-```bash
-python esp32_sim/simulator.py --config esp32_sim/device_config.json
+---
+
+## 4. Launching Aegis ICS
+
+### Mode A: Web Gateway & SCADA Dashboard (Recommended for Servers)
+
+```powershell
+python src/app.py
 ```
 
-## 6. Run tests
+Open your browser and navigate to `http://127.0.0.1:5000`.
+* **Default Operator ID**: `admin`
+* **Default Access Token**: `admin`
+* **Station Coordinates**: Enter your 3D terminal location (e.g. `X: 12.4, Y: -48.1, Z: 3.5`).
 
-```bash
-python -m unittest discover -s tests
+---
+
+### Mode B: Standalone Native Desktop Application
+
+```powershell
+python src/main.py
 ```
 
-## What To Expect
-- MQTT telemetry from the simulator
-- Trust scores in the API
-- Device isolation when the score drops too low
+Launches the native PyWebView window with anti-debugging protections, ephemeral port allocation, system tray integration (`pystray`), and background GitHub update checking.
+
+---
+
+## 5. Connecting Edge Hardware (ESP32 / PLC)
+
+Connect your physical ESP32 or PLC via USB/Serial cable.
+
+### Option 1: Via SCADA Dashboard
+1. Log in to the dashboard.
+2. In the **Hardware Connection** card, click **Scan Ports**.
+3. Select your COM port (e.g., `COM3`, `COM4`) and baud rate (default: `115200`).
+4. Click **Connect**.
+
+### Option 2: Via Standalone Edge Gateway Driver CLI
+
+```powershell
+# Real Hardware on COM3:
+python src/serial_gateway.py --port COM3 --baud 115200 --mode plc
+
+# Software Emulation (No hardware required):
+python src/serial_gateway.py --mock --mode plc
+```
+
+---
+
+## 6. What To Expect
+
+* **Zero-Trust Telemetry Ingestion**: Live waveforms of temperature, pressure, vibration, current, and RPM streaming in real-time.
+* **Autonomous Micro-Segmentation**: Any device sending invalid HMAC signatures or anomalous sensor signals is automatically quarantined (`is_isolated = True`).
+* **Stuxnet Prevention**: Attempting to raise temperature setpoints while pressure is elevated is blocked with an immediate security audit alarm.
+* **Instant Incident PDF Reports**: One-click download of formal, Chicago/Harvard-style security audit documentation.

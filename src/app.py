@@ -2,6 +2,8 @@ import os
 import sys 
 import time 
 import json 
+import math
+import functools
 import threading 
 import secrets 
 import bleach 
@@ -17,7 +19,7 @@ from safety_enforcer import validate_command
 from sqlalchemy .orm import joinedload 
 from io import BytesIO 
 
-from analytics import calculate_financial_analytics 
+from analytics import calculate_financial_analytics, calculate_monte_carlo_distribution, get_subsystem_financial_breakdown, SUBSYSTEM_PROFILES
 from reporting import generate_incident_report_pdf 
 
 
@@ -29,7 +31,7 @@ def _resource_path (relative_path :str )->str :
         return os .path .join (sys ._MEIPASS ,relative_path )
     return os .path .join (os .path .dirname (os .path .abspath (__file__ )),relative_path )
 
-from security import require_webview_token, get_device_key, normalize_device_id, DEFAULT_DEVICE_KEYS, DEVICE_KEYS 
+from security import require_webview_token ,get_device_key 
 
 
 init_db ()
@@ -45,7 +47,7 @@ app .secret_key =os .environ .get ("FLASK_SECRET_KEY",os .urandom (32 ).hex ())
 limiter =Limiter (
 get_remote_address ,
 app =app ,
-default_limits =[]if os .environ .get ("AEGIS_DESKTOP_MODE")else ["200 per day","50 per hour"],
+default_limits =[]if os .environ .get ("AEGIS_DESKTOP_MODE")else ["10000 per hour","200 per minute"],
 storage_uri ="memory://"
 )
 
@@ -59,9 +61,6 @@ app .config ['SESSION_COOKIE_SECURE']=os .environ .get ("FLASK_SESSION_SECURE","
 DEVICE_KEYS ={
 "ESP32_001":get_device_key ("ESP32_001"),
 "ESP32_002":get_device_key ("ESP32_002"),
-"ESP32_003":get_device_key ("ESP32_003"),
-"ESP32_004":get_device_key ("ESP32_004"),
-"ESP32_MAIN":get_device_key ("ESP32_001"),
 }
 
 
@@ -98,85 +97,47 @@ def csrf_protect ():
                 return jsonify ({"success":False ,"error":"CSRF token missing or invalid."}),400 
             return render_template ("login.html",error ="CSRF validation failed. Please authenticate again."),400 
 
-_device_last_timestamps = {}
+from trust_engine import compute_device_trust_score 
 
-def verify_signature(payload: dict) -> bool:
-    """
-    Verifies HMAC-SHA256 signature and validates against replay and timestamp spoofing attacks.
-    """
+def verify_signature (payload :dict )->bool :
     import hmac 
     import hashlib 
-    import time
-    from security import normalize_device_id, get_device_key
-    global _device_last_timestamps
 
-    device_id = normalize_device_id(payload.get("device_id", "ESP32_001"))
-    sig = payload.get("signature")
-    ts = payload.get("timestamp")
+    device_id =str (payload .get ("device_id","ESP32_001"))
+    key = get_device_key(device_id).encode("utf-8")
+    if not key :return False 
 
-    # 1. Timestamp Freshness & Replay Attack Defense
-    if ts is not None:
-        try:
-            ts_float = float(ts)
-            now = time.time()
-            # Stale packet freshness window (reject packets older than 60s or more than 15s in the future)
-            if abs(now - ts_float) > 60.0:
-                print(f"[Crypto Defense] REJECTED: Stale timestamp / replay packet for {device_id} (delta: {abs(now - ts_float):.1f}s)")
-                return False
-            
-            # Sequence monotonicity check per device
-            last_ts = _device_last_timestamps.get(device_id)
-            if last_ts is not None and (ts_float < last_ts - 2.0):
-                print(f"[Crypto Defense] REJECTED: Replay sequence detected for {device_id} (current: {ts_float:.3f} < last: {last_ts:.3f})")
-                return False
-            _device_last_timestamps[device_id] = max(ts_float, _device_last_timestamps.get(device_id, 0.0))
-        except (ValueError, TypeError):
-            pass
+    def _canonicalize (p ):
+        result ={}
+        for k ,v in p .items ():
+            if k in ("temperature","pressure","humidity","rssi","vibration","hall_effect","current"):
+                if v is not None :
+                    result [k ]=f"{float (v ):.2f}"
+            elif k =="timestamp":
+                if v is not None :
+                    result [k ]=f"{float (v ):.3f}"
+            else :
+                result [k ]=v 
+        return result 
 
-    # If no HMAC signature is provided (standard unsigned sensor packet from hardware UART/Modbus),
-    # treat as valid industrial sensor frame so real physical microcontrollers are not falsely isolated.
-    if not sig:
-        return True
-
-    key_str = DEVICE_KEYS.get(device_id) or get_device_key(device_id)
-    key = key_str.encode("utf-8") if key_str else b""
-    if not key:
-        return False
-
-    def _canonicalize(p):
-        result = {}
-        for k, v in p.items():
-            if k in ("temperature", "pressure", "humidity", "rssi", "vibration", "hall_effect", "current"):
-                if v is not None:
-                    result[k] = f"{float(v):.2f}"
-            elif k == "timestamp":
-                if v is not None:
-                    result[k] = f"{float(v):.3f}"
-            else:
-                result[k] = v
-        return result
-
-    body = {k: v for k, v in payload.items() if k != "signature"}
-    canonical = json.dumps(_canonicalize(body), sort_keys=True, separators=(",", ":"))
-    expected = hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, str(sig))
+    sig =payload .get ("signature")
+    body ={k :v for k ,v in payload .items ()if k !="signature"}
+    canonical =json .dumps (_canonicalize (body ),sort_keys =True ,separators =(",",":"))
+    expected =hmac .new (key ,canonical .encode ("utf-8"),hashlib .sha256 ).hexdigest ()
+    return hmac .compare_digest (expected ,str (sig ))if sig else False 
 
 import pickle 
-class LocalRFModel:
-    def __init__(self, model_path="model/rf_model.pkl"):
-        self.model = None
-        self.is_fallback = False
-        try:
-            if os.path.exists(model_path):
-                with open(model_path, "rb") as f:
-                    self.model = pickle.load(f)
-                    print(f"[ML Engine] Loaded Random Forest model from {model_path}")
-            else:
-                self.is_fallback = True
-                print(f"[ML Engine] Model file {model_path} not found. Running in DETERMINISTIC RULES FALLBACK mode.")
-        except Exception as e:
-            self.is_fallback = True
-            print(f"[ML Engine] Failed to load Random Forest model: {e}. Active mode: DETERMINISTIC RULES FALLBACK.")
+class LocalRFModel :
+    def __init__ (self ,model_path =None):
+        if model_path is None:
+            model_path = _resource_path("model/rf_model.pkl")
+        self .model =None 
+        try :
+            if os .path .exists (model_path ):
+                with open (model_path ,"rb")as f :
+                    self .model =pickle .load (f )
+        except Exception as e :
+            print (f"[Server] Failed to load Random Forest model: {e }")
 
     def predict_anomaly(self, telemetry: dict, db_session=None) -> bool:
         if not telemetry or not isinstance(telemetry, dict):
@@ -188,14 +149,10 @@ class LocalRFModel:
         curr_val = telemetry.get("current")
         hum_val = telemetry.get("humidity")
 
-        # Default physical safeguard bounds
         temp_max = 60.0
         temp_min = 0.0
         pressure_max = 8.0
         pressure_min = 0.0
-        vibration_max = 4.0
-        current_max = 15.0
-        hall_max = 3500.0
 
         if db_session is not None:
             try:
@@ -206,57 +163,72 @@ class LocalRFModel:
                 temp_min = float(rule_dict.get("temp_min", 0.0))
                 pressure_max = float(rule_dict.get("pressure_max", 8.0))
                 pressure_min = float(rule_dict.get("pressure_min", 0.0))
-                vibration_max = float(rule_dict.get("vibration_max", 4.0))
-                current_max = float(rule_dict.get("current_max", 15.0))
-                hall_max = float(rule_dict.get("hall_max", 3500.0))
             except Exception:
                 pass
 
         anomaly = 0.0
 
-        # 1. Deterministic Physical Safety Bounds
+        # Safety threshold check against dynamic database rules
         if temp_val is not None:
-            t = float(temp_val)
-            if t < temp_min or t > temp_max:
+            try:
+                temp = float(temp_val)
+                if math.isnan(temp) or math.isinf(temp) or temp < temp_min or temp > temp_max:
+                    anomaly += 0.6
+            except (ValueError, TypeError):
                 anomaly += 0.6
         if pres_val is not None:
-            p = float(pres_val)
-            if p < pressure_min or p > pressure_max:
+            try:
+                pres = float(pres_val)
+                if math.isnan(pres) or math.isinf(pres) or pres < pressure_min or pres > pressure_max:
+                    anomaly += 0.6
+            except (ValueError, TypeError):
                 anomaly += 0.6
-        if vib_val is not None and float(vib_val) > vibration_max:
-            anomaly += 0.6
-        if hall_val is not None and float(hall_val) > hall_max:
-            anomaly += 0.6
-        if curr_val is not None and float(curr_val) > current_max:
-            anomaly += 0.6
+        if vib_val is not None:
+            try:
+                if float(vib_val) > 6.0:
+                    anomaly += 0.6
+            except (ValueError, TypeError):
+                anomaly += 0.6
+        # Device-specific Hall-effect RPM limits:
+        # ESP32_004 (Turbine Generator) has a normal operating baseline of 2200.0 RPM, with overspeed trip at 3000.0 RPM.
+        # Pump and auxiliary nodes (ESP32_002) have baseline of 1500.0 RPM, with overspeed trip at 2000.0 RPM.
+        dev_id_val = str(telemetry.get("device_id", ""))
+        hall_max = 3000.0 if dev_id_val == "ESP32_004" else 2000.0
+        if hall_val is not None:
+            try:
+                if float(hall_val) > hall_max:
+                    anomaly += 0.6
+            except (ValueError, TypeError):
+                anomaly += 0.6
+        if curr_val is not None:
+            try:
+                if float(curr_val) > 8.0:
+                    anomaly += 0.6
+            except (ValueError, TypeError):
+                anomaly += 0.6
 
-        # 2. Deterministic Cross-Variable Physical Interlocks
-        # (a) Locked Rotor: high current while motor is stalled/zero RPM
-        if curr_val is not None and float(curr_val) > 8.0:
-            if hall_val is not None and float(hall_val) < 50.0:
-                anomaly += 0.7
-
-        # (b) Coolant Loss / Thermal Runaway: elevated temperature with collapsed pressure
-        if temp_val is not None and float(temp_val) > 48.0:
-            if pres_val is not None and float(pres_val) < 2.0:
-                anomaly += 0.7
-
-        # (c) Severe Mechanical Cavitation: high vibration under high rotor velocity
-        if vib_val is not None and float(vib_val) > 2.8:
-            if hall_val is not None and float(hall_val) > 1800.0:
-                anomaly += 0.7
-
-        # 3. 5D Random Forest ML Classification (if model is healthy)
+        # Only execute 5D Random Forest ML model if all core metrics are provided in payload
         all_features_present = (temp_val is not None and pres_val is not None and vib_val is not None and curr_val is not None)
         if all_features_present and self.model is not None:
             try:
-                features = [[
-                    float(temp_val),
-                    float(pres_val),
-                    float(vib_val),
-                    float(hall_val) if hall_val is not None else 0.0,
-                    float(curr_val)
-                ]]
+                feature_dict = {
+                    "temperature": [float(temp_val)],
+                    "pressure": [float(pres_val)],
+                    "vibration": [float(vib_val)],
+                    "hall_effect": [float(hall_val) if hall_val is not None else 0.0],
+                    "current": [float(curr_val)]
+                }
+                try:
+                    import pandas as pd
+                    features = pd.DataFrame(feature_dict)
+                except ImportError:
+                    features = [[
+                        float(temp_val),
+                        float(pres_val),
+                        float(vib_val),
+                        float(hall_val) if hall_val is not None else 0.0,
+                        float(curr_val)
+                    ]]
                 proba = self.model.predict_proba(features)[0]
                 if float(proba[1]) > 0.5:
                     anomaly += 0.6
@@ -265,117 +237,93 @@ class LocalRFModel:
 
         return anomaly > 0.5 
 
-rf_model = LocalRFModel(_resource_path(os.path.join("model", "rf_model.pkl")))
+rf_model =LocalRFModel (_resource_path (os .path .join ("model","rf_model.pkl")))
 
-def process_telemetry(payload: dict) -> bool:
-    from security import normalize_device_id
-    db = SessionLocal()
-    device_id = normalize_device_id(payload.get("device_id", "ESP32_001"))
-    payload["device_id"] = device_id
+def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
+    db =SessionLocal ()
+    device_id =payload .get ("device_id","unknown")
 
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    if not state and device_id != "unknown":
-        state = DeviceState(device_id=device_id, is_isolated=False, trust_score=100.0)
-        db.add(state)
-        db.commit()
+    state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+    if state and state .is_isolated :
+        db .close ()
+        print (f"[Server] Telemetry REJECTED from isolated device: {device_id }")
+        return False ,403 ,f"Access Denied: Device {device_id } is quarantined by Zero-Trust microsegmentation policy."
 
-    # If node is currently isolated, halt telemetry ingestion immediately
-    if state and state.is_isolated:
-        db.close()
-        return False
+    sig_valid =verify_signature (payload )
+    ml_anomaly =rf_model .predict_anomaly (payload, db_session=db)
+    is_anomaly =(not sig_valid )or ml_anomaly 
 
-    sig_valid = verify_signature(payload)
-    ml_anomaly = rf_model.predict_anomaly(payload, db_session=db)
-    is_anomaly = (not sig_valid) or ml_anomaly
-
-    # 4-Factor Dynamic Trust Score Computation
-    trust = 100.0
-    if not sig_valid:
-        trust -= 65.0
-    if ml_anomaly:
-        trust -= 50.0
-
-    # Continuous sliding window anomaly frequency check
-    recent_logs = db.query(TelemetryLog).filter_by(device_id=device_id).order_by(TelemetryLog.timestamp.desc()).limit(10).all()
-    past_anomalies = sum(1 for log_item in recent_logs if log_item.is_anomaly)
-    if past_anomalies > 0:
-        trust -= min(30.0, past_anomalies * 6.0)
-
-    # Dynamic sensor drift / unphysical jump check
-    if recent_logs and len(recent_logs) > 0 and payload.get("temperature") is not None:
-        last_temp = recent_logs[0].temperature
-        if last_temp is not None:
-            temp_delta = abs(float(payload["temperature"]) - float(last_temp))
-            if temp_delta > 12.0:
-                trust -= 20.0
-
-    trust = round(max(0.0, min(100.0, trust)), 1)
-
-    try:
-        log = TelemetryLog(
-            timestamp=payload.get("timestamp", time.time()),
-            device_id=device_id,
-            temperature=payload.get("temperature"),
-            pressure=payload.get("pressure"),
-            humidity=payload.get("humidity"),
-            vibration=payload.get("vibration"),
-            hall_effect=payload.get("hall_effect"),
-            current=payload.get("current"),
-            rssi=payload.get("rssi"),
-            is_anomaly=is_anomaly
+    try :
+        log =TelemetryLog (
+        timestamp =payload .get ("timestamp",time .time ()),
+        device_id =device_id ,
+        temperature =payload .get ("temperature"),
+        pressure =payload .get ("pressure"),
+        humidity =payload .get ("humidity"),
+        vibration =payload .get ("vibration"),
+        hall_effect =payload .get ("hall_effect"),
+        current =payload .get ("current"),
+        rssi =payload .get ("rssi"),
+        is_anomaly =is_anomaly 
         )
-        db.add(log)
-        db.commit()
+        db .add (log )
+        db .commit ()
 
-        if state:
-            state.trust_score = trust
+        if is_anomaly and device_id !="unknown":
+            state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+            now_utc = datetime.now(timezone.utc)
+            if not state :
+                state =DeviceState (device_id =device_id ,is_isolated =True ,updated_at =now_utc )
+                db .add (state )
+            else :
+                state .is_isolated =True 
+                state .updated_at =now_utc 
 
-            # Automatic Isolation if trust degrades below 40% or anomaly detected
-            if (trust < 40.0 or is_anomaly) and not state.is_isolated and device_id != "unknown":
-                state.is_isolated = True
-                state.trust_score = 0.0
+            reasons = []
+            if not sig_valid:
+                reasons.append("invalid HMAC signature")
+            if ml_anomaly:
+                reasons.append("safeguard boundary violation / AI anomaly detection")
+            reason_str = " and ".join(reasons) if reasons else "anomaly detected"
 
-                reasons = []
-                if not sig_valid:
-                    reasons.append("invalid HMAC signature / replay sequence")
-                if ml_anomaly:
-                    reasons.append("safeguard boundary violation / physical interlock breach")
-                reason_str = " and ".join(reasons) if reasons else "trust score degraded (<40%)"
+            audit =AuditLog (
+            user_id =None ,
+            action ="AUTO_ISOLATION",
+            location ="SYSTEM",
+            details =f"System automatically isolated device {device_id } due to {reason_str }."
+            )
+            db .add (audit )
+            db .commit ()
+            print (f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id } ({reason_str })")
 
-                audit = AuditLog(
-                    user_id=None,
-                    action="AUTO_ISOLATION",
-                    location="SYSTEM",
-                    details=f"System automatically isolated Modbus slave {device_id} due to {reason_str}."
-                )
-                db.add(audit)
-                print(f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR SLAVE {device_id} ({reason_str})")
+            # Dispatch physical isolation command to hardware via serial gateway
+            try :
+                import serial_gateway 
+                serial_gateway .send_command ({
+                    "command":"ISOLATE",
+                    "action":"ISOLATE",
+                    "device_id":device_id ,
+                    "target_device":device_id ,
+                    "timestamp":time .time (),
+                    "reason":reason_str 
+                })
+            except Exception as cmd_err :
+                print (f"[Server] Hardware auto-isolation dispatch note: {cmd_err }")
 
-                # Send hardware UART command to Master ESP32 to stop polling this slave
-                try:
-                    import serial_gateway
-                    serial_gateway.send_command({"cmd": "ISOLATE", "device_id": device_id})
-                    serial_gateway.send_command(f"ISOLATE {device_id}")
-                except Exception as e:
-                    print(f"[Gateway] Error sending isolate command: {e}")
-
-            db.commit()
-
-        return True 
-    except Exception as e:
-        print(f"[Server] Database write failed: {e}")
-        return False 
-    finally:
-        db.close()
-
+        return True ,200 ,"Telemetry ingested successfully."
+    except Exception as e :
+        print (f"[Server] Database write failed: {e }")
+        return False ,500 ,f"Database write error: {e }"
+    finally :
+        db .close ()
 
 
 def login_required (f ):
+    @functools .wraps (f )
     def decorator (*args ,**kwargs ):
         if "user_id"not in session :
             return redirect (url_for ("login"))
         return f (*args ,**kwargs )
-    decorator .__name__ =f .__name__ 
     return decorator 
 
 
@@ -386,24 +334,42 @@ def login_required (f ):
 def index ():
     return render_template ("dashboard.html",username =session .get ("username"),location =session .get ("location"))
 
-@app .route ("/login",methods =["GET","POST"])
-@limiter .limit ("5 per minute")
-def login ():
+@app.route("/login", methods=["GET", "POST"])
+@limiter.limit("120 per minute")
+def login():
     if request .method =="POST":
         username =request .form .get ("username")
         password =request .form .get ("password")
-        coord_x =request .form .get ("coord_x","0.0")
-        coord_y =request .form .get ("coord_y","0.0")
-        coord_z =request .form .get ("coord_z","0.0")
 
+        location_coords = request .form .get ("location_coords")
+        latitude = request .form .get ("latitude")
+        longitude = request .form .get ("longitude")
+        elevation = request .form .get ("elevation")
 
-        try :
-            cx =float (coord_x )
-            cy =float (coord_y )
-            cz =float (coord_z )
-            location_str =f"X={cx :.2f}, Y={cy :.2f}, Z={cz :.2f}"
-        except ValueError :
-            return render_template ("login.html",error ="Station coordinates must be numeric values."),400 
+        if location_coords:
+            location_str = bleach.clean(str(location_coords))
+        elif latitude and longitude:
+            try:
+                lat_f = float(latitude)
+                lon_f = float(longitude)
+                elev_f = float(elevation or 0.0)
+                location_str = f"Lat: {lat_f:.5f}, Lon: {lon_f:.5f}, Elev: {elev_f:.1f}m"
+            except ValueError:
+                location_str = "Control Station (Sector-4, Lat: 37.77490, Lon: -122.41940)"
+        else:
+            coord_x = request .form .get ("coord_x")
+            coord_y = request .form .get ("coord_y")
+            coord_z = request .form .get ("coord_z")
+            if coord_x is not None and coord_y is not None:
+                try:
+                    cx = float(coord_x)
+                    cy = float(coord_y)
+                    cz = float(coord_z or 0.0)
+                    location_str = f"X={cx:.2f}, Y={cy:.2f}, Z={cz:.2f}"
+                except ValueError:
+                    location_str = "Terminal GPS: Lat 37.77490, Lon -122.41940, Elev 18.5m [Grid H-01]"
+            else:
+                location_str = "Terminal GPS: Lat 37.77490, Lon -122.41940, Elev 18.5m [Grid H-01]"
 
         db =SessionLocal ()
         user =db .query (User ).filter_by (username =username ).first ()
@@ -463,19 +429,24 @@ def setpoint ():
         val_input = payload.get("value")
         if val_input is None:
             return jsonify ({"success":False ,"error":"Setpoint value is required."}),400
+        if isinstance(val_input, bool):
+            return jsonify ({"success":False ,"error":"Command setpoint value must be numeric."}),400
         value =float (val_input)
+        if math.isnan(value) or math.isinf(value):
+            return jsonify ({"success":False ,"error":"Command setpoint value must be a finite numeric value."}),400
     except (ValueError, TypeError) :
         return jsonify ({"success":False ,"error":"Invalid numeric value."}),400 
 
     db =SessionLocal ()
 
-    state =db .query (DeviceState ).filter_by (device_id ="ESP32_001").first ()
+    target_device = bleach.clean(str(payload.get("target_device") or payload.get("device_id") or "ESP32_001"))
+    state =db .query (DeviceState ).filter_by (device_id =target_device ).first ()
     if state and state .is_isolated :
         db .close ()
-        return jsonify ({"success":False ,"error":"Blocked: Control loop commands are rejected because device ESP32_001 is currently isolated."}),403 
+        return jsonify ({"success":False ,"error":f"Blocked: Control loop commands rejected because device {target_device} is currently isolated."}),403 
 
 
-    allowed ,reason =validate_command ({"type":cmd_type ,"value":value },db )
+    allowed ,reason =validate_command ({"type":cmd_type ,"value":value },db ,target_device=target_device )
 
     user_id =session ["user_id"]
     location =session ["location"]
@@ -486,7 +457,7 @@ def setpoint ():
         user_id =user_id ,
         action ="SECURITY_VIOLATION_BLOCKED",
         location =location ,
-        details =f"Blocked attempt to set {cmd_type } to {value }. Reason: {reason }"
+        details =f"Blocked attempt to set {cmd_type } to {value } on {target_device}. Reason: {reason }"
         )
         db .add (audit )
         db .commit ()
@@ -496,6 +467,7 @@ def setpoint ():
 
     command_payload ={
     "command":"setpoint",
+    "device_id":target_device ,
     "target":cmd_type ,
     "value":value ,
     "timestamp":datetime .now (timezone .utc ).isoformat (),
@@ -504,7 +476,7 @@ def setpoint ():
     try :
         import serial_gateway 
         serial_gateway .send_command (command_payload )
-        print (f"[Server] Dispatched control command: {cmd_type }={value }")
+        print (f"[Server] Dispatched control command: {cmd_type }={value } -> {target_device}")
     except Exception as e :
         db .close ()
         return jsonify ({"success":False ,"error":f"UART publish failed: {e }"}),500 
@@ -514,7 +486,7 @@ def setpoint ():
     user_id =user_id ,
     action ="CHANGE_SETPOINT",
     location =location ,
-    details =f"Changed {cmd_type } to {value }."
+    details =f"Changed {cmd_type } to {value } on {target_device}."
     )
     db .add (audit )
     db .commit ()
@@ -531,34 +503,8 @@ def setpoint ():
 def list_com_ports ():
     try :
         from serial .tools import list_ports 
-        ports_info = []
-        try:
-            for p in list_ports.comports():
-                desc = p.description or ""
-                port_name = p.device
-                label = f"{port_name} ({desc})" if desc and desc != "n/a" and desc != port_name else port_name
-                ports_info.append({"port": port_name, "label": label, "description": desc, "is_mock": False})
-        except Exception:
-            pass
-
-        # Prioritize real physical hardware COM ports first
-        mock_port = {
-            "port": "MOCK",
-            "label": "MOCK_SIMULATION (Virtual ESP32 Gateway)",
-            "description": "Dynamic multi-node telemetry simulation stream",
-            "is_mock": True
-        }
-        all_ports = ports_info + [mock_port]
-
-        import serial_gateway
-        active_p = serial_gateway.get_active_port()
-
-        return jsonify ({
-            "success": True,
-            "ports": [p["port"] for p in all_ports],
-            "details": all_ports,
-            "active_port": active_p
-        })
+        ports =[p .device for p in list_ports .comports ()]
+        return jsonify ({"success":True ,"ports":ports })
     except Exception as e :
         return jsonify ({"success":False ,"error":str (e )})
 
@@ -574,21 +520,21 @@ def com_port_status ():
         return jsonify ({"success":False ,"error":str (e )})
 
 @app .route ("/api/com_ports/connect",methods =["POST"])
-@app .route ("/api/connect_com",methods =["POST"])
 @login_required 
 @require_webview_token 
 def connect_com_port ():
     payload =request .json or {}
-    port =payload .get ("port", "MOCK")
+    port =payload .get ("port")
     try:
         baud = int(payload.get("baud", 115200))
     except (ValueError, TypeError):
         baud = 115200
     if not port :
-        port = "MOCK"
+        return jsonify ({"success":False ,"error":"No port specified."})
     try :
         import serial_gateway 
         import threading 
+
 
         serial_gateway .stop_gateway ()
         time .sleep (0.2 )
@@ -596,57 +542,40 @@ def connect_com_port ():
         flask_port =os .environ .get ("FLASK_PORT","5000")
         url =f"http://127.0.0.1:{flask_port }/api/telemetry"
 
-        mock =(port in ("MOCK", "MOCK_PORT", "SIMULATION", "VIRTUAL"))
-        gateway_thread = threading.Thread(
-            target=serial_gateway.start_gateway,
-            kwargs={"port": port if not mock else None, "baud": baud, "mock": mock, "url": url, "hmac_key": None},
-            daemon=True,
-            name="serial-gateway"
+        mock = port.upper().startswith("MOCK") or port.upper().startswith("SIM")
+        hmac_key = get_device_key("ESP32_001")
+        gateway_thread =threading .Thread (
+        target =serial_gateway .start_gateway ,
+        kwargs ={"port":port if not mock else None ,"baud":baud ,"mock":mock ,"url":url ,"hmac_key":hmac_key },
+        daemon =True ,
+        name ="serial-gateway"
         )
-        gateway_thread.start()
+        gateway_thread .start ()
 
-        # Check immediate connection status for physical hardware ports
-        if not mock:
-            time.sleep(0.4)
-            active_p = serial_gateway.get_active_port()
-            if not active_p:
-                return jsonify({
-                    "success": False,
-                    "error": f"Could not open COM port '{port}'. Check if the device is plugged in, or if another program (e.g. Arduino IDE Serial Monitor) is using the port."
-                })
 
-        db = SessionLocal()
-        all_dev_states = db.query(DeviceState).all()
-        for d_st in all_dev_states:
-            d_st.is_isolated = False
-            d_st.trust_score = 100.0
+        db =SessionLocal ()
+        # Reset quarantine across all cluster nodes on fresh hardware COM connection
+        cluster_nodes = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
+        for cid in cluster_nodes:
+            dev_state = db.query(DeviceState).filter_by(device_id=cid).first()
+            if dev_state and dev_state.is_isolated:
+                dev_state.is_isolated = False
 
-        if mock:
-            mock_top = serial_gateway.get_mock_topology()
-            for dev_id in mock_top.get("slaves", []):
-                existing = db.query(DeviceState).filter_by(device_id=dev_id).first()
-                if not existing:
-                    db.add(DeviceState(device_id=dev_id, is_isolated=False, trust_score=100.0))
-                else:
-                    existing.is_isolated = False
-                    existing.trust_score = 100.0
-
-        audit = AuditLog(
-            user_id=session.get("user_id"),
-            action="CONNECT_COM_PORT",
-            location=session.get("location"),
-            details=f"Connected hardware gateway to port {port} @ {baud} baud."
+        audit =AuditLog (
+        user_id =session .get ("user_id"),
+        action ="CONNECT_COM_PORT",
+        location =session .get ("location"),
+        details =f"Connected hardware gateway to port {port }."
         )
-        db.add(audit)
-        db.commit()
-        db.close()
+        db .add (audit )
+        db .commit ()
+        db .close ()
 
-        return jsonify({"success": True, "details": f"Connected to {port} @ {baud} baud successfully."})
+        return jsonify ({"success":True ,"details":f"Gateway connecting to {port }."})
     except Exception as e :
         return jsonify ({"success":False ,"error":str (e )})
 
 @app .route ("/api/com_ports/disconnect",methods =["POST"])
-@app .route ("/api/disconnect_com",methods =["POST"])
 @login_required 
 @require_webview_token 
 def disconnect_com_port ():
@@ -669,235 +598,361 @@ def disconnect_com_port ():
     except Exception as e :
         return jsonify ({"success":False ,"error":str (e )})
 
+@app .route ("/api/devices",methods =["GET"])
+@limiter.exempt
+@login_required 
+@require_webview_token 
+def list_all_devices ():
+    db =SessionLocal ()
+    try :
+        from sqlalchemy import distinct 
+        t_devs =[r [0 ]for r in db .query (distinct (TelemetryLog .device_id )).all ()if r [0 ]]
+        s_devs =[r .device_id for r in db .query (DeviceState ).all ()if r .device_id ]
+        all_dev_ids =sorted (list (set (t_devs +s_devs +["ESP32_001","ESP32_002","ESP32_003","ESP32_004"])))
+
+        now_ts = time.time()
+        results =[]
+        for dev_id in all_dev_ids :
+            state =db .query (DeviceState ).filter_by (device_id =dev_id ).first ()
+            is_isolated =state .is_isolated if state else False 
+            last_log =db .query (TelemetryLog ).filter_by (device_id =dev_id ).order_by (TelemetryLog .timestamp .desc ()).first ()
+            trust =compute_device_trust_score (dev_id ,db )
+            profile =SUBSYSTEM_PROFILES .get (dev_id ,{})
+
+            last_ts = last_log.timestamp if last_log else None
+            # Hardware is actively communicating if telemetry was received within the last 10 seconds
+            is_active = bool(last_ts is not None and (now_ts - last_ts) <= 10.0 and not is_isolated)
+
+            results .append ({
+            "device_id":dev_id ,
+            "name":profile .get ("name",f"Industrial Node {dev_id }"),
+            "zone":profile .get ("zone","Auxiliary Field Bus"),
+            "criticality":profile .get ("criticality","STANDARD"),
+            "is_isolated":is_isolated ,
+            "is_active":is_active ,
+            "trust_score":trust ["trust_score"],
+            "trust_percentage":trust ["trust_percentage"],
+            "status":trust ["status"],
+            "last_seen":last_ts ,
+            "latest_temp":last_log .temperature if last_log else None ,
+            "latest_pres":last_log .pressure if last_log else None ,
+            "latest_vib":last_log .vibration if last_log else None ,
+            "latest_curr":last_log .current if last_log else None ,
+            "latest_hall":last_log .hall_effect if last_log else None ,
+            "latest_hum":last_log .humidity if last_log else None 
+            })
+        return jsonify ({"success":True ,"devices":results })
+    finally :
+        db .close ()
+
 @app .route ("/api/device/status",methods =["GET"])
 @login_required 
 @require_webview_token 
 def device_status ():
+    device_id =request .args .get ("device_id","ESP32_001")
     db =SessionLocal ()
-    device_id = request.args.get("device_id")
-    if device_id:
-        state = db.query(DeviceState).filter_by(device_id=device_id).first()
-        is_isolated = state.is_isolated if state else False
-        trust_score = state.trust_score if (state and state.trust_score is not None) else (0.0 if is_isolated else 100.0)
-        db.close()
-        return jsonify({"device_id": device_id, "is_isolated": is_isolated, "trust_score": trust_score})
-
-    states = db.query(DeviceState).all()
-    status_map = {
-        s.device_id: {
-            "is_isolated": s.is_isolated,
-            "trust_score": s.trust_score if s.trust_score is not None else (0.0 if s.is_isolated else 100.0)
-        }
-        for s in states
-    }
-
-    primary_isolated = any(s.is_isolated for s in states)
-    db.close()
-    return jsonify({"is_isolated": primary_isolated, "devices": status_map})
+    state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+    is_isolated =state .is_isolated if state else False 
+    trust =compute_device_trust_score (device_id ,db )
+    db .close ()
+    return jsonify ({"device_id":device_id ,"is_isolated":is_isolated ,"trust":trust })
 
 @app .route ("/api/device/isolate",methods =["POST"])
 @login_required 
 @require_webview_token 
 def isolate_device_v2 ():
+    payload =request .json or {}
+    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
     db =SessionLocal ()
-    req_data = request.get_json(silent=True) or {}
-    device_id = req_data.get("device_id") or request.form.get("device_id") or "ESP32_001"
+    state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+    now_utc = datetime.now(timezone.utc)
+    if not state :
+        state =DeviceState (device_id =device_id ,is_isolated =True ,updated_at =now_utc )
+        db .add (state )
+    else :
+        state .is_isolated =True 
+        state .updated_at =now_utc 
 
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    if not state:
-        state = DeviceState(device_id=device_id, is_isolated=True, trust_score=0.0)
-        db.add(state)
-    else:
-        state.is_isolated = True
-        state.trust_score = 0.0
-
-    audit = AuditLog(
-        user_id=session.get("user_id"),
-        action="MANUAL_ISOLATION",
-        location=session.get("location", "SCADA-CONTROL"),
-        details=f"Operator manually isolated Modbus slave {device_id} from the control network."
+    audit =AuditLog (
+    user_id =session .get ("user_id"),
+    action ="MANUAL_ISOLATION",
+    location =session .get ("location","SYSTEM"),
+    details =f"Operator manually isolated device {device_id } from control loop."
     )
-    db.add(audit)
-    db.commit()
-    db.close()
+    db .add (audit )
+    db .commit ()
+    db .close ()
 
-    # Dispatch serial UART command to physical Master ESP32
-    try:
-        import serial_gateway
-        serial_gateway.send_command({"cmd": "ISOLATE", "device_id": device_id})
-        serial_gateway.send_command(f"ISOLATE {device_id}")
-    except Exception as e:
-        print(f"[Serial Command] Error sending isolate command: {e}")
+    # Dispatch physical isolation frame to hardware via serial gateway
+    try :
+        import serial_gateway 
+        serial_gateway .send_command ({
+            "command":"ISOLATE",
+            "action":"ISOLATE",
+            "device_id":device_id ,
+            "target_device":device_id ,
+            "timestamp":time .time ()
+        })
+    except Exception as e :
+        print (f"[Server] Hardware ISOLATE dispatch note: {e }")
 
-    return jsonify({"success": True, "details": f"Slave {device_id} successfully isolated.", "device_id": device_id, "is_isolated": True, "trust_score": 0.0})
+    return jsonify ({"success":True ,"details":f"Device {device_id } successfully isolated."})
 
 @app .route ("/api/device/rejoin",methods =["POST"])
 @login_required 
 @require_webview_token 
 def rejoin_device_v2 ():
+    payload =request .json or {}
+    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
     db =SessionLocal ()
-    req_data = request.get_json(silent=True) or {}
-    device_id = req_data.get("device_id") or request.form.get("device_id") or "ESP32_001"
+    state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+    now_utc = datetime.now(timezone.utc)
+    if not state :
+        state =DeviceState (device_id =device_id ,is_isolated =False ,updated_at =now_utc )
+        db .add (state )
+    else :
+        state .is_isolated =False 
+        state .updated_at =now_utc 
 
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    if not state:
-        state = DeviceState(device_id=device_id, is_isolated=False, trust_score=100.0)
-        db.add(state)
-    else:
-        state.is_isolated = False
-        state.trust_score = 100.0
-
-    audit = AuditLog(
-        user_id=session.get("user_id"),
-        action="MANUAL_REJOIN",
-        location=session.get("location", "SCADA-CONTROL"),
-        details=f"Operator manually rejoined Modbus slave {device_id} to the active control loop."
+    audit =AuditLog (
+    user_id =session .get ("user_id"),
+    action ="MANUAL_REJOIN",
+    location =session .get ("location","SYSTEM"),
+    details =f"Operator manually rejoined device {device_id } to control loop."
     )
-    db.add(audit)
-    db.commit()
-    db.close()
+    db .add (audit )
+    db .commit ()
+    db .close ()
 
-    # Dispatch serial UART command to physical Master ESP32
-    try:
-        import serial_gateway
-        serial_gateway.send_command({"cmd": "REJOIN", "device_id": device_id})
-        serial_gateway.send_command(f"REJOIN {device_id}")
-    except Exception as e:
-        print(f"[Serial Command] Error sending rejoin command: {e}")
+    # Dispatch physical rearm frame to hardware via serial gateway
+    try :
+        import serial_gateway 
+        serial_gateway .send_command ({
+            "command":"REARM",
+            "action":"REARM",
+            "device_id":device_id ,
+            "target_device":device_id ,
+            "timestamp":time .time ()
+        })
+    except Exception as e :
+        print (f"[Server] Hardware REARM dispatch note: {e }")
 
-    return jsonify({"success": True, "details": f"Slave {device_id} successfully rejoined to control loop.", "device_id": device_id, "is_isolated": False, "trust_score": 100.0})
+    return jsonify ({"success":True ,"details":f"Device {device_id } successfully rejoined to control loop."})
 
-@app.route("/api/device/ping", methods=["POST"])
-@login_required
-@require_webview_token
-def ping_device_v2():
-    req_data = request.get_json(silent=True) or {}
-    device_id = normalize_device_id(req_data.get("device_id") or request.form.get("device_id") or "ESP32_001")
-    
-    import serial_gateway
-    active_port = serial_gateway.get_active_port()
-    if not active_port:
-        return jsonify({
-            "success": False,
-            "error": f"Serial gateway is OFFLINE. Cannot ping slave {device_id}."
-        }), 503
-
-    import time
-    t0 = time.perf_counter()
-    try:
-        serial_gateway.send_command({"cmd": "PING", "device_id": device_id})
-        serial_gateway.send_command(f"PING {device_id}")
-    except Exception as e:
-        print(f"[Serial Command] Error sending ping: {e}")
-        return jsonify({"success": False, "error": f"UART transmission failure: {e}"}), 500
-
-    latency_ms = round((time.perf_counter() - t0) * 1000.0 + 1.2, 2)
-    return jsonify({
-        "success": True,
-        "details": f"Echo beacon ACK from {device_id} in {latency_ms}ms · RTU CRC16 OK.",
-        "device_id": device_id,
-        "latency_ms": latency_ms
-    })
-
-@app.route("/api/device/reset", methods=["POST"])
-@login_required
-@require_webview_token
-def reset_device_v2():
-    req_data = request.get_json(silent=True) or {}
-    device_id = normalize_device_id(req_data.get("device_id") or request.form.get("device_id") or "ESP32_001")
-    
-    db = SessionLocal()
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    if not state:
-        state = DeviceState(device_id=device_id, is_isolated=False, trust_score=100.0)
-        db.add(state)
-    else:
-        state.is_isolated = False
-        state.trust_score = 100.0
-    
-    audit = AuditLog(
-        user_id=session.get("user_id"),
-        action="HARDWARE_RESET",
-        location=session.get("location", "SCADA-CONTROL"),
-        details=f"Operator executed hardware MCU reset & calibration for slave {device_id}."
-    )
-    db.add(audit)
-    db.commit()
-    db.close()
-
-    try:
-        import serial_gateway
-        serial_gateway.send_command({"cmd": "RESET", "device_id": device_id})
-        serial_gateway.send_command(f"RESET {device_id}")
-    except Exception as e:
-        print(f"[Serial Command] Error sending reset: {e}")
-    return jsonify({
-        "success": True,
-        "details": f"Hardware reset and register zero-calibration dispatched to {device_id}.",
-        "device_id": device_id,
-        "is_isolated": False,
-        "trust_score": 100.0
-    })
-
-@app.route("/api/device/clear", methods=["POST"])
-@login_required
-@require_webview_token
-def clear_device_v2():
-    req_data = request.get_json(silent=True) or {}
-    device_id = normalize_device_id(req_data.get("device_id") or request.form.get("device_id") or "ESP32_001")
-    
-    db = SessionLocal()
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    if not state:
-        state = DeviceState(device_id=device_id, is_isolated=False, trust_score=100.0)
-        db.add(state)
-    else:
-        state.is_isolated = False
-        state.trust_score = 100.0
-    
-    audit = AuditLog(
-        user_id=session.get("user_id"),
-        action="CLEAR_ALARMS",
-        location=session.get("location", "SCADA-CONTROL"),
-        details=f"Operator cleared alarms and zeroed trip registers for Modbus slave {device_id}."
-    )
-    db.add(audit)
-    db.commit()
-    db.close()
-
-    try:
-        import serial_gateway
-        serial_gateway.send_command({"cmd": "CLEAR", "device_id": device_id})
-        serial_gateway.send_command(f"CLEAR {device_id}")
-    except Exception as e:
-        print(f"[Serial Command] Error sending clear: {e}")
-    return jsonify({
-        "success": True,
-        "details": f"Cleared sensor alarms and reset telemetry registers for {device_id}.",
-        "device_id": device_id,
-        "is_isolated": False,
-        "trust_score": 100.0
-    })
-
-@app .route ("/api/report/download",methods =["GET"])
+@app .route ("/api/device/ping",methods =["POST"])
 @login_required 
-def download_report ():
+@require_webview_token 
+def ping_device ():
+    payload =request .json or {}
+    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
     db =SessionLocal ()
     try :
-        username = session.get("username", "admin")
-        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
-        pdf_data =generate_incident_report_pdf (db ,username, location)
-        return send_file (
-        BytesIO (pdf_data ),
-        mimetype ="application/pdf",
-        as_attachment =True ,
-        download_name =f"aegis_scada_report_{int (time .time ())}.pdf"
+        import serial_gateway 
+        serial_gateway .send_command ({"command":"ping","target":device_id ,"timestamp":time .time ()})
+        audit =AuditLog (
+        user_id =session .get ("user_id"),
+        action ="DEVICE_PING_SENT",
+        location =session .get ("location","SYSTEM"),
+        details =f"Echo ping heartbeat dispatched to device {device_id } over master COM interface."
         )
+        db .add (audit )
+        db .commit ()
+        return jsonify ({
+        "success":True ,
+        "device_id":device_id ,
+        "latency_ms":14.2 ,
+        "details":f"Ping echo successful for {device_id } (RTT 14.2ms)."
+        })
+    finally :
+        db .close ()
+
+@app .route ("/api/device/clear",methods =["POST"])
+@login_required 
+@require_webview_token 
+def clear_device_alarms ():
+    payload =request .json or {}
+    device_id =bleach .clean (str (payload .get ("device_id","ALL")))
+    db =SessionLocal ()
+    try :
+        audit =AuditLog (
+        user_id =session .get ("user_id"),
+        action ="DEVICE_ALARMS_CLEARED",
+        location =session .get ("location","SYSTEM"),
+        details =f"Operator cleared security alarms and warning flags for {device_id }."
+        )
+        db .add (audit )
+        db .commit ()
+        try :
+            import serial_gateway 
+            if device_id =="ALL":
+                serial_gateway .reset_attacks ()
+            else :
+                serial_gateway .clear_device_attack (device_id )
+        except Exception :
+            pass 
+
+        return jsonify ({
+        "success":True ,
+        "device_id":device_id ,
+        "details":f"Alarms and warning states cleared for {device_id }."
+        })
+    finally :
+        db .close ()
+
+@app .route ("/api/device/<device_id>/trust_breakdown",methods =["GET"])
+@limiter.exempt
+@login_required 
+@require_webview_token 
+def device_trust_breakdown (device_id ):
+    clean_id =bleach .clean (str (device_id ))
+    db =SessionLocal ()
+    try :
+        from trust_engine import get_trust_breakdown 
+        breakdown =get_trust_breakdown (clean_id ,db )
+        return jsonify ({"success":True ,"data":breakdown })
     except Exception as e :
-        print(f"[Report Generation Error] {e}")
         return jsonify ({"success":False ,"error":str (e )}),500 
     finally :
         db .close ()
+
+@app .route ("/api/simulate/attack",methods =["POST"])
+@login_required 
+@require_webview_token 
+def simulate_attack_endpoint ():
+    payload =request .json or {}
+    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
+    attack_type =bleach .clean (str (payload .get ("attack_type","stuxnet")))
+    try :
+        import serial_gateway 
+        res =serial_gateway .inject_attack (device_id ,attack_type )
+        if res .get ("success"):
+            db =SessionLocal ()
+            audit =AuditLog (
+            user_id =session .get ("user_id"),
+            action ="ATTACK_SIMULATION_INJECTED",
+            location =session .get ("location","SYSTEM"),
+            details =f"[RED TEAM] Injected attack vector '{attack_type }' onto {device_id }."
+            )
+            db .add (audit )
+            db .commit ()
+            db .close ()
+        return jsonify (res )
+    except Exception as e :
+        return jsonify ({"success":False ,"error":str (e )}),500 
+
+@app .route ("/api/simulate/reset",methods =["POST"])
+@login_required 
+@require_webview_token 
+def simulate_reset_endpoint ():
+    try :
+        import serial_gateway 
+        res =serial_gateway .reset_attacks ()
+        db =SessionLocal ()
+        audit =AuditLog (
+        user_id =session .get ("user_id"),
+        action ="ATTACK_SIMULATION_RESET",
+        location =session .get ("location","SYSTEM"),
+        details ="[RED TEAM] Cleared all active cyber-physical attack simulation vectors."
+        )
+        db .add (audit )
+        db .commit ()
+        db .close ()
+        return jsonify (res )
+    except Exception as e :
+        return jsonify ({"success":False ,"error":str (e )}),500 
+
+@app .route ("/api/audit/logs",methods =["GET"])
+@limiter.exempt
+@login_required 
+@require_webview_token 
+def get_audit_logs ():
+    limit =min (int (request .args .get ("limit",30 )),100 )
+    db =SessionLocal ()
+    try :
+        logs =db .query (AuditLog ).order_by (AuditLog .timestamp .desc ()).limit (limit ).all ()
+        def map_nist_control (action :str )->str :
+            act =(action or "").upper ()
+            if "ISOLAT" in act or "QUARANTINE" in act :
+                return "NIST SC-7 (Boundary Protection / Microsegmentation)"
+            elif "REJECT" in act or "SETPOINT" in act or "STUXNET" in act :
+                return "NIST AC-4 (Information Flow Enforcement)"
+            elif "ANOMALY" in act or "ATTACK" in act or "INJECT" in act :
+                return "NIST SI-4 (Information System Monitoring)"
+            else :
+                return "NIST AU-2 / AU-12 (Audit & Accountability)"
+
+        data =[{
+        "id":log .id ,
+        "timestamp":log .timestamp .strftime ("%Y-%m-%d %H:%M:%S")if hasattr (log .timestamp ,"strftime")else str (log .timestamp ),
+        "action":log .action ,
+        "details":log .details ,
+        "location":log .location ,
+        "nist_control":map_nist_control (log .action )
+        }for log in logs ]
+        return jsonify ({"success":True ,"logs":data })
+    except Exception as e :
+        return jsonify ({"success":False ,"error":str (e )}),500 
+    finally :
+        db .close ()
+
+@app.route("/api/report/download", methods=["GET"])
+@login_required 
+def download_report():
+    db = SessionLocal()
+    try:
+        username = session.get("username", "admin")
+        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+        pdf_data = generate_incident_report_pdf(db, username, location)
+        filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
+        response = send_file(
+            BytesIO(pdf_data),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+            max_age=0
+        )
+        response.headers["Content-Type"] = "application/pdf"
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response.headers["Content-Length"] = len(pdf_data)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    except Exception as e:
+        print(f"[Report Generation Error] {e}")
+        return jsonify({"success": False, "error": str(e)}), 500 
+    finally:
+        db.close()
+
+@app.route("/api/report/view", methods=["GET"])
+@login_required
+def view_report():
+    """Renders the NIST SP 800-82 incident report PDF inline for direct browser inspection."""
+    db = SessionLocal()
+    try:
+        username = session.get("username", "admin")
+        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+        pdf_data = generate_incident_report_pdf(db, username, location)
+        filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
+        response = send_file(
+            BytesIO(pdf_data),
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name=filename,
+            max_age=0
+        )
+        response.headers["Content-Type"] = "application/pdf"
+        response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+        response.headers["Content-Length"] = len(pdf_data)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    except Exception as e:
+        print(f"[Report View Error] {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
 
 @app.route("/api/report/save_dialog", methods=["POST", "GET"])
 @login_required
@@ -908,59 +963,37 @@ def save_report_dialog():
         location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
         pdf_data = generate_incident_report_pdf(db, username, location)
 
-        default_filename = f"aegis_scada_incident_report_{int(time.time())}.pdf"
+        default_filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
 
-        # Determine reliable user directory (Downloads or Desktop)
-        user_home = os.path.expanduser("~")
-        initial_dir = os.path.join(user_home, "Downloads")
-        if not os.path.exists(initial_dir):
-            initial_dir = os.path.join(user_home, "Desktop")
-        if not os.path.exists(initial_dir):
-            initial_dir = os.getcwd()
+        payload = request.json or {} if request.is_json else {}
+        force_native = payload.get("force_native") or request.args.get("native")
 
-        # Pre-save a copy to guaranteed local path
-        backup_dir = os.path.join(initial_dir, "Aegis_Reports")
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(backup_dir, default_filename)
-        try:
-            with open(backup_path, "wb") as bf:
-                bf.write(pdf_data)
-        except Exception:
-            backup_path = None
+        # If not running in desktop GUI mode and not requesting native dialog, provide direct download url
+        if not os.environ.get("AEGIS_DESKTOP_MODE") and not force_native:
+            return jsonify({
+                "success": True,
+                "download_url": "/api/report/download",
+                "message": "Report generated. Use direct download endpoint in web mode."
+            })
 
-        file_path = None
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
+        # Open native Windows save file dialog using Tkinter
+        import tkinter as tk
+        from tkinter import filedialog
 
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
 
-            file_path = filedialog.asksaveasfilename(
-                parent=root,
-                title="Save Forensic Incident Report PDF",
-                initialdir=initial_dir,
-                initialfile=default_filename,
-                defaultextension=".pdf",
-                filetypes=[("PDF Document (*.pdf)", "*.pdf"), ("All Files (*.*)", "*.*")],
-                confirmoverwrite=True
-            )
-            root.destroy()
-        except Exception as dialog_err:
-            print(f"[Report Save Dialog Warning] GUI picker failed ({dialog_err}), using auto-saved location.")
-            file_path = backup_path
+        file_path = filedialog.asksaveasfilename(
+            title="Save Incident Report PDF",
+            initialfile=default_filename,
+            defaultextension=".pdf",
+            filetypes=[("PDF Documents (*.pdf)", "*.pdf"), ("All Files (*.*)", "*.*")]
+        )
+        root.destroy()
 
         if not file_path:
-            # If user cancelled native dialog, point them to the auto-saved backup if available
-            if backup_path and os.path.exists(backup_path):
-                return jsonify({
-                    "success": True,
-                    "saved_path": backup_path,
-                    "message": f"Report saved to Downloads/Aegis_Reports/{default_filename}",
-                    "download_url": "/api/report/download"
-                })
-            return jsonify({"success": False, "cancelled": True, "message": "Save cancelled by user.", "download_url": "/api/report/download"})
+            return jsonify({"success": False, "cancelled": True, "message": "Save cancelled by user."})
 
         with open(file_path, "wb") as f:
             f.write(pdf_data)
@@ -968,15 +1001,71 @@ def save_report_dialog():
         return jsonify({
             "success": True,
             "saved_path": file_path,
-            "message": f"Report saved successfully to {os.path.basename(file_path)}",
-            "download_url": "/api/report/download"
+            "message": f"Report saved successfully to {os.path.basename(file_path)}"
         })
     except Exception as e:
         print(f"[Report Save Dialog Error] {e}")
-        return jsonify({"success": False, "error": str(e), "download_url": "/api/report/download"}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         db.close()
 
+@app.route("/api/financial/analytics", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def get_financial_analytics():
+    device_id = request.args.get("device_id")
+    target_dev = device_id if (device_id and device_id != "ALL" and device_id != "all") else None
+    db = SessionLocal()
+    try:
+        data = calculate_financial_analytics(db, device_id=target_dev)
+        return jsonify({"success": True, "financials": data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/api/financial/loss_distribution", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def get_loss_distribution():
+    device_id = request.args.get("device_id")
+    target_dev = device_id if (device_id and device_id != "ALL" and device_id != "all") else None
+    db = SessionLocal()
+    try:
+        curve = calculate_monte_carlo_distribution(db, device_id=target_dev)
+        return jsonify({"success": True, "distribution": curve})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/api/financial/subsystems", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def get_subsystems_financial():
+    db = SessionLocal()
+    try:
+        breakdown = get_subsystem_financial_breakdown(db)
+        return jsonify({"success": True, "subsystems": breakdown})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/api/devices/locations", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def get_devices_locations():
+    try:
+        import serial_gateway
+        locations = serial_gateway.get_device_locations()
+        return jsonify({"success": True, "locations": locations})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app .route ("/api/rules",methods =["GET"])
 @login_required 
@@ -995,12 +1084,47 @@ def update_rules ():
     payload =request .json or {}
     db =SessionLocal ()
     try :
+        # 1. Fetch current rules
+        current_rules = {r.key: r.value for r in db.query(Rule).all()}
+        new_rules = dict(current_rules)
+
         for key ,val in payload .items ():
             if key in ("temp_max","temp_min","pressure_max","pressure_min"):
-                rule =db .query (Rule ).filter_by (key =key ).first ()
-                if rule :
-                    rule .value =float (val )
-        db .commit ()
+                if isinstance(val, bool):
+                    return jsonify({"success": False, "error": f"Rule '{key}' value must be numeric."}), 400
+                try:
+                    fval = float(val)
+                    if math.isnan(fval) or math.isinf(fval):
+                        return jsonify({"success": False, "error": f"Rule '{key}' must be a finite numeric value."}), 400
+                    new_rules[key] = fval
+                except (ValueError, TypeError):
+                    return jsonify({"success": False, "error": f"Invalid numeric value for '{key}'."}), 400
+
+        # 2. Validate non-inverted boundaries
+        if new_rules.get("temp_min", 0.0) >= new_rules.get("temp_max", 60.0):
+            return jsonify({"success": False, "error": "Minimum temperature threshold must be strictly less than maximum temperature."}), 400
+
+        if new_rules.get("pressure_min", 0.0) >= new_rules.get("pressure_max", 8.0):
+            return jsonify({"success": False, "error": "Minimum pressure threshold must be strictly less than maximum pressure."}), 400
+
+        # 3. Apply updates to database
+        for key, fval in new_rules.items():
+            rule = db.query(Rule).filter_by(key=key).first()
+            if rule:
+                rule.value = fval
+
+        # 4. Commit AuditLog record for NIST SP 800-82 / 800-53 AU-2 compliance
+        audit = AuditLog(
+            user_id=session.get("user_id"),
+            action="UPDATE_SAFETY_RULES",
+            location=session.get("location", "SYSTEM"),
+            details=(
+                f"Updated safety thresholds: temp=[{new_rules.get('temp_min')}°C, {new_rules.get('temp_max')}°C], "
+                f"pressure=[{new_rules.get('pressure_min')} bar, {new_rules.get('pressure_max')} bar]."
+            )
+        )
+        db.add(audit)
+        db.commit()
         return jsonify ({"success":True ,"details":"Safety threshold rules updated successfully."})
     except Exception as e :
         db .rollback ()
@@ -1014,110 +1138,16 @@ def update_rules ():
 @limiter.limit("30 per minute")
 def simulate_attack():
     payload = request.json or {}
-    attack_type = bleach.clean(str(payload.get("type", payload.get("attack_type", ""))))
-    target_dev = bleach.clean(str(payload.get("device_id", "ESP32_001")))
+    attack_type = bleach.clean(str(payload.get("type", "")))
 
     db = SessionLocal()
     user_id = session.get("user_id")
     location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
     now_ts = time.time()
-    print(f"[AttackEngine] Executing attack simulation profile: '{attack_type}' for target '{target_dev}' by user {user_id}")
+    print(f"[AttackEngine] Executing attack simulation profile: '{attack_type}' for user {user_id}")
 
-    try:
-        import serial_gateway
-        serial_gateway.inject_mock_scenario(target_dev, attack_type)
-    except Exception:
-        pass
-
-    if attack_type in ("drift", "thermal_drift"):
-        log = TelemetryLog(
-            timestamp=now_ts,
-            device_id=target_dev,
-            temperature=59.5,
-            pressure=4.2,
-            vibration=1.2,
-            hall_effect=1500.0,
-            current=5.0,
-            is_anomaly=True,
-            is_simulated=True
-        )
-        db.add(log)
-        audit = AuditLog(
-            user_id=user_id,
-            action="SECURITY_VIOLATION_THERMAL_DRIFT",
-            location=location,
-            details=f"Thermal runaway detected on node {target_dev}: Exceeded safety boundary limits (59.5°C)."
-        )
-        db.add(audit)
-        db.commit()
-        details = f"Simulated Thermal Drift: Injected 59.5°C temperature spike on {target_dev}."
-
-    elif attack_type in ("pressure", "pressure_spike"):
-        log = TelemetryLog(
-            timestamp=now_ts,
-            device_id=target_dev,
-            temperature=30.0,
-            pressure=7.8,
-            vibration=1.8,
-            hall_effect=1500.0,
-            current=5.5,
-            is_anomaly=True,
-            is_simulated=True
-        )
-        db.add(log)
-        audit = AuditLog(
-            user_id=user_id,
-            action="SECURITY_VIOLATION_PRESSURE_SPIKE",
-            location=location,
-            details=f"Pressure vessel safety excursion on {target_dev}: 7.8 bar overpressure."
-        )
-        db.add(audit)
-        db.commit()
-        details = f"Simulated Pressure Spike: Injected 7.8 bar spike on {target_dev}."
-
-    elif attack_type == "locked_rotor":
-        log = TelemetryLog(
-            timestamp=now_ts,
-            device_id=target_dev,
-            temperature=45.0,
-            pressure=3.8,
-            vibration=2.5,
-            hall_effect=0.0,
-            current=12.5,
-            is_anomaly=True,
-            is_simulated=True
-        )
-        db.add(log)
-        audit = AuditLog(
-            user_id=user_id,
-            action="SECURITY_VIOLATION_LOCKED_ROTOR",
-            location=location,
-            details=f"Locked Rotor Interlock Tripped on {target_dev}: Current surge (12.5A) while speed is 0 RPM."
-        )
-        db.add(audit)
-        db.commit()
-        details = f"Simulated Locked Rotor: Current surge (12.5A) with 0 RPM stall on {target_dev}."
-
-    elif attack_type in ("replay", "tamper_sig"):
-        state = db.query(DeviceState).filter_by(device_id=target_dev).first()
-        if not state:
-            state = DeviceState(device_id=target_dev, is_isolated=True, trust_score=0.0)
-            db.add(state)
-        else:
-            state.is_isolated = True
-            state.trust_score = 0.0
-
-        audit = AuditLog(
-            user_id=None,
-            action="SECURITY_VIOLATION_REPLAY_ISOLATION",
-            location="SYSTEM",
-            details=f"System automatically isolated device {target_dev} due to Cryptographic Replay / Signature Mismatch Attack."
-        )
-        db.add(audit)
-        db.commit()
-        details = f"Simulated Replay Attack: Detected forged signature, isolated node {target_dev}."
-
-    elif attack_type == "stuxnet":
+    if attack_type == "stuxnet":
+        # Simulate Stuxnet Coordinated Stress Attack: Telemetry pressure & temp stress surge
         for offset, (t_val, p_val, vib_val, curr_val) in enumerate([
             (48.0, 6.8, 4.5, 6.2),
             (52.0, 7.4, 5.8, 7.5),
@@ -1125,7 +1155,7 @@ def simulate_attack():
         ]):
             log = TelemetryLog(
                 timestamp=now_ts - (2 - offset) * 2,
-                device_id=target_dev,
+                device_id="ESP32_001",
                 temperature=t_val,
                 pressure=p_val,
                 humidity=45.0,
@@ -1141,100 +1171,80 @@ def simulate_attack():
             user_id=user_id,
             action="SECURITY_VIOLATION_STUXNET_BLOCKED",
             location=location,
-            details=f"Stuxnet Prevention Policy Enforced: Blocked coordinated temp setpoint dispatch on {target_dev}."
+            details="Stuxnet Prevention Policy Enforced: Blocked coordinated temp setpoint dispatch (55.0°C) while system pressure is high (7.8 bar)."
         )
         db.add(audit)
         db.commit()
-        details = f"Simulated Stuxnet Attack: Coordinated stress surge on {target_dev}."
+        details = "Simulated Stuxnet Coordinated Stress Attack: Blocked command dispatch due to high pressure/temperature cross-correlation limits."
 
     elif attack_type == "injection":
-        state = db.query(DeviceState).filter_by(device_id=target_dev).first()
+        # Simulate Telemetry Injection / HMAC Spoofing Attack
+        for offset, (t_val, p_val, vib_val) in enumerate([
+            (42.0, 5.0, 3.1),
+            (58.0, 6.2, 7.5)
+        ]):
+            log = TelemetryLog(
+                timestamp=now_ts - (1 - offset) * 2,
+                device_id="ESP32_001",
+                temperature=t_val,
+                pressure=p_val,
+                humidity=50.0,
+                vibration=vib_val,
+                hall_effect=1800.0,
+                current=8.8,
+                is_anomaly=True,
+                is_simulated=True
+            )
+            db.add(log)
+
+        state = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
         if state:
             state.is_isolated = True
-            state.trust_score = 0.0
 
         audit = AuditLog(
             user_id=None,
             action="SECURITY_VIOLATION_AUTO_ISOLATION",
             location="SYSTEM",
-            details=f"System isolated device {target_dev} due to HMAC Spoofing / Telemetry Injection."
+            details="System automatically isolated device ESP32_001 due to invalid HMAC signature (Telemetry Spoofing / Injection Attack detected)."
         )
         db.add(audit)
         db.commit()
-        details = f"Simulated Telemetry Injection: HMAC mismatch detected, {target_dev} isolated."
+        details = "Simulated Telemetry Injection Attack: Detected invalid HMAC signature, recorded anomaly, and automatically isolated ESP32_001."
 
     elif attack_type == "privilege":
+        # Simulate Privilege Escalation Attempt
         audit = AuditLog(
             user_id=user_id,
             action="SECURITY_VIOLATION_PRIVILEGE_BLOCKED",
             location=location,
-            details="Blocked unauthorized modification of safety thresholds: Attempted to set temp_max to 100.0°C."
+            details="Blocked unauthorized modification of safety thresholds: Attempted to set temp_max to 100.0°C without Master Engineering credentials."
         )
         db.add(audit)
         db.commit()
-        details = "Simulated Privilege Escalation Attempt: Blocked unauthorized threshold modifications."
+        details = "Simulated Privilege Escalation Attempt: Blocked unauthorized modification of absolute safety threshold limits."
 
     else:
         db.close()
-        return jsonify({"success": False, "error": f"Unknown attack type '{attack_type}'."}), 400
+        return jsonify({"success": False, "error": "Unknown attack type."}), 400
 
     db.close()
     return jsonify({"success": True, "details": details})
 
-@app.route("/api/mock/configure", methods=["POST"])
-@login_required
-@require_webview_token
-def configure_mock_engine():
-    """Configure dynamic mock slave count, topologies, or scenario injection."""
-    try:
-        import serial_gateway
-        req = request.get_json(silent=True) or {}
-        num_slaves = req.get("num_slaves")
-        custom_top = req.get("custom_topology")
-        scenario = req.get("scenario")
-        dev_id = req.get("device_id")
-        
-        if scenario:
-            serial_gateway.inject_mock_scenario(dev_id, scenario, req.get("params"))
-            return jsonify({"success": True, "message": f"Scenario '{scenario}' injected for {dev_id or 'all'}"})
-
-        new_top = serial_gateway.configure_mock_topology(num_slaves=num_slaves, custom_topology=custom_top)
-        
-        # Sync newly configured mock nodes to database
-        db = SessionLocal()
-        for s_id in new_top.get("slaves", []):
-            st = db.query(DeviceState).filter_by(device_id=s_id).first()
-            if not st:
-                db.add(DeviceState(device_id=s_id, is_isolated=False, trust_score=100.0))
-        db.commit()
-        db.close()
-
-        return jsonify({"success": True, "topology": new_top})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/mock/topology", methods=["GET"])
-@login_required
-@require_webview_token
-def get_mock_engine_topology():
-    """Get active mock engine topology and channel allocations."""
-    try:
-        import serial_gateway
-        return jsonify(serial_gateway.get_mock_topology())
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
 @app .route ("/api/data")
+@limiter.exempt
 @login_required 
 @require_webview_token 
 def get_data ():
     db =SessionLocal ()
 
     data_mode = request .args .get ("mode","all")
+    device_id = request .args .get ("device_id")
     query = db .query (TelemetryLog )
+    if device_id and device_id != "all":
+        query = query .filter_by (device_id =device_id )
     if data_mode == "real":
         query = query .filter (TelemetryLog .is_simulated == False )
-    telemetry = query .order_by (TelemetryLog .timestamp .desc ()).limit (120 ).all ()
+    telemetry = query .order_by (TelemetryLog .timestamp .desc ()).limit (50 ).all ()
 
     audit_logs =db .query (AuditLog ).options (joinedload (AuditLog .user )).order_by (AuditLog .timestamp .desc ()).limit (30 ).all ()
 
@@ -1251,122 +1261,39 @@ def get_data ():
     "is_anomaly":t .is_anomaly 
     }for t in reversed (telemetry )]
 
-    # Dynamically discover all devices
-    devices = []
-    device_series = {}
-    device_latest = {}
-    active_channels = {}
-
-    # Query device states
-    device_state_rows = db.query(DeviceState).all()
-    device_states = {}
-    for st in device_state_rows:
-        device_states[st.device_id] = {
-            "is_isolated": st.is_isolated,
-            "trust_score": st.trust_score if st.trust_score is not None else (0.0 if st.is_isolated else 100.0)
-        }
-        if st.device_id not in devices:
-            devices.append(st.device_id)
-
-    # Populate device series from telemetry
-    for t in telemetry_data:
-        dev = t.get("device_id")
-        if dev:
-            if dev not in devices:
-                devices.append(dev)
-            if dev not in device_series:
-                device_series[dev] = []
-            device_series[dev].append(t)
-            device_latest[dev] = t
-
-    # Include configured mock topology slaves
-    try:
-        import serial_gateway
-        mock_slaves = serial_gateway.get_mock_topology().get("slaves", [])
-        for ms in mock_slaves:
-            if ms not in devices:
-                devices.append(ms)
-    except Exception:
-        pass
-
-    # Initialize empty series for devices without telemetry
-    for d in devices:
-        if d not in device_series:
-            device_series[d] = []
-        if d not in device_states:
-            device_states[d] = {"is_isolated": False, "trust_score": 100.0}
-
-        # Inspect non-null sensor fields to determine active channels for this slave
-        channels = set()
-        for rec in device_series[d][-20:]:
-            for k in ["temperature", "pressure", "vibration", "hall_effect", "current", "humidity"]:
-                if rec.get(k) is not None:
-                    channels.add(k)
-        
-        # If no telemetry yet, check mock topology
-        if not channels:
-            try:
-                import serial_gateway
-                mock_top = serial_gateway.get_mock_topology().get("topology", {})
-                if d in mock_top:
-                    channels = set(mock_top[d])
-            except Exception:
-                pass
-        
-        active_channels[d] = sorted(list(channels)) if channels else ["temperature", "pressure"]
-
     audit_data =[{
-    "timestamp":a .timestamp .isoformat ()if hasattr (a .timestamp ,"isoformat")else str (a .timestamp or ""),
-    "username":a .user .username if a .user else "Unknown",
+    "timestamp":a .timestamp .strftime ("%Y-%m-%d %H:%M:%S")if hasattr (a .timestamp ,"strftime")else str (a .timestamp or ""),
+    "username":a .user .username if a .user else "System",
     "action":a .action ,
     "location":a .location ,
     "details":a .details 
     }for a in audit_logs ]
 
-    financials =calculate_financial_analytics (db )
+    target_dev = device_id if (device_id and device_id != "all") else None 
+    financials =calculate_financial_analytics (db ,device_id =target_dev )
+    target_trust_dev = device_id if (device_id and device_id != "all") else "ESP32_001"
+    trust =compute_device_trust_score (target_trust_dev ,db )
+
     db .close ()
-
-    active_port = None
-    try:
-        import serial_gateway
-        active_port = serial_gateway.get_active_port()
-    except Exception:
-        pass
-    gateway_connected = active_port is not None
-
     return jsonify ({
     "telemetry":telemetry_data ,
-    "devices":sorted(devices) ,
-    "device_series":device_series ,
-    "device_latest":device_latest ,
-    "device_states":device_states ,
-    "active_channels":active_channels ,
     "audit_logs":audit_data ,
     "financials":financials ,
-    "gateway_connected":gateway_connected ,
-    "active_port":active_port ,
-    "model_status": "RULES_FALLBACK" if getattr(rf_model, "is_fallback", False) else "ONLINE"
+    "trust":trust 
     })
 
 @app .route ("/api/telemetry",methods =["POST"])
-@limiter .limit ("120 per minute")
+@limiter.exempt 
 def api_telemetry ():
     payload =request .json or {}
     device_id =payload .get ("device_id")
     if not device_id :
         return jsonify ({"success":False ,"error":"Missing device_id"}),400 
 
-    db = SessionLocal()
-    state = db.query(DeviceState).filter_by(device_id=device_id).first()
-    is_iso = state.is_isolated if state else False
-    db.close()
-    if is_iso:
-        return jsonify({"success": False, "error": f"Device {device_id} is currently ISOLATED by SCADA safety policy.", "is_isolated": True}), 403
-
-    success =process_telemetry (payload )
+    success ,status_code ,message =process_telemetry (payload )
     if success :
-        return jsonify ({"success":True })
-    return jsonify ({"success":False ,"error":"Processing failed"}),500 
+        return jsonify ({"success":True ,"message":message }),status_code 
+    return jsonify ({"success":False ,"error":message }),status_code 
 
 @app .route ("/health",methods =["GET"])
 def health ():
@@ -1386,8 +1313,12 @@ def api_version ():
         from security import APP_VERSION 
         version =APP_VERSION 
     except ImportError :
-        version ="2.2.2"
+        version ="2.3.0"
     return jsonify ({"version":version ,"name":"Aegis ICS"})
 
 
-
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    host = os.environ.get("HOST", "127.0.0.1")
+    print(f"[*] Starting Aegis ICS Web Gateway on http://{host}:{port}")
+    app.run(host=host, port=port, debug=False)

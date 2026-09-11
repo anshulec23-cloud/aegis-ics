@@ -6,7 +6,7 @@ Starts Flask backend on a random ephemeral port, launches the PyWebView
 embedded browser window, system tray icon, and auto-update checker.
 
 Usage:
-    python launcher.py          (development mode)
+    python src/main.py          (development mode)
     AegisICS.exe                (frozen PyInstaller build)
 
 Copyright (c) 2024–2026 Aegis ICS Project. All rights reserved.

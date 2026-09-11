@@ -37,16 +37,26 @@ class UpdateInfo :
     published_at :str =""
 
 
+import re
+
 def _parse_semver (version :str )->tuple [int ,...]:
     """Parse a version string into a tuple of integers for comparison.
 
     Args:
-        version: A semver-style version string (e.g. '1.2.3').
+        version: A semver-style version string (e.g. '1.2.3' or '2.3.0-rc1').
 
     Returns:
         A tuple of integers representing the version components.
     """
-    return tuple (int (part )for part in version .split ("."))
+    clean_ver = str(version or "").strip().lstrip("v")
+    parts = []
+    for part in clean_ver.split("."):
+        m = re.match(r"^(\d+)", part)
+        if m:
+            parts.append(int(m.group(1)))
+        else:
+            parts.append(0)
+    return tuple(parts) if parts else (0, 0, 0)
 
 
 def check_for_updates (current_version :str ,repo :str )->UpdateInfo :

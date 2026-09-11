@@ -1,17 +1,17 @@
 [Setup]
 AppName=Aegis ICS Edge
-AppVersion=2.2.1
+AppVersion=2.5.0
 DefaultDirName={autopf}\AegisICS
 DefaultGroupName=Aegis ICS
 UninstallDisplayIcon={app}\AegisICS.exe
 Compression=lzma2
 SolidCompression=yes
 OutputDir=dist
-OutputBaseFilename=Aegis_ICS_Setup_v2.2.1
+OutputBaseFilename=Aegis_ICS_Setup_v2.5.0
 ArchitecturesInstallIn64BitMode=x64
 
 [Files]
-Source: "dist\AegisICS\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\AegisICS.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Aegis ICS Edge"; Filename: "{app}\AegisICS.exe"

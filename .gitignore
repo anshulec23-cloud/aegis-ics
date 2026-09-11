@@ -24,7 +24,8 @@ isolated_devices.json
 .aegis.pids
 
 # Build artifacts
-dist/
+dist/*
+!dist/AegisICS.exe
 build/
 build_temp/
 obfuscated/

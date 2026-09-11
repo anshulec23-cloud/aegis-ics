@@ -10,6 +10,10 @@ from concurrent.futures import ThreadPoolExecutor
 src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 sys.path.insert(0, src_dir)
 
+# Isolate database for tests to prevent modifying production aegis_v2.db
+test_db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "test_aegis.db"))
+os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path}"
+
 from database import init_db, SessionLocal, User, AuditLog, TelemetryLog, Rule, DeviceState
 from security import get_device_key
 from safety_enforcer import validate_command
@@ -150,7 +154,6 @@ def test_financial_analytics():
         # Test 1: Empty database
         db.query(TelemetryLog).delete()
         db.query(AuditLog).delete()
-        db.query(DeviceState).delete()
         db.commit()
 
         fin = calculate_financial_analytics(db)
@@ -463,3 +466,884 @@ def test_fuzzing_and_boundary_conditions():
 
         res_sim = client.post("/api/simulate-attack", json=p, headers=headers)
         assert res_sim.status_code in (200, 400, 403, 429), f"Fuzzing /api/simulate-attack with {p} returned {res_sim.status_code}"
+
+# --- 10. Multi-Device Cluster Endpoints & NIST SP 800-82 Compliance Tests ---
+def test_multi_device_cluster_endpoints():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    db_init = get_test_db()
+    for did in ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]:
+        st = db_init.query(DeviceState).filter_by(device_id=did).first()
+        if st:
+            st.is_isolated = False
+    db_init.commit()
+    db_init.close()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "37.7749, -122.4194"
+        sess["csrf_token"] = "test_csrf_multi"
+
+    headers = {"X-CSRF-Token": "test_csrf_multi"}
+
+    # 1. Test GET /api/devices
+    res = client.get("/api/devices")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "devices" in data
+    assert len(data["devices"]) >= 4
+    dev_ids = [d["device_id"] for d in data["devices"]]
+    assert "ESP32_001" in dev_ids
+    assert "ESP32_002" in dev_ids
+    assert "ESP32_003" in dev_ids
+    assert "ESP32_004" in dev_ids
+
+    # Verify trust score properties
+    for d in data["devices"]:
+        assert "trust_percentage" in d
+        assert 0.0 <= d["trust_percentage"] <= 100.0
+        assert "is_isolated" in d
+
+    # 2. Test POST /api/device/ping
+    res_ping = client.post("/api/device/ping", json={"device_id": "ESP32_002"}, headers=headers)
+    assert res_ping.status_code == 200
+    ping_data = res_ping.get_json()
+    assert ping_data["success"] is True
+    assert "Ping echo successful" in ping_data["details"]
+
+    # 3. Test POST /api/device/isolate for specific device
+    res_iso = client.post("/api/device/isolate", json={"device_id": "ESP32_003"}, headers=headers)
+    assert res_iso.status_code == 200
+    iso_data = res_iso.get_json()
+    assert iso_data["success"] is True
+
+    # Verify ESP32_003 is now isolated
+    res_stat = client.get("/api/device/status?device_id=ESP32_003")
+    assert res_stat.status_code == 200
+    assert res_stat.get_json()["is_isolated"] is True
+
+    # Verify ESP32_001 is NOT isolated
+    res_stat1 = client.get("/api/device/status?device_id=ESP32_001")
+    assert res_stat1.status_code == 200
+    assert res_stat1.get_json()["is_isolated"] is False
+
+    # 4. Test POST /api/device/rejoin for specific device
+    res_rej = client.post("/api/device/rejoin", json={"device_id": "ESP32_003"}, headers=headers)
+    assert res_rej.status_code == 200
+    assert res_rej.get_json()["success"] is True
+
+    # 5. Test POST /api/device/clear
+    res_clr = client.post("/api/device/clear", json={"device_id": "ESP32_003"}, headers=headers)
+    assert res_clr.status_code == 200
+    assert res_clr.get_json()["success"] is True
+
+    # 6. Test GET /api/data?device_id=ESP32_001
+    res_data = client.get("/api/data?device_id=ESP32_001")
+    assert res_data.status_code == 200
+    d_json = res_data.get_json()
+    assert "telemetry" in d_json
+    assert "trust" in d_json
+    assert "financials" in d_json
+
+    # 7. Test NIST SP 800-82 Report generation
+    db = get_test_db()
+    try:
+        pdf_bytes = generate_incident_report_pdf(db, "admin", "37.7749, -122.4194")
+        assert len(pdf_bytes) > 2000
+        assert b"%PDF" in pdf_bytes
+    finally:
+        db.close()
+
+
+# --- 11. Red Team Attack Simulation Suite Tests ---
+def test_attack_simulation_suite():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "X:12.4, Y:-48.1, Z:3.5"
+        sess["csrf_token"] = "test_csrf_attack"
+
+    headers = {"X-CSRF-Token": "test_csrf_attack"}
+
+    # Test injecting each valid attack vector
+    for attack in ["stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike"]:
+        res = client.post("/api/simulate/attack", json={"device_id": "ESP32_002", "attack_type": attack}, headers=headers)
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert data["attack"] == attack
+
+    # Test invalid attack vector
+    res_bad = client.post("/api/simulate/attack", json={"device_id": "ESP32_002", "attack_type": "unknown_exploit"}, headers=headers)
+    assert res_bad.status_code == 200
+    assert res_bad.get_json()["success"] is False
+
+    # Test reset attacks endpoint
+    res_reset = client.post("/api/simulate/reset", json={}, headers=headers)
+    assert res_reset.status_code == 200
+    assert res_reset.get_json()["success"] is True
+
+
+# --- 12. Trust Parameter Mathematical Breakdown Tests ---
+def test_trust_breakdown_endpoint():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "X:12.4, Y:-48.1, Z:3.5"
+        sess["csrf_token"] = "test_csrf_breakdown"
+
+    headers = {"X-CSRF-Token": "test_csrf_breakdown"}
+
+    res = client.get("/api/device/ESP32_001/trust_breakdown", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    bd = data["data"]
+    assert bd["device_id"] == "ESP32_001"
+    assert "trust_percentage" in bd
+    assert "components" in bd
+
+    comp = bd["components"]
+    assert "s_anomaly" in comp
+    assert "s_signature" in comp
+    assert "s_history" in comp
+    assert "s_stability" in comp
+
+    total_weight = comp["s_anomaly"]["weight"] + comp["s_signature"]["weight"] + comp["s_history"]["weight"] + comp["s_stability"]["weight"]
+    assert abs(total_weight - 1.0) < 0.001
+    assert "zone" in bd
+    assert "stats" in bd
+
+
+# --- 13. Live ICS Security Event & Audit Stream Tests ---
+def test_audit_logs_streaming_endpoint():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "X:12.4, Y:-48.1, Z:3.5"
+        sess["csrf_token"] = "test_csrf_stream"
+
+    headers = {"X-CSRF-Token": "test_csrf_stream"}
+
+    res = client.get("/api/audit/logs?limit=15", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "logs" in data
+    assert isinstance(data["logs"], list)
+
+    for entry in data["logs"]:
+        assert "id" in entry
+        assert "timestamp" in entry
+        assert "action" in entry
+        assert "nist_control" in entry
+        assert "NIST" in entry["nist_control"]
+
+
+# --- 14. Industrial Cyber-Financial FAIR & ALE Analytics Endpoint Tests ---
+def test_financial_analytics_endpoints():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Lat: 37.77490, Lon: -122.41940"
+        sess["csrf_token"] = "test_csrf_fin"
+
+    headers = {"X-CSRF-Token": "test_csrf_fin"}
+
+    res = client.get("/api/financial/analytics", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "financials" in data
+
+    f = data["financials"]
+    assert "fair_model" in f
+    assert "ale_framework" in f
+    assert "downtime_liability" in f
+    assert "regulatory_exposure" in f
+
+    # FAIR metrics
+    fair = f["fair_model"]
+    assert "tef" in fair
+    assert "vulnerability_pct" in fair
+    assert "lef" in fair
+    assert "primary_loss" in fair
+    assert "secondary_loss" in fair
+    assert fair["risk_tier"] in ("NOMINAL", "ELEVATED", "CRITICAL")
+
+    # ALE framework
+    ale = f["ale_framework"]
+    assert ale["sle"] > 0
+    assert ale["aro"] > 0
+    assert ale["ale"] > 0
+    assert ale["risk_reduction_pct"] > 0
+
+    # Downtime liabilities
+    dt = f["downtime_liability"]
+    assert dt["hourly_rate"] > 0
+    assert "active_outage_hourly_loss" in dt
+    assert dt["projected_24h_mttr"] > 0
+
+    # Regulatory fines
+    reg = f["regulatory_exposure"]
+    assert reg["epa_environmental"] > 0
+    assert reg["nerc_cip_critical_infra"] > 0
+    assert reg["nis2_directive"] > 0
+    assert reg["total_regulatory_exposure"] > 0
+
+
+# --- 15. Monte Carlo Probabilistic Loss Exceedance Distribution Tests ---
+def test_financial_loss_distribution_endpoint():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Lat: 37.77490, Lon: -122.41940"
+        sess["csrf_token"] = "test_csrf_mc"
+
+    headers = {"X-CSRF-Token": "test_csrf_mc"}
+
+    res = client.get("/api/financial/loss_distribution", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "distribution" in data
+    dist = data["distribution"]
+    assert len(dist) == 12
+
+    percentiles = [p["percentile"] for p in dist]
+    assert "P05" in percentiles
+    assert "P50" in percentiles
+    assert "P99" in percentiles
+
+    # Ensure monotonic loss progression
+    losses = [p["loss_usd"] for p in dist]
+    assert losses[-1] > losses[0]
+
+
+# --- 16. Subsystem Capital Valuation & Outage Liability Breakdown Tests ---
+def test_financial_subsystems_endpoint():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Lat: 37.77490, Lon: -122.41940"
+        sess["csrf_token"] = "test_csrf_sub"
+
+    headers = {"X-CSRF-Token": "test_csrf_sub"}
+
+    res = client.get("/api/financial/subsystems", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "subsystems" in data
+    subs = data["subsystems"]
+    assert len(subs) == 4
+
+    dev_ids = [s["device_id"] for s in subs]
+    assert "ESP32_001" in dev_ids
+    assert "ESP32_002" in dev_ids
+    assert "ESP32_003" in dev_ids
+    assert "ESP32_004" in dev_ids
+
+    for s in subs:
+        assert s["equipment_value"] > 0
+        assert s["downtime_rate_per_hour"] > 0
+        assert "is_isolated" in s
+
+
+# --- 17. Device Hardware GPS & Facility Geolocation Endpoint Tests ---
+def test_device_locations_endpoint():
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Lat: 37.77490, Lon: -122.41940"
+        sess["csrf_token"] = "test_csrf_loc"
+
+    headers = {"X-CSRF-Token": "test_csrf_loc"}
+
+    res = client.get("/api/devices/locations", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "locations" in data
+    locs = data["locations"]
+    assert len(locs) == 4
+
+    for loc in locs:
+        assert "device_id" in loc
+        assert "latitude" in loc
+        assert "longitude" in loc
+        assert "elevation_m" in loc
+        assert "grid_x" in loc
+        assert "grid_y" in loc
+        assert "grid_z" in loc
+        assert isinstance(loc["latitude"], float)
+        assert isinstance(loc["longitude"], float)
+
+
+# --- 18. Audit & Deep Debugging Regression Tests ---
+def test_pdf_report_special_characters_safety():
+    """Verify ReportLab PDF generation safely handles XML and special characters without parsing crashes."""
+    db = get_test_db()
+    try:
+        malicious_audit = AuditLog(
+            user_id=1,
+            action="SECURITY_VIOLATION_<XSS>",
+            location="Zone <A> & Sector '4'",
+            details="<script>alert(1)</script> & Pressure > 6.0 bar && Temp < 10.0C"
+        )
+        db.add(malicious_audit)
+        db.commit()
+
+        pdf_bytes = generate_incident_report_pdf(db, "admin<tag>&user", "Lat: <37.77>, Lon: &-122")
+        assert pdf_bytes is not None
+        assert len(pdf_bytes) > 500
+        assert pdf_bytes.startswith(b"%PDF")
+    finally:
+        db.close()
+
+
+def test_safety_enforcer_type_safety_and_nan():
+    """Verify safety enforcer and setpoint API strictly reject booleans, NaN, and Inf."""
+    db = get_test_db()
+    try:
+        # 1. Direct enforcer checks
+        ok, msg = validate_command({"type": "set_temp", "value": True}, db)
+        assert not ok
+        assert "numeric" in msg
+
+        ok, msg = validate_command({"type": "set_temp", "value": float("nan")}, db)
+        assert not ok
+        assert "finite" in msg
+
+        ok, msg = validate_command({"type": "set_temp", "value": float("inf")}, db)
+        assert not ok
+        assert "finite" in msg
+
+        # 2. API route checks
+        from app import app
+        app.config["TESTING"] = True
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["location"] = "X:0, Y:0, Z:0"
+            sess["csrf_token"] = "test_csrf_type"
+
+        headers = {"X-CSRF-Token": "test_csrf_type"}
+
+        # Boolean in setpoint
+        res = client.post("/api/setpoint", json={"type": "set_temp", "value": True, "csrf_token": "test_csrf_type"}, headers=headers)
+        assert res.status_code == 400
+
+        # Non-numeric string in setpoint
+        res2 = client.post("/api/setpoint", json={"type": "set_temp", "value": "invalid", "csrf_token": "test_csrf_type"}, headers=headers)
+        assert res2.status_code == 400
+    finally:
+        db.close()
+
+
+def test_rules_inversion_rejection_and_audit_trail():
+    """Verify safety rule updates reject inverted boundaries and generate audit records."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Control Center"
+        sess["csrf_token"] = "test_csrf_rules"
+
+    headers = {"X-CSRF-Token": "test_csrf_rules"}
+
+    # 1. Attempt inverted temperature rule (min >= max)
+    res_inv = client.post(
+        "/api/rules/update",
+        json={"temp_min": 75.0, "temp_max": 50.0, "csrf_token": "test_csrf_rules"},
+        headers=headers
+    )
+    assert res_inv.status_code == 400
+    assert res_inv.get_json()["success"] is False
+    assert "strictly less" in res_inv.get_json()["error"]
+
+    # 2. Valid rule update
+    res_valid = client.post(
+        "/api/rules/update",
+        json={"temp_min": 5.0, "temp_max": 65.0, "pressure_min": 0.5, "pressure_max": 9.0, "csrf_token": "test_csrf_rules"},
+        headers=headers
+    )
+    assert res_valid.status_code == 200
+    assert res_valid.get_json()["success"] is True
+
+    # 3. Verify AuditLog entry was committed
+    db = get_test_db()
+    try:
+        audit = db.query(AuditLog).filter_by(action="UPDATE_SAFETY_RULES").order_by(AuditLog.timestamp.desc()).first()
+        assert audit is not None
+        assert "temp=[5.0" in audit.details
+    finally:
+        db.close()
+
+
+def test_devices_metadata_enrichment():
+    """Verify /api/devices returns enriched subsystem metadata (name, zone, criticality)."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Control Center"
+        sess["csrf_token"] = "test_csrf_devs"
+
+    headers = {"X-CSRF-Token": "test_csrf_devs"}
+
+    res = client.get("/api/devices", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    devices = data["devices"]
+    assert len(devices) >= 4
+
+    dev_map = {d["device_id"]: d for d in devices}
+    assert "Catalytic Reactor 01" in dev_map["ESP32_001"]["name"]
+    assert "Zone A" in dev_map["ESP32_001"]["zone"]
+    assert "TIER-1 CRITICAL" in dev_map["ESP32_001"]["criticality"]
+    assert "Centrifugal Pump 02" in dev_map["ESP32_002"]["name"]
+
+
+def test_semver_parsing_robustness():
+    """Verify _parse_semver handles standard semver, prefixes, and pre-release tags."""
+    from updater import _parse_semver
+    assert _parse_semver("2.3.0") == (2, 3, 0)
+    assert _parse_semver("v2.3.0") == (2, 3, 0)
+    assert _parse_semver("2.3.0-rc1") == (2, 3, 0)
+    assert _parse_semver("1.0.0.beta") == (1, 0, 0, 0)
+    assert _parse_semver("3") == (3,)
+
+
+def test_comprehensive_nist800_pdf_content():
+    """Verify generated PDF contains all NIST 800-82 sections, all 4 ESPs, parameters, safeguard rules, and FAIR metrics."""
+    import pypdf
+    from io import BytesIO
+    db = get_test_db()
+    try:
+        # Seed test telemetry for ESP32_001
+        t_sample = TelemetryLog(
+            timestamp=time.time(),
+            device_id="ESP32_001",
+            temperature=42.50,
+            pressure=5.20,
+            vibration=1.85,
+            hall_effect=1500.0,
+            current=4.20,
+            humidity=55.0,
+            rssi=-62.0,
+            is_anomaly=False
+        )
+        db.add(t_sample)
+        db.commit()
+
+        pdf_bytes = generate_incident_report_pdf(db, "chief_operator", "Sector-7 Plant Grid")
+        assert pdf_bytes is not None
+        assert pdf_bytes.startswith(b"%PDF")
+        assert len(pdf_bytes) > 10000
+
+        # Read and verify page content
+        reader = pypdf.PdfReader(BytesIO(pdf_bytes))
+        assert len(reader.pages) >= 4
+        all_text = "\n".join([page.extract_text() for page in reader.pages])
+
+        # 1. All 4 ESP Nodes
+        for dev_id in ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]:
+            assert dev_id in all_text, f"Missing node {dev_id} in PDF!"
+
+        # 2. Safeguard Boundaries
+        for rule_key in ["temp_min", "temp_max", "pressure_min", "pressure_max"]:
+            assert rule_key in all_text, f"Missing rule boundary {rule_key} in PDF!"
+
+        # 3. NIST Standards & Mitigations
+        assert "NIST SP 800-82" in all_text
+        assert "NIST SP 800-53" in all_text
+        assert "AC-4" in all_text
+        assert "SC-7" in all_text
+        assert "SI-4" in all_text
+        assert "AU-2" in all_text
+
+        # 4. FAIR & Financial Analytics
+        assert "TEF" in all_text
+        assert "LEF" in all_text
+        assert "ROSI" in all_text
+        assert "Single Loss Expectancy" in all_text
+        assert "Annualized Loss Expectancy" in all_text
+
+        # 5. Regulatory Penalties
+        assert "EPA" in all_text
+        assert "NERC-CIP" in all_text
+        assert "NIS2" in all_text
+
+        # 6. Monte Carlo 12-point Percentiles
+        for pct in ["P05", "P50", "P99"]:
+            assert pct in all_text, f"Missing Monte Carlo percentile {pct} in PDF!"
+    finally:
+        db.close()
+
+
+def test_pdf_download_and_view_endpoints():
+    """Verify /api/report/download and /api/report/view endpoints return valid PDF attachments and inline streams."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "Station Alpha"
+        sess["csrf_token"] = "pdf_test_csrf"
+
+    headers = {"X-CSRF-Token": "pdf_test_csrf"}
+
+    # 1. Test Download endpoint
+    res_dl = client.get("/api/report/download", headers=headers)
+    assert res_dl.status_code == 200
+    assert res_dl.content_type == "application/pdf"
+    assert "attachment" in res_dl.headers.get("Content-Disposition", "")
+    assert ".pdf" in res_dl.headers.get("Content-Disposition", "")
+    assert len(res_dl.data) > 10000
+    assert res_dl.data.startswith(b"%PDF")
+
+    # 2. Test Inline View endpoint
+    res_view = client.get("/api/report/view", headers=headers)
+    assert res_view.status_code == 200
+    assert res_view.content_type == "application/pdf"
+    assert "inline" in res_view.headers.get("Content-Disposition", "")
+    assert ".pdf" in res_view.headers.get("Content-Disposition", "")
+    assert len(res_view.data) > 10000
+    assert res_view.data.startswith(b"%PDF")
+
+    # 3. Test Save Dialog endpoint
+    res_dialog = client.post("/api/report/save_dialog", headers=headers)
+    assert res_dialog.status_code == 200
+    data_dialog = res_dialog.get_json()
+    assert data_dialog["success"] is True
+
+
+def test_firmware_cryptographic_parity():
+    """Verify byte-for-byte HMAC-SHA256 parity between ESP32 C++ firmware formatting and Python zero-trust engine."""
+    import hmac
+    import hashlib
+    import json
+    from app import verify_signature
+    from security import get_device_key
+
+    device_id = "ESP32_001"
+    key = get_device_key(device_id)
+
+    # Values matching what esp32_slave_sensor.ino outputs
+    current = 4.50
+    rpm = 0.00
+    pressure = 4.20
+    temperature = 26.00
+    vibration = 1.10
+
+    # C++ snprintf formula:
+    # snprintf(canonical_str, sizeof(canonical_str),
+    #   "{\"current\":\"%.2f\",\"device_id\":\"%s\",\"hall_effect\":\"%.2f\",\"pressure\":\"%.2f\",\"temperature\":\"%.2f\",\"vibration\":\"%.2f\"}",
+    #   current, DEVICE_ID, rpm, pressure, temperature, vibration);
+    cpp_canonical = f'{{"current":"{current:.2f}","device_id":"{device_id}","hall_effect":"{rpm:.2f}","pressure":"{pressure:.2f}","temperature":"{temperature:.2f}","vibration":"{vibration:.2f}"}}'
+
+    # Compute HMAC as mbedTLS does on ESP32
+    cpp_sig = hmac.new(key.encode("utf-8"), cpp_canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    # Wire packet emitted by ESP32
+    wire_packet = {
+        "current": current,
+        "device_id": device_id,
+        "hall_effect": rpm,
+        "pressure": pressure,
+        "signature": cpp_sig,
+        "temperature": temperature,
+        "vibration": vibration
+    }
+
+    # Python verify_signature must return True
+    assert verify_signature(wire_packet) is True
+
+    # Tampered payload must return False
+    tampered_packet = dict(wire_packet)
+    tampered_packet["temperature"] = 26.01
+    assert verify_signature(tampered_packet) is False
+
+
+def test_multi_node_keys_parity():
+    """Verify that all 4 discrete ESP32 nodes defined in firmware have valid keys in security.py."""
+    import hmac
+    import hashlib
+    from app import verify_signature
+    from security import get_device_key
+
+    nodes = [
+        ("ESP32_001", 26.0, 4.2, 1.1, 0.0, 4.5),
+        ("ESP32_002", 41.0, 5.4, 1.8, 1500.0, 5.2),
+        ("ESP32_003", 18.5, 2.2, 0.6, 0.0, 2.8),
+        ("ESP32_004", 33.0, 3.8, 2.2, 2200.0, 7.1),
+    ]
+
+    for dev_id, temp, pres, vib, rpm, curr in nodes:
+        key = get_device_key(dev_id)
+        assert key is not None and len(key) > 10
+
+        canonical = f'{{"current":"{curr:.2f}","device_id":"{dev_id}","hall_effect":"{rpm:.2f}","pressure":"{pres:.2f}","temperature":"{temp:.2f}","vibration":"{vib:.2f}"}}'
+        sig = hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        packet = {
+            "current": curr,
+            "device_id": dev_id,
+            "hall_effect": rpm,
+            "pressure": pres,
+            "signature": sig,
+            "temperature": temp,
+            "vibration": vib
+        }
+        assert verify_signature(packet) is True, f"Verification failed for {dev_id}!"
+
+
+def test_serial_gateway_firmware_packet_forwarding():
+    """Verify serial_gateway correctly parses real ESP32 wire frames and preserves signatures."""
+    import json
+    from serial_gateway import parse_serial_line
+    from app import verify_signature
+    from security import get_device_key
+
+    dev_id = "ESP32_002"
+    key = get_device_key(dev_id)
+    canonical = f'{{"current":"5.20","device_id":"{dev_id}","hall_effect":"1500.00","pressure":"5.40","temperature":"41.00","vibration":"1.80"}}'
+    import hmac, hashlib
+    sig = hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    firmware_line = f'{{"current":5.20,"device_id":"{dev_id}","hall_effect":1500.00,"pressure":5.40,"signature":"{sig}","temperature":41.00,"vibration":1.80}}\r\n'
+
+    parsed = parse_serial_line(firmware_line, mode="plc")
+    assert parsed is not None
+    assert parsed["device_id"] == dev_id
+    assert parsed["signature"] == sig
+    assert parsed["temperature"] == 41.00
+    assert parsed["pressure"] == 5.40
+    assert parsed["hall_effect"] == 1500.00
+    assert parsed["vibration"] == 1.80
+    assert parsed["current"] == 5.20
+
+    # Passed to zero-trust verification
+    assert verify_signature(parsed) is True
+
+
+def test_serial_command_queue_dispatch():
+    """Verify actuator commands enqueued via send_command can be retrieved for UART transmission."""
+    from serial_gateway import send_command, _command_queue
+
+    # Drain any residual items from earlier tests
+    while not _command_queue.empty():
+        try:
+            _command_queue.get_nowait()
+        except Exception:
+            break
+
+    cmd = {
+        "target_device": "ESP32_001",
+        "command": "ISOLATE",
+        "reason": "Emergency Interlock Trip"
+    }
+    send_command(cmd)
+
+    assert not _command_queue.empty()
+    retrieved = _command_queue.get_nowait()
+    assert retrieved["target_device"] == "ESP32_001"
+    assert retrieved["command"] == "ISOLATE"
+
+
+def test_audit_log_baseline_seeding_and_api():
+    """Verify that an empty database is properly seeded with baseline NIST audit logs,
+    and that /api/data and /api/audit/logs return non-empty records with timestamps and actions."""
+    import os
+    from database import SessionLocal, AuditLog, init_db
+    from app import app
+
+    # 1. Verify database has audit logs
+    init_db()
+    db = SessionLocal()
+    try:
+        count = db.query(AuditLog).count()
+        assert count >= 6, f"Expected at least 6 audit logs, got {count}"
+        first_log = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).first()
+        assert first_log.action is not None
+        assert first_log.timestamp is not None
+        assert first_log.location is not None
+    finally:
+        db.close()
+
+    # 2. Test /api/data returns valid audit logs
+    app.config["TESTING"] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "CONTROL_CENTER_ALPHA"
+
+    res = client.get("/api/data")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert "audit_logs" in data
+    assert len(data["audit_logs"]) > 0
+    for a in data["audit_logs"][:5]:
+        assert a["timestamp"] != ""
+        assert a["action"] != ""
+        assert a["username"] != ""
+
+    # 3. Test /api/audit/logs returns NIST mapped controls
+    res_audit = client.get("/api/audit/logs?limit=10")
+    assert res_audit.status_code == 200
+    audit_data = res_audit.get_json()
+    assert audit_data["success"] is True
+    assert len(audit_data["logs"]) > 0
+    for l in audit_data["logs"][:5]:
+        assert l["timestamp"] != ""
+        assert l["action"] != ""
+        assert "nist_control" in l
+        assert l["nist_control"].startswith("NIST")
+
+
+def test_esp32_004_turbine_generator_rpm_handling():
+    """Verify ESP32_004 operating at normal baseline 2200 RPM is not flagged as anomaly."""
+    from app import rf_model
+    db = get_test_db()
+    try:
+        telemetry = {
+            "device_id": "ESP32_004",
+            "temperature": 33.0,
+            "pressure": 3.8,
+            "vibration": 2.2,
+            "hall_effect": 2200.0,
+            "current": 7.1
+        }
+        is_anomaly = rf_model.predict_anomaly(telemetry, db_session=db)
+        assert not is_anomaly, "ESP32_004 operating at normal 2200 RPM should NOT trigger anomaly"
+
+        # Verify actual overspeed (> 3000 RPM) DOES trigger anomaly
+        overspeed_telemetry = dict(telemetry, hall_effect=3250.0)
+        is_overspeed_anomaly = rf_model.predict_anomaly(overspeed_telemetry, db_session=db)
+        assert is_overspeed_anomaly, "ESP32_004 overspeed (3250 RPM) MUST trigger anomaly"
+    finally:
+        db.close()
+
+
+def test_isolated_device_telemetry_returns_403():
+    """Verify that incoming telemetry from a quarantined device receives HTTP 403 Forbidden."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    db = get_test_db()
+    try:
+        # Ensure device is isolated
+        dev = db.query(DeviceState).filter_by(device_id="ESP32_003").first()
+        if not dev:
+            dev = DeviceState(device_id="ESP32_003", is_isolated=True)
+            db.add(dev)
+        else:
+            dev.is_isolated = True
+        db.commit()
+
+        key = get_device_key("ESP32_003")
+        payload = {
+            "timestamp": time.time(),
+            "device_id": "ESP32_003",
+            "temperature": 18.5,
+            "pressure": 2.2,
+            "vibration": 0.6,
+            "current": 2.8
+        }
+        payload["signature"] = sign_message(payload, key)
+
+        res = client.post("/api/telemetry", json=payload)
+        assert res.status_code == 403, f"Expected 403 Forbidden for isolated device, got {res.status_code}"
+        assert "quarantined" in res.get_json().get("error", "").lower()
+    finally:
+        # Reset isolation state
+        dev = db.query(DeviceState).filter_by(device_id="ESP32_003").first()
+        if dev:
+            dev.is_isolated = False
+            db.commit()
+        db.close()
+
+
+def test_hardware_isolation_command_dispatched():
+    """Verify that isolating a device enqueues a physical ISOLATE command for serial dispatch."""
+    import serial_gateway
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    # Drain existing command queue
+    while not serial_gateway._command_queue.empty():
+        serial_gateway._command_queue.get_nowait()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "CONTROL_CENTER_ALPHA"
+        sess["csrf_token"] = "cmd_csrf"
+
+    headers = {"X-CSRF-Token": "cmd_csrf"}
+
+    # Trigger manual isolation
+    res = client.post("/api/device/isolate", json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"}, headers=headers)
+    assert res.status_code == 200
+
+    # Verify command was queued for physical UART transmission
+    assert not serial_gateway._command_queue.empty()
+    queued_cmd = serial_gateway._command_queue.get_nowait()
+    assert queued_cmd["command"] == "ISOLATE"
+    assert queued_cmd["target_device"] == "ESP32_002"
+
+    # Trigger manual rejoin
+    res = client.post("/api/device/rejoin", json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"}, headers=headers)
+    assert res.status_code == 200
+
+    assert not serial_gateway._command_queue.empty()
+    rejoin_cmd = serial_gateway._command_queue.get_nowait()
+    assert rejoin_cmd["command"] == "REARM"
+    assert rejoin_cmd["target_device"] == "ESP32_002"
+
+
+
