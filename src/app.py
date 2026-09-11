@@ -229,7 +229,10 @@ class LocalRFModel :
                         float(hall_val) if hall_val is not None else 0.0,
                         float(curr_val)
                     ]]
-                proba = self.model.predict_proba(features)[0]
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    proba = self.model.predict_proba(features)[0]
                 if float(proba[1]) > 0.5:
                     anomaly += 0.6
             except Exception:
@@ -1313,7 +1316,7 @@ def api_version ():
         from security import APP_VERSION 
         version =APP_VERSION 
     except ImportError :
-        version ="2.3.0"
+        version ="2.5.0"
     return jsonify ({"version":version ,"name":"Aegis ICS"})
 
 

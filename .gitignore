@@ -20,6 +20,7 @@ server/ai_engine/model/*.pkl
 version-two/model/*.pkl
 isolated_devices.json
 *.db
+*.db-*
 *.sqlite
 .aegis.pids
 

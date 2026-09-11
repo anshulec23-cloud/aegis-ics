@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.3.0 — Python Automated Build Runner
+Aegis ICS v2.5.0 — Python Automated Build Runner
 ================================================
 Cross-platform build script to compile the Aegis ICS standalone executable
 using PyInstaller.
@@ -18,7 +18,7 @@ def main():
     os.chdir(root_dir)
 
     print("=" * 50)
-    print(" Aegis ICS v2.3.0 — Automated Executable Compiler")
+    print(" Aegis ICS v2.5.0 — Automated Executable Compiler")
     print("=" * 50)
 
     # 1. Clean previous builds

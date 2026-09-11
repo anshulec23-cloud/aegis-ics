@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-Aegis ICS v2.3.0 — Standalone Desktop Executable Specification
+Aegis ICS v2.5.0 — Standalone Desktop Executable Specification
 ==============================================================
 Builds the hardened, self-contained Aegis ICS operational binary.
 Bundles local templates, static assets, pre-trained Random Forest ML model,

@@ -14,3 +14,4 @@ bleach
 pystray
 pillow
 pytest
+pypdf>=5.0.0

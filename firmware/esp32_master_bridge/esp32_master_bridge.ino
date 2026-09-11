@@ -47,7 +47,7 @@ void setup() {
     rs485.begin(RS485_BAUD_RATE, SERIAL_8N1, RS485_RX_PIN, RS485_TX_PIN);
 
     delay(500);
-    Serial.println(F("{\"system\":\"Aegis Master Concentrator\",\"status\":\"ONLINE\",\"version\":\"2.3.0\",\"baud\":115200}"));
+    Serial.println(F("{\"system\":\"Aegis Master Concentrator\",\"status\":\"ONLINE\",\"version\":\"2.5.0\",\"baud\":115200}"));
 }
 
 // Non-blocking UART line buffer state

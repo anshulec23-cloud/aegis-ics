@@ -1,5 +1,5 @@
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " Aegis ICS v2.3.0 — Standalone Executable Build" -ForegroundColor Cyan
+Write-Host " Aegis ICS v2.5.0 — Standalone Executable Build" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # Clean previous build artifacts

@@ -955,7 +955,10 @@ def test_semver_parsing_robustness():
 
 def test_comprehensive_nist800_pdf_content():
     """Verify generated PDF contains all NIST 800-82 sections, all 4 ESPs, parameters, safeguard rules, and FAIR metrics."""
-    import pypdf
+    try:
+        import pypdf
+    except ImportError:
+        pytest.skip("pypdf is required to parse and inspect generated PDF contents")
     from io import BytesIO
     db = get_test_db()
     try:
