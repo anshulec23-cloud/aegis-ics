@@ -1,4 +1,4 @@
-# Quickstart Guide — Aegis ICS v2.3.0
+# Quickstart Guide — Aegis ICS v2.5.0
 
 This quickstart guide helps you set up, verify, and run the Aegis ICS Industrial Security Gateway on Windows or Linux.
 
@@ -41,13 +41,13 @@ Key environment variables:
 
 ## 3. Run the Automated Test Suite
 
-Execute the complete 10-module pytest test suite:
+Execute the complete 36-module pytest test suite:
 
 ```powershell
 python -m pytest tests/ -v
 ```
 
-This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, and multi-threaded stress concurrency.
+This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, air-gapped asset availability, 5-feature ML anomaly inference, SSE streaming, and multi-threaded stress concurrency.
 
 ---
 

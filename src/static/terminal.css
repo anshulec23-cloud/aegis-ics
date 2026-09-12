@@ -1,0 +1,373 @@
+/* ==========================================================================
+   Aegis ICS v2.5.0 — Authentic 1980s Industrial SCADA Terminal Stylesheet
+   DEC VT-220 / IBM 3270 / Amber & Green Phosphor CRT Design System
+   ========================================================================== */
+
+:root, body.theme-green {
+    --crt-bg: #020603;
+    --crt-bg-deep: #000000;
+    --crt-panel: #040d06;
+    --crt-panel-hover: #08170b;
+    --crt-border: #22c55e;
+    --crt-border-dim: rgba(34, 197, 94, 0.20);
+    --crt-border-mid: rgba(34, 197, 94, 0.38);
+    --crt-text: #22c55e;
+    --crt-text-dim: #15803d;
+    --crt-text-muted: #14532d;
+    --crt-bright: #4ade80;
+    --crt-alert: #ef4444;
+    --crt-alert-dim: rgba(239, 68, 68, 0.2);
+    --crt-alert-glow: rgba(239, 68, 68, 0.5);
+    --crt-glow: rgba(34, 197, 94, 0.25);
+    --crt-glow-strong: rgba(34, 197, 94, 0.50);
+    --crt-trace-temp: #22c55e;
+    --crt-trace-press: #38bdf8;
+    --crt-trace-vib: #fb923c;
+    --crt-trace-hall: #34d399;
+    --crt-trace-curr: #f472b6;
+    --crt-grid-color: rgba(34, 197, 94, 0.10);
+}
+
+body.theme-amber {
+    --crt-bg: #0a0802;
+    --crt-bg-deep: #050401;
+    --crt-panel: #141005;
+    --crt-panel-hover: #1c1708;
+    --crt-border: #ffb000;
+    --crt-border-dim: rgba(255, 176, 0, 0.25);
+    --crt-border-mid: rgba(255, 176, 0, 0.45);
+    --crt-text: #ffb000;
+    --crt-text-dim: #b87d00;
+    --crt-text-muted: #734e00;
+    --crt-bright: #ffe680;
+    --crt-alert: #ff3333;
+    --crt-alert-dim: rgba(255, 51, 51, 0.2);
+    --crt-alert-glow: rgba(255, 51, 51, 0.6);
+    --crt-glow: rgba(255, 176, 0, 0.45);
+    --crt-glow-strong: rgba(255, 176, 0, 0.85);
+    --crt-trace-temp: #ffb000;
+    --crt-trace-press: #38bdf8;
+    --crt-trace-vib: #fb923c;
+    --crt-trace-hall: #34d399;
+    --crt-trace-curr: #f472b6;
+    --crt-grid-color: rgba(255, 176, 0, 0.12);
+}
+
+body.theme-mono {
+    --crt-bg: #080808;
+    --crt-bg-deep: #030303;
+    --crt-panel: #121212;
+    --crt-panel-hover: #1c1c1c;
+    --crt-border: #d4d4d4;
+    --crt-border-dim: rgba(212, 212, 212, 0.25);
+    --crt-border-mid: rgba(212, 212, 212, 0.45);
+    --crt-text: #e5e5e5;
+    --crt-text-dim: #a3a3a3;
+    --crt-text-muted: #525252;
+    --crt-bright: #ffffff;
+    --crt-alert: #ff4444;
+    --crt-alert-dim: rgba(255, 68, 68, 0.2);
+    --crt-alert-glow: rgba(255, 68, 68, 0.6);
+    --crt-glow: rgba(220, 220, 220, 0.4);
+    --crt-glow-strong: rgba(255, 255, 255, 0.8);
+    --crt-trace-temp: #ffffff;
+    --crt-trace-press: #93c5fd;
+    --crt-trace-vib: #fdba74;
+    --crt-trace-hall: #86efac;
+    --crt-trace-curr: #f472b6;
+    --crt-grid-color: rgba(212, 212, 212, 0.12);
+}
+
+/* Base Body & Monospace Font Rules */
+body {
+    background-color: var(--crt-bg);
+    color: var(--crt-text);
+    font-family: 'VT323', 'Courier New', 'Lucida Console', 'Consolas', 'Courier', monospace !important;
+    letter-spacing: 0.04em;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    position: relative;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* CRT Scanlines Overlay */
+body.crt-active::before {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+    z-index: 99999;
+    background-size: 100% 3px, 6px 100%;
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+/* CRT Glass Screen Vignette */
+body.crt-active::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.88), 0 0 25px var(--crt-glow);
+    z-index: 99998;
+    pointer-events: none;
+}
+
+/* Phosphor Glow Effects */
+.phosphor-text {
+    color: var(--crt-text);
+    text-shadow: 0 0 4px var(--crt-glow);
+}
+
+.phosphor-bright, .phosphor-glow {
+    color: var(--crt-bright);
+    text-shadow: 0 0 7px var(--crt-glow-strong);
+}
+
+.phosphor-alert {
+    color: var(--crt-alert);
+    text-shadow: 0 0 7px var(--crt-alert-glow);
+}
+
+.phosphor-dim {
+    color: var(--crt-text-dim);
+}
+
+/* Terminal Bezel & Box Framing */
+.terminal-panel {
+    background-color: var(--crt-panel);
+    border: 1px solid var(--crt-border-mid);
+    border-radius: 2px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(0, 0, 0, 0.6);
+    position: relative;
+}
+
+.terminal-header {
+    background: linear-gradient(90deg, rgba(255, 176, 0, 0.12), transparent);
+    border-bottom: 1px solid var(--crt-border-dim);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+body.theme-green .terminal-header {
+    background: linear-gradient(90deg, rgba(51, 255, 51, 0.12), transparent);
+}
+
+body.theme-mono .terminal-header {
+    background: linear-gradient(90deg, rgba(212, 212, 212, 0.12), transparent);
+}
+
+/* Terminal Mechanical Action Buttons */
+.terminal-btn {
+    background-color: var(--crt-panel);
+    border: 1px solid var(--crt-border);
+    color: var(--crt-text);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    padding: 6px 12px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.6);
+    transition: all 0.1s ease;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.terminal-btn:hover {
+    background-color: var(--crt-border);
+    color: var(--crt-bg);
+    text-shadow: none;
+    box-shadow: 0 0 10px var(--crt-glow-strong);
+}
+
+.terminal-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.terminal-btn-active {
+    background-color: var(--crt-border) !important;
+    color: var(--crt-bg) !important;
+    text-shadow: none !important;
+    font-weight: 800 !important;
+    box-shadow: 0 0 8px var(--crt-glow) !important;
+}
+
+.terminal-btn-alert {
+    border-color: var(--crt-alert);
+    color: var(--crt-alert);
+}
+
+.terminal-btn-alert:hover {
+    background-color: var(--crt-alert);
+    color: #ffffff;
+    box-shadow: 0 0 12px var(--crt-alert-glow);
+}
+
+/* Terminal Input Fields */
+.terminal-input {
+    background-color: var(--crt-bg-deep);
+    border: 1px solid var(--crt-border-mid);
+    color: var(--crt-bright);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.terminal-input:focus {
+    border-color: var(--crt-border);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 8px var(--crt-glow);
+}
+
+/* Terminal ASCII Badges */
+.terminal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border: 1px solid var(--crt-border-dim);
+    background-color: rgba(255, 176, 0, 0.06);
+    color: var(--crt-text);
+}
+
+.terminal-badge-alert {
+    border-color: var(--crt-alert);
+    background-color: var(--crt-alert-dim);
+    color: var(--crt-alert);
+    text-shadow: 0 0 5px var(--crt-alert-glow);
+}
+
+.terminal-badge-success {
+    border-color: var(--crt-border);
+    background-color: rgba(255, 176, 0, 0.12);
+    color: var(--crt-bright);
+    text-shadow: 0 0 5px var(--crt-glow);
+}
+
+/* Blinking Terminal Cursor */
+@keyframes blinkCursor {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+
+.terminal-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background-color: var(--crt-text);
+    vertical-align: middle;
+    margin-left: 2px;
+    animation: blinkCursor 0.9s infinite;
+}
+
+/* Terminal Table Grid */
+.terminal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.terminal-table th {
+    border-bottom: 1px solid var(--crt-border);
+    padding: 8px 10px;
+    text-align: left;
+    color: var(--crt-bright);
+    text-shadow: 0 0 3px var(--crt-glow);
+    background-color: rgba(255, 176, 0, 0.05);
+}
+
+.terminal-table td {
+    border-bottom: 1px solid var(--crt-border-dim);
+    padding: 6px 10px;
+    color: var(--crt-text);
+}
+
+.terminal-table tr:hover td {
+    background-color: rgba(255, 176, 0, 0.08);
+}
+
+/* Retro Progress Meters */
+.terminal-meter-bg {
+    background-color: var(--crt-bg-deep);
+    border: 1px solid var(--crt-border-dim);
+    height: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.terminal-meter-fill {
+    height: 100%;
+    background-color: var(--crt-border);
+    box-shadow: 0 0 6px var(--crt-glow);
+    transition: width 0.3s ease;
+}
+
+/* Vector Plant Schematic Pulsing */
+@keyframes vectorPulse {
+    0% { stroke-dashoffset: 40; }
+    100% { stroke-dashoffset: 0; }
+}
+
+.vector-pipe-flow {
+    stroke-dasharray: 6 4;
+    animation: vectorPulse 1.2s linear infinite;
+}
+
+.vector-node-glow {
+    filter: drop-shadow(0 0 6px var(--crt-glow));
+}
+
+.vector-node-alert {
+    filter: drop-shadow(0 0 8px var(--crt-alert-glow));
+}
+
+/* Oscilloscope CRT Reticle Grid */
+.oscilloscope-grid {
+    background-image: linear-gradient(var(--crt-grid-color) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--crt-grid-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: -1px -1px;
+}
+
+/* Tape Counter / Reel-to-Reel Readout */
+.tape-counter {
+    background-color: var(--crt-bg-deep);
+    border: 1px solid var(--crt-border);
+    color: var(--crt-bright);
+    font-family: inherit;
+    font-weight: bold;
+    padding: 2px 8px;
+    letter-spacing: 0.12em;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.9);
+}
+
+/* Mechanical Industrial Toggle Switch */
+.mechanical-switch {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--crt-border-mid);
+    background-color: var(--crt-panel);
+    padding: 2px;
+    cursor: pointer;
+}

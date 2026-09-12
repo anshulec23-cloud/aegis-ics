@@ -1,10 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-Aegis ICS v2.5.0 — Standalone Desktop Executable Specification
-==============================================================
-Builds the hardened, self-contained Aegis ICS operational binary.
-Bundles local templates, static assets, pre-trained Random Forest ML model,
-and baseline production database.
+Aegis ICS v2.5.0 — Standalone Executable Specification
+======================================================
+Rebuilt from scratch for self-contained, air-gapped ICS deployment.
+Packages Python runtime, embedded PyWebView, Flask backend, SQLite database,
+ReportLab PDF engine, Random Forest ML pipeline, and offline vendor assets.
 """
 
 import os
@@ -23,7 +23,7 @@ possible_dll_paths = [
 python_dll = next((p for p in possible_dll_paths if os.path.exists(p)), None)
 binaries = [(python_dll, '.')] if python_dll else []
 
-# 2. Bundle UI templates, static assets, ML model, and SQLite database
+# 2. Bundle UI templates, offline static vendor assets, ML model, and database
 datas = [
     ('..\\src\\templates', 'templates'),
     ('..\\src\\static', 'static'),
@@ -31,7 +31,7 @@ datas = [
     ('..\\aegis_v2.db', '.'),
 ]
 
-# 3. Explicit hidden imports for dynamic imports across dependencies
+# 3. Explicit hidden imports for dynamic imports and runtime dependencies
 hiddenimports = [
     'flask',
     'sqlalchemy',
@@ -45,6 +45,8 @@ hiddenimports = [
     'sklearn.ensemble',
     'sklearn.tree',
     'sklearn.utils._typedefs',
+    'joblib',
+    'numpy',
     'flask_limiter',
     'reportlab',
     'reportlab.lib',
@@ -65,6 +67,13 @@ hiddenimports = [
     'jinja2',
     'analytics',
     'reporting',
+    'security',
+    'database',
+    'safety_enforcer',
+    'serial_gateway',
+    'updater',
+    'tray',
+    'trust_engine',
 ]
 
 a = Analysis(

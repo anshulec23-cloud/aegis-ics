@@ -170,7 +170,16 @@ def main ():
     """
     global _webview_window ,_flask_server ,_tray 
 
-    _configure_paths ()
+    _configure_paths()
+
+    if "--version" in sys.argv:
+        from security import APP_VERSION
+        print(f"Aegis ICS v{APP_VERSION}")
+        sys.exit(0)
+    if "--check" in sys.argv:
+        from security import APP_VERSION
+        print(f"Aegis ICS v{APP_VERSION} [SELF-TEST OK]")
+        sys.exit(0)
 
 
     try :

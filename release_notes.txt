@@ -1,44 +1,63 @@
 # Aegis ICS v2.5.0 Release Notes
 
-**Aegis ICS (Industrial Control System) v2.5.0** is the official **Hardware-Hardened Production Release**, concluding physical validation across multi-node ESP32 microcontroller clusters communicating over RS-485 differential buses and USB-CDC Serial gateways.
+Aegis ICS (Industrial Control System) v2.5.0 is the official Hardware-Hardened Production Release, concluding physical validation across multi-node ESP32 microcontroller clusters communicating over RS-485 differential buses and USB-CDC Serial gateways.
 
 ---
 
-## 🌟 Highlights & Key Features in v2.5.0
+## 1. 1980s Monochrome Green Terminal & SCADA Overhaul
 
-- **Physical Downstream Actuator Interlocks**: Active supervisory interlock commands (`ISOLATE` / `REARM`) dispatched over serial UART down to field microcontrollers. On-board optocoupler relays on GPIO 25 de-energize to trip physical process lines upon automated microsegmentation (NIST SC-7).
-- **Subsystem-Aware Overspeed Intelligence**: Refactored `LocalRFModel` with node-specific rotational dynamics. The `ESP32_004` Main Turbine Generator operates at a baseline 2200.0 RPM with a calibrated safety trip ceiling at 3000.0 RPM, preventing false-positive quarantining while catching mechanical runaway conditions.
-- **Non-Blocking Serial Communications**: Master concentrator (`esp32_master_bridge.ino`) and edge slave nodes (`esp32_slave_sensor.ino`) utilize non-blocking ring-buffer line state machines (`readNonBlockingLine()`), eliminating serial line delays and blocking timeouts.
-- **Edge Policy Boundary Safeguards**: Embedded firmware independently validates supervisory setpoint frames against physical envelope boundaries (`0.0 <= temp <= 50.0°C`, `0.0 <= pres <= 8.0 bar`) before local hardware actuation.
-- **Multi-Node Cluster Telemetry Exemption**: Applied `@limiter.exempt` to `/api/telemetry` to ensure high-frequency multi-node packet ingestion without HTTP 429 packet loss.
-- **Steady-State Variance Protection**: Added variance guards (`den_t > 0.5` and `den_p > 0.05`) to Pearson correlation risk modeling, eliminating spurious +40% threat index spikes on normal steady-state plant operations.
-- **Live RS-485 Hardware Cluster Matrix**: The dashboard UI dynamically identifies active physical nodes transmitting on the bus, rendering live transmission pulses, standby states, and active bus node counters (`${activeCount} ACTIVE ON RS-485 BUS / ${total} CONFIGURED`).
-- **NIST SP 800-82 Incident Reporting**: Fully functional PDF forensic report generator implementing the FAIR quantitative risk model (TEF, LEF, SLE, ALE, ARO) with spatial operator audits.
-- **Modernized Standalone Executable**: Completely overhauled build suite (`AegisICS.spec`, `build.ps1`, `build.py`) compiling a self-contained 348 MB standalone executable (`dist/AegisICS.exe`).
-- **100% Test Validation & Database Isolation**: 33/33 automated tests passing (`pytest`) with an isolated test database, guaranteeing zero pollution of production database baseline rules.
+- Authentic 1980s Industrial Terminal: Standardized SCADA interface on authentic DEC VT-220 / IBM 3270 monochrome green phosphor CRT design (P1 phosphor, `#22c55e` primary, `#4ade80` highlight) over deep pitch-black background (`#000000` / `#020603`).
+- Calibrated Eye-Strain Reduction: Calibrated text brightness and tightened phosphor bloom filters for long-duration operator comfort without neon glare.
+- Clutter-Free Mission-Critical Controls: Removed palette configuration switchers and demo buttons from both the login terminal and supervisor console, reserving header space strictly for system UTC time, CRT scanlines toggle, annunciator audio, and session logout.
+- Air-Gapped Vendor Bundles: Bundled local offline Chart.js and Tailwind CSS assets in `src/static/vendor/`, eliminating all external CDN dependencies for zero-connectivity air-gapped environments.
+
+---
+
+## 2. Forensic Time Scrubber & Logic Analyzer
+
+- Real-Time Waveform Slicing: Historical timeline scrubber slices the telemetry ring buffer up to selected frame index and synchronizes waveform rendering across `telemetryChart` and all 4 discrete node charts.
+- Dynamic Sensor Metric Recalculation: Physical process metrics (vibration, hall effect RPM, loop current, temperature mean, variance, drift) dynamically recompute to reflect historical frame state.
+- Automated Safety Trip Seeking: One-click incident jump locates the most recent anomalous frame (`is_anomaly === 1`), repositions the tape head slider, slices waveforms, and fires the industrial annunciator alarm.
+- Non-Interference Streaming Lock: Active forensic analysis locks background polling and Server-Sent Events (SSE) updates from clobbering scrubbed views until live streaming is resumed.
+
+---
+
+## 3. Physical Security, Machine Learning & Analytics
+
+- Physical Downstream Actuator Interlocks: Active supervisory interlock commands (`ISOLATE` / `REARM`) dispatched over serial UART down to field microcontrollers. On-board optocoupler relays on GPIO 25 de-energize to trip physical process lines upon automated microsegmentation (NIST SC-7).
+- Subsystem-Aware Overspeed Intelligence: Refactored `LocalRFModel` with node-specific rotational dynamics. The `ESP32_004` Main Turbine Generator operates at a baseline 2200.0 RPM with a calibrated safety trip ceiling at 3000.0 RPM, preventing false-positive quarantining while catching mechanical runaway conditions.
+- Balanced 5-Feature Random Forest: Retrained physical anomaly detection model over 5 key process variables (`temperature`, `pressure`, `vibration`, `hall_effect`, `current`), achieving 1.0000 ROC-AUC and 0.9993 cross-validated F1 score.
+- Non-Blocking Serial Communications: Master concentrator (`esp32_master_bridge.ino`) and edge slave nodes (`esp32_slave_sensor.ino`) utilize non-blocking ring-buffer line state machines (`readNonBlockingLine()`), eliminating serial line delays and blocking timeouts.
+- Edge Policy Boundary Safeguards: Embedded firmware independently validates supervisory setpoint frames against physical envelope boundaries (`0.0 <= temp <= 50.0 C`, `0.0 <= pres <= 8.0 bar`) before local hardware actuation.
+- Multi-Node Cluster Telemetry Exemption: Applied `@limiter.exempt` to `/api/telemetry` to ensure high-frequency multi-node packet ingestion without HTTP 429 packet loss.
+- Steady-State Variance Protection: Added variance guards (`den_t > 0.5` and `den_p > 0.05`) to Pearson correlation risk modeling, eliminating spurious +40% threat index spikes on normal steady-state plant operations.
+- Live RS-485 Hardware Cluster Matrix: The dashboard UI dynamically identifies active physical nodes transmitting on the bus, rendering live transmission pulses, standby states, and active bus node counters.
+- NIST SP 800-82 Incident Reporting: Fully functional PDF forensic report generator implementing the FAIR quantitative risk model (TEF, LEF, SLE, ALE, ARO) with spatial operator audits.
+- Clean Standalone Executable Pipeline: Streamlined build suite (`AegisICS.spec`, `build.py`) with process lock prevention, compiling a self-contained 348 MB standalone executable (`dist/AegisICS.exe`).
+- 100% Test Validation & Database Isolation: 39/39 automated tests passing (`pytest`) with an isolated test database, guaranteeing zero pollution of production database baseline rules.
 
 ---
 
 # Aegis ICS v2.3.0 Release Notes
 
-**Aegis ICS (Industrial Control System) v2.3.0** is a major feature, stability, and security update to the zero-trust industrial security gateway and enforcer software application.
+Aegis ICS (Industrial Control System) v2.3.0 is a major feature, stability, and security update to the zero-trust industrial security gateway and enforcer software application.
 
 ---
 
-## 🌟 Highlights & Key Features
+## Key Features in v2.3.0
 
-- **Functioning Software Application & Desktop Suite**: Fully integrated standalone executable (`AegisICS.exe`) and web gateway environment delivering real-time telemetry processing, SCADA monitoring, and zero-trust micro-segmentation.
-- **Hardware Connection & Serial Gateway Stability**: Refactored PySerial initialization (`serial_gateway.py`) to disable DTR/RTS signals prior to port opening, preventing continuous ESP32 hardware reset loops ("Dead Bug" fix).
-- **Manual & Auto COM Port Connection Interface**: Added a dedicated hardware connection control panel to the web dashboard allowing operators to scan available serial ports, connect/disconnect on-demand, and monitor live micro-controller telemetry.
-- **Stuxnet-Proof AI Safety Enforcer**: Enhanced multi-variable safety evaluation that blocks coordinated stress vectors (e.g. attempting to raise temperature while system pressure is high) and records violations to the SQLite audit engine.
-- **Operator Location & Audit Engine**: All SCADA setpoints and security events are cryptographically audited with 3D spatial location coordinates (`X, Y, Z`) and timestamps.
-- **Financial Risk & Threat Index Analytics**: Advanced financial exposure modeling calculating incurred financial loss, prevented damage costs, and dynamic threat indices based on telemetry noise and deviation.
-- **Automated Incident PDF & CSV Reporting**: Integrated ReportLab PDF report generator producing official incident reports with custom branding, financial summaries, and security log table dumps.
-- **Complete Test Suite Coverage**: Passed 100% of integration, stress, concurrency, and security fuzzing unit tests (`pytest`).
+- Functioning Software Application & Desktop Suite: Fully integrated standalone executable (`AegisICS.exe`) and web gateway environment delivering real-time telemetry processing, SCADA monitoring, and zero-trust micro-segmentation.
+- Hardware Connection & Serial Gateway Stability: Refactored PySerial initialization (`serial_gateway.py`) to disable DTR/RTS signals prior to port opening, preventing continuous ESP32 hardware reset loops.
+- Manual & Auto COM Port Connection Interface: Added a dedicated hardware connection control panel to the web dashboard allowing operators to scan available serial ports, connect/disconnect on-demand, and monitor live micro-controller telemetry.
+- Stuxnet-Proof AI Safety Enforcer: Enhanced multi-variable safety evaluation that blocks coordinated stress vectors (e.g. attempting to raise temperature while system pressure is high) and records violations to the SQLite audit engine.
+- Operator Location & Audit Engine: All SCADA setpoints and security events are cryptographically audited with 3D spatial location coordinates (`X, Y, Z`) and timestamps.
+- Financial Risk & Threat Index Analytics: Advanced financial exposure modeling calculating incurred financial loss, prevented damage costs, and dynamic threat indices based on telemetry noise and deviation.
+- Automated Incident PDF & CSV Reporting: Integrated ReportLab PDF report generator producing official incident reports with custom branding, financial summaries, and security log table dumps.
+- Complete Test Suite Coverage: Passed 100% of integration, stress, concurrency, and security fuzzing unit tests (`pytest`).
 
 ---
 
-## 🐛 Bug Fixes & Stability Updates
+## Bug Fixes & Stability Updates
 
 - Fixed rate-limiting issues for local desktop operators accessing dashboard endpoints.
 - Synchronized HMAC SHA-256 device key verification across serial gateway and REST API endpoints.
@@ -48,12 +67,12 @@
 
 ---
 
-## 🛠️ Verification & Installation
+## Verification & Installation
 
 ```powershell
 # Run full automated test suite
-.venv\Scripts\python.exe -m pytest tests/
+python -m pytest tests/
 
 # Launch backend application server
-.venv\Scripts\python.exe src/app.py
+python src/app.py
 ```

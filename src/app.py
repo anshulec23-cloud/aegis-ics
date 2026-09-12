@@ -9,7 +9,7 @@ import secrets
 import bleach 
 from datetime import datetime ,timezone ,timedelta 
 from collections import defaultdict 
-from flask import Flask ,render_template ,request ,jsonify ,redirect ,url_for ,session ,send_file 
+from flask import Flask ,render_template ,request ,jsonify ,redirect ,url_for ,session ,send_file ,Response ,stream_with_context 
 from werkzeug .security import check_password_hash 
 from flask_limiter import Limiter 
 from flask_limiter .util import get_remote_address 
@@ -1007,8 +1007,12 @@ def save_report_dialog():
             "message": f"Report saved successfully to {os.path.basename(file_path)}"
         })
     except Exception as e:
-        print(f"[Report Save Dialog Error] {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Report Save Dialog Fallback] {e}")
+        return jsonify({
+            "success": True,
+            "download_url": "/api/report/download",
+            "message": f"Native save dialog unavailable ({e}). Initiating direct download."
+        })
     finally:
         db.close()
 
@@ -1315,6 +1319,56 @@ def get_data ():
     "financials":financials ,
     "trust":trust 
     })
+
+@app.route("/api/stream", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def api_stream():
+    """
+    Server-Sent Events (SSE) push stream delivering sub-second telemetry,
+    continuous trust scores, and security alarms directly to the SCADA dashboard.
+    """
+    def generate():
+        last_seen_ts = time.time() - 3.0
+        while True:
+            db = SessionLocal()
+            try:
+                new_logs = (
+                    db.query(TelemetryLog)
+                    .filter(TelemetryLog.timestamp > last_seen_ts)
+                    .order_by(TelemetryLog.timestamp.asc())
+                    .limit(20)
+                    .all()
+                )
+                if new_logs:
+                    last_seen_ts = max(t.timestamp for t in new_logs)
+                    payload = [{
+                        "timestamp": t.timestamp,
+                        "device_id": t.device_id,
+                        "temperature": t.temperature,
+                        "pressure": t.pressure,
+                        "humidity": t.humidity,
+                        "vibration": t.vibration,
+                        "hall_effect": t.hall_effect,
+                        "current": t.current,
+                        "rssi": t.rssi,
+                        "is_anomaly": t.is_anomaly
+                    } for t in new_logs]
+                    yield f"event: telemetry\ndata: {json.dumps(payload)}\n\n"
+
+                isolated_devs = [d.device_id for d in db.query(DeviceState).filter_by(is_isolated=True).all()]
+                yield f"event: heartbeat\ndata: {json.dumps({'time': time.time(), 'isolated': isolated_devs})}\n\n"
+            except Exception as e:
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+            finally:
+                db.close()
+            time.sleep(1.0)
+
+    res = Response(stream_with_context(generate()), mimetype="text/event-stream")
+    res.headers["Cache-Control"] = "no-cache, no-transform"
+    res.headers["X-Accel-Buffering"] = "no"
+    return res
 
 @app .route ("/api/telemetry",methods =["POST"])
 @limiter.exempt 

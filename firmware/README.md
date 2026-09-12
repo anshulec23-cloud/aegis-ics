@@ -108,7 +108,7 @@ The Master ESP32 acts as the physical bridge between the differential RS-485 bus
 
 ## 4. Multi-Node Flashing Matrix & Pre-Shared Cryptographic Keys
 
-Each physical node must be flashed with its corresponding node macro in [`firmware/esp32_slave_sensor/esp32_slave_sensor.ino`](file:///c:/Users/morbi/Desktop/aegis-ics-2.3.0/firmware/esp32_slave_sensor/esp32_slave_sensor.ino).
+Each physical node must be flashed with its corresponding node macro in [`firmware/esp32_slave_sensor/esp32_slave_sensor.ino`](esp32_slave_sensor/esp32_slave_sensor.ino).
 
 | Node Designation | Subsystem Monitored | Macro to Uncomment in Firmware | Device ID | Pre-Shared HMAC-SHA256 Key |
 |---|---|---|---|---|

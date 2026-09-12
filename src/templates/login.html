@@ -3,120 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis SCADA - Operator Authentication</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Aegis ICS — DEC VT-220 Operator Terminal</title>
+    <!-- Offline Air-Gapped Vendor Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">
     <style>
-        :root {
-            --scada-bg: #070a0f;
-            --scada-panel: #0d131f;
-            --scada-border: #1a2638;
-            --scada-accent: #0284c7;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--scada-bg);
-            color: #e2e8f0;
-        }
-        .apple-blur {
-            background: var(--scada-panel);
-            border: 1px solid var(--scada-border);
-            border-radius: 8px !important;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
-        }
-        .apple-border {
-            border: 1px solid var(--scada-border);
-        }
-        .apple-input {
-            background-color: #080c14;
-            border: 1px solid var(--scada-border);
-            border-radius: 6px;
-            color: #f1f5f9;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            transition: border-color 0.15s ease-in-out;
-        }
-        .apple-input:focus {
-            border-color: #38bdf8;
-            background-color: #0c121d;
-            outline: none;
-            box-shadow: 0 0 0 1px #38bdf8;
-        }
-        .apple-btn {
-            background-color: #1e293b;
-            color: #f8fafc;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-weight: 600;
-            transition: all 0.15s ease;
-        }
-        .apple-btn:hover {
-            background-color: #334155;
-            border-color: #475569;
-        }
-        .apple-btn:active {
-            background-color: #0f172a;
+        .login-box {
+            max-width: 540px;
+            width: 100%;
+            background-color: var(--crt-panel);
+            border: 2px solid var(--crt-border);
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 10px var(--crt-glow);
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4 select-none">
-    <div class="w-full max-w-md apple-blur rounded p-8 shadow-2xl">
-        <div class="text-center mb-8 border-b border-[#1a2638] pb-6">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[10px] font-mono mb-3">
-                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-                NIST SP 800-82 REV 3 OT CONTROL
+<body class="theme-green crt-active flex items-center justify-center min-h-screen p-4 select-none">
+
+    <div class="login-box p-6 md:p-8 space-y-6">
+        <!-- Terminal ASCII Header -->
+        <div class="border-b border-[var(--crt-border-mid)] pb-5 text-center space-y-2">
+            <div class="text-[11px] phosphor-dim tracking-widest uppercase">
+                *** CLASSIFIED INDUSTRIAL FACILITY // PURDUE MODEL LEVEL 1/2 ***
             </div>
-            <h1 class="text-2xl font-bold tracking-tight text-white font-mono">Aegis SCADA Terminal</h1>
-            <p class="text-xs text-slate-400 mt-1 font-mono">v2.5.0 // Operator Gateway Access</p>
+            <pre class="font-mono text-[10px] md:text-xs leading-tight phosphor-bright hidden sm:block">
+╔══════════════════════════════════════════════════════════════════╗
+║  AEGIS-ICS // VT-220 SUPERVISORY SECURITY GATEWAY // v2.5.0      ║
+║  ZERO-TRUST PHYSICAL ENFORCER // CONTINUOUS TRUST ENGINE         ║
+╚══════════════════════════════════════════════════════════════════╝</pre>
+            <div class="sm:hidden font-mono text-sm font-bold phosphor-bright">
+                [ AEGIS-ICS // VT-220 CONSOLE ]
+            </div>
+            <div class="flex items-center justify-between text-[11px] phosphor-text px-1">
+                <span>TERMINAL: TTY-01 (115200 8N1)</span>
+                <span id="loc-status-pill" class="terminal-badge terminal-badge-success">[ HARDWARE GPS OK ]</span>
+            </div>
         </div>
-        
+
         {% if error %}
-        <div class="bg-red-500/10 border border-red-500/30 text-red-200 text-xs px-4 py-3 rounded-lg mb-6 text-center font-light">
-            {{ error }}
+        <div class="p-3 bg-[var(--crt-alert-dim)] border border-[var(--crt-alert)] text-[var(--crt-alert)] text-xs font-mono text-center">
+            [!] ACCESS DENIED: {{ error }}
         </div>
         {% endif %}
-        
-        <form action="/login" method="POST" class="space-y-6">
-            <!-- CSRF Token -->
+
+        <form action="/login" method="POST" class="space-y-5">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-[#86868b] mb-2" for="username">Operator ID</label>
-                <input class="w-full apple-input rounded-lg px-4 py-3 text-sm" type="text" id="username" name="username" placeholder="Enter operator name" required autocomplete="username">
-            </div>
-            
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-[#86868b] mb-2" for="password">Access Token</label>
-                <input class="w-full apple-input rounded-lg px-4 py-3 text-sm" type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
-            </div>
-            
-            <div class="border-t border-white/5 pt-4">
-                <div class="flex items-center justify-between mb-2">
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#86868b]">Terminal Location Service</label>
-                    <span id="loc-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HARDWARE GPS SYNCED</span>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs font-mono phosphor-text uppercase tracking-wider" for="username">
+                    &gt; OPERATOR IDENTIFICATION (LOGIN):
+                </label>
+                <div class="flex items-center">
+                    <span class="px-3 py-2 bg-[var(--crt-bg-deep)] border border-r-0 border-[var(--crt-border-mid)] font-mono text-xs phosphor-text">UID:</span>
+                    <input class="w-full terminal-input" type="text" id="username" name="username" placeholder="operator_id" required autocomplete="username" autofocus>
                 </div>
-                <div class="p-3 bg-white/[0.03] border border-white/10 rounded-xl space-y-1">
-                    <div class="flex justify-between text-xs">
-                        <span class="text-[#86868b]">Coordinates:</span>
-                        <span id="disp-coords" class="font-mono text-white text-[11px]">Lat 37.77490, Lon -122.41940</span>
-                    </div>
-                    <div class="flex justify-between text-xs">
-                        <span class="text-[#86868b]">Plant Sector:</span>
-                        <span id="disp-sector" class="font-mono text-white text-[11px]">Control Room Grid H-01 (Elev: 18.5m)</span>
-                    </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs font-mono phosphor-text uppercase tracking-wider" for="password">
+                    &gt; SECURITY ACCESS KEY (TOKEN):
+                </label>
+                <div class="flex items-center">
+                    <span class="px-3 py-2 bg-[var(--crt-bg-deep)] border border-r-0 border-[var(--crt-border-mid)] font-mono text-xs phosphor-text">KEY:</span>
+                    <input class="w-full terminal-input" type="password" id="password" name="password" placeholder="••••••••••••" required autocomplete="current-password">
+                </div>
+            </div>
+
+            <!-- Terminal Spatial Location Box -->
+            <div class="p-3 bg-[var(--crt-bg-deep)] border border-[var(--crt-border-dim)] space-y-1 font-mono text-[11px]">
+                <div class="flex justify-between phosphor-dim">
+                    <span>TERMINAL SPATIAL COORD:</span>
+                    <span id="disp-coords" class="phosphor-bright">Lat 37.77490, Lon -122.41940</span>
+                </div>
+                <div class="flex justify-between phosphor-dim">
+                    <span>SECURITY ZONE / SECTOR:</span>
+                    <span id="disp-sector" class="phosphor-text">Control Room Alpha (Elev: 18.5m)</span>
                 </div>
                 <input type="hidden" id="location_coords" name="location_coords" value="Lat: 37.77490, Lon: -122.41940, Elev: 18.5m [Grid H-01]">
                 <input type="hidden" id="latitude" name="latitude" value="37.77490">
                 <input type="hidden" id="longitude" name="longitude" value="-122.41940">
                 <input type="hidden" id="elevation" name="elevation" value="18.5">
             </div>
-            
-            <button class="w-full apple-btn py-3 rounded-lg text-sm tracking-wide shadow-md mt-2" type="submit">
-                Access Terminal
+
+            <button class="w-full terminal-btn py-3 text-sm tracking-wider font-bold" type="submit">
+                [ F1: INITIATE SECURE SESSION ]<span class="terminal-cursor"></span>
             </button>
         </form>
+
+        <!-- Terminal Status Footer -->
+        <div class="pt-3 border-t border-[var(--crt-border-dim)] flex items-center justify-between text-[10px] font-mono phosphor-dim">
+            <span>[ SYSTEM: ONLINE // MONOCHROME CRT ]</span>
+            <button type="button" onclick="toggleScanlines()" class="hover:underline cursor-pointer">[SCANLINES: <span id="scanlines-status">ON</span>]</button>
+        </div>
     </div>
 
     <script>
+        function toggleScanlines() {
+            document.body.classList.toggle('crt-active');
+            const isActive = document.body.classList.contains('crt-active');
+            document.getElementById('scanlines-status').textContent = isActive ? 'ON' : 'OFF';
+            localStorage.setItem('aegis_crt_scanlines', isActive ? '1' : '0');
+        }
+
+        // Restore scanlines state
+        const savedScanlines = localStorage.getItem('aegis_crt_scanlines') !== '0';
+        if (!savedScanlines && document.body.classList.contains('crt-active')) toggleScanlines();
+
+        // Browser Hardware GPS Integration
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -127,11 +119,11 @@
                     document.getElementById('longitude').value = lon;
                     document.getElementById('location_coords').value = `Lat: ${lat}, Lon: ${lon}, Elev: ${alt} [Terminal GPS]`;
                     document.getElementById('disp-coords').innerText = `Lat ${lat}, Lon ${lon}`;
-                    document.getElementById('disp-sector').innerText = `Live Device GPS (Elev: ${alt})`;
-                    document.getElementById('loc-status-pill').innerText = 'BROWSER GPS SYNCED';
+                    document.getElementById('disp-sector').innerText = `Field Console Alpha (Elev: ${alt})`;
+                    document.getElementById('loc-status-pill').innerText = '[ BROWSER GPS SYNCED ]';
                 },
                 (err) => {
-                    console.log('Using edge hardware GPS fallback:', err.message);
+                    console.log('Using default industrial control center fallback coordinates:', err.message);
                 },
                 { timeout: 3000 }
             );

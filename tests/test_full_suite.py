@@ -1349,4 +1349,185 @@ def test_hardware_isolation_command_dispatched():
     assert rejoin_cmd["target_device"] == "ESP32_002"
 
 
+def test_airgap_offline_assets():
+    """Verify local static vendor assets exist for 100% air-gapped industrial deployment."""
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    chart_js = os.path.join(base_dir, "src", "static", "vendor", "chart.umd.js")
+    tailwind_css = os.path.join(base_dir, "src", "static", "vendor", "tailwind.min.css")
+
+    assert os.path.isfile(chart_js), f"Missing air-gapped vendor asset: {chart_js}"
+    assert os.path.getsize(chart_js) > 100000, "Chart.js asset appears truncated"
+
+    assert os.path.isfile(tailwind_css), f"Missing air-gapped vendor asset: {tailwind_css}"
+    assert os.path.getsize(tailwind_css) > 500000, "Tailwind asset appears truncated"
+
+
+def test_ml_model_synthetic_inference():
+    """Verify the retrained 5-feature Random Forest model loads and predicts nominal vs anomalous states."""
+    import os
+    import joblib
+    import numpy as np
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_path = os.path.join(base_dir, "src", "model", "rf_model.pkl")
+    assert os.path.isfile(model_path), f"Model file missing at {model_path}"
+
+    model = joblib.load(model_path)
+    assert hasattr(model, "predict"), "Model object has no predict method"
+
+    # Nominal condition: 25.0 C, 4.0 bar, 1.0 g, 1500 RPM, 4.5 A
+    nominal_sample = np.array([[25.0, 4.0, 1.0, 1500.0, 4.5]])
+    pred_nominal = model.predict(nominal_sample)[0]
+    prob_nominal = model.predict_proba(nominal_sample)[0][1]
+
+    assert pred_nominal == 0, f"Expected 0 (nominal), got {pred_nominal}"
+    assert prob_nominal < 0.25, f"Expected low anomaly prob, got {prob_nominal}"
+
+    # Stuxnet severe resonance attack: 75.0 C, 11.0 bar, 7.5 g, 3800 RPM, 14.5 A
+    attack_sample = np.array([[75.0, 11.0, 7.5, 3800.0, 14.5]])
+    pred_attack = model.predict(attack_sample)[0]
+    prob_attack = model.predict_proba(attack_sample)[0][1]
+
+    assert pred_attack == 1, f"Expected 1 (anomalous), got {pred_attack}"
+    assert prob_attack > 0.80, f"Expected high anomaly prob, got {prob_attack}"
+
+
+def test_sse_stream_endpoint():
+    """Verify /api/stream endpoint returns text/event-stream response."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "CONTROL_CENTER_ALPHA"
+
+    response = client.get("/api/stream")
+    assert response.status_code == 200
+    assert "text/event-stream" in response.content_type
+
+
+def test_terminal_css_and_1980s_assets():
+    """Verify 1980s DEC VT-220 / IBM 3270 CRT styling assets and templates exist."""
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    terminal_css = os.path.join(base_dir, "src", "static", "terminal.css")
+    login_html = os.path.join(base_dir, "src", "templates", "login.html")
+    dash_html = os.path.join(base_dir, "src", "templates", "dashboard.html")
+
+    assert os.path.isfile(terminal_css), f"Missing 1980s terminal CSS: {terminal_css}"
+    with open(terminal_css, "r", encoding="utf-8") as f:
+        css_content = f.read()
+
+    # Verify key CRT phosphor tokens and visual FX
+    assert "--crt-bg" in css_content
+    assert "--crt-text" in css_content
+    assert "theme-amber" in css_content
+    assert "theme-green" in css_content
+    assert "theme-mono" in css_content
+    assert "crt-active" in css_content
+    assert "phosphor-glow" in css_content
+    assert "oscilloscope-grid" in css_content
+    assert "tape-counter" in css_content
+    assert "mechanical-switch" in css_content
+
+    # Verify templates link terminal.css
+    with open(login_html, "r", encoding="utf-8") as f:
+        login_content = f.read()
+    assert "terminal.css" in login_content
+    assert "DEC VT-220" in login_content or "MAINFRAME" in login_content
+    assert "UID:" in login_content
+    assert "KEY:" in login_content
+
+    with open(dash_html, "r", encoding="utf-8") as f:
+        dash_content = f.read()
+    assert "terminal.css" in dash_content
+    assert "time-scrubber-slider" in dash_content or "onTimeScrub" in dash_content
+    assert "forensicHistoryBuffer" in dash_content
+    assert "setCRTTheme" in dash_content
+    assert "toggleScanlines" in dash_content
+
+
+def test_forensic_time_scrubber_slicing():
+    """Verify the forensic time scrubber slice logic, delta-T calculation, and anomaly detection."""
+    # Simulate a buffer of 100 historical telemetry frames
+    now = time.time()
+    buffer = []
+    for i in range(100):
+        buffer.append({
+            "timestamp": now - (100 - i) * 2.0,
+            "temperature": 25.0 + (i * 0.1),
+            "pressure": 4.0,
+            "vibration": 1.2 if i < 80 else 6.8,  # Attack injected at frame 80
+            "rpm": 1500 if i < 80 else 3600,
+            "current": 4.5 if i < 80 else 14.2,
+            "is_anomaly": 0 if i < 80 else 1
+        })
+
+    # Test 1: Slicing at 50% (index 50)
+    slice_50 = buffer[:51]
+    assert len(slice_50) == 51
+    t_end = slice_50[-1]["timestamp"]
+    t_live = buffer[-1]["timestamp"]
+    delta_t = t_live - t_end
+    assert delta_t > 0, "Historical timestamp must precede live timestamp"
+    # At index 50, vibration should be nominal (< 2.0) and anomaly flag 0
+    assert slice_50[-1]["vibration"] == 1.2
+    assert slice_50[-1]["is_anomaly"] == 0
+
+    # Test 2: Slicing at 90% (index 90) - into the anomalous zone
+    slice_90 = buffer[:91]
+    assert len(slice_90) == 91
+    assert slice_90[-1]["vibration"] == 6.8
+    assert slice_90[-1]["is_anomaly"] == 1
+
+    # Test 3: Jump to last incident search logic
+    last_incident_idx = -1
+    for idx in range(len(buffer) - 1, -1, -1):
+        if buffer[idx].get("is_anomaly") == 1:
+            last_incident_idx = idx
+            break
+    assert last_incident_idx == 99, f"Expected last incident at 99, found {last_incident_idx}"
+
+    # Verify statistical aggregation on slice
+    temps = [p["temperature"] for p in slice_50]
+    mean_temp = sum(temps) / len(temps)
+    variance_temp = sum((t - mean_temp) ** 2 for t in temps) / len(temps)
+    assert mean_temp > 25.0
+    assert variance_temp >= 0.0
+
+
+def test_terminal_dashboard_routes_and_html_render():
+    """Verify Flask routes serve 1980s terminal markup with valid HTTP 200."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    # 1. Login route
+    res_login = client.get("/login")
+    assert res_login.status_code == 200
+    assert b"terminal.css" in res_login.data
+    assert b"theme-green" in res_login.data
+    assert b"CLASSIFIED INDUSTRIAL FACILITY" in res_login.data or b"VT-220" in res_login.data
+    assert b"CRT PALETTE:" not in res_login.data
+
+    # 2. Dashboard route authenticated
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["location"] = "CONTROL_CENTER_ALPHA"
+
+    res_dash = client.get("/")
+    assert res_dash.status_code == 200
+    assert b"terminal.css" in res_dash.data
+    assert b"theme-green" in res_dash.data
+    assert b"DEC VT-220" in res_dash.data or b"OPERATING STATION" in res_dash.data
+    assert b"REEL-TO-REEL" in res_dash.data or b"FORENSIC TIME SCRUBBER" in res_dash.data
+    assert b"PALETTE:" not in res_dash.data
+
+
+
+
 

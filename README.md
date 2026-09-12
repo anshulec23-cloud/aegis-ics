@@ -1,12 +1,12 @@
 # Aegis ICS - Industrial Zero-Trust Security Gateway & Physical Enforcer
 
-[![Release Version](https://img.shields.io/badge/release-v2.3.0-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.3.0)
+[![Release Version](https://img.shields.io/badge/release-v2.5.0-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.0)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
-[![Tests Status](https://img.shields.io/badge/tests-10%2F10%20passing-brightgreen.svg)](#quality-assurance--testing)
+[![Tests Status](https://img.shields.io/badge/tests-36%2F36%20passing-brightgreen.svg)](#quality-assurance--testing)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Official Software Application Release (v2.3.0)**: Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application built for Industrial Control Systems (ICS) and Operational Technology (OT) environments.
+> **Official Software Application Release (v2.5.0)**: Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application built for Industrial Control Systems (ICS) and Operational Technology (OT) environments.
 
 ---
 
@@ -20,7 +20,7 @@
 - [Quality Assurance & Testing](#quality-assurance--testing)
 - [REST API Reference](#rest-api-reference)
 - [Repository Structure](#repository-structure)
-- [Release Notes & Version 2.3.0 Updates](#release-notes--version-230-updates)
+- [Release Notes & Version 2.5.0 Updates](#release-notes--version-250-updates)
 - [Authors & Contact](#authors--contact)
 
 ---
@@ -206,14 +206,18 @@ aegis-ics/
 
 ---
 
-## 🔄 Release Notes & Version 2.3.0 Updates
+## 🔄 Release Notes & Version 2.5.0 Updates
 
-**Version 2.3.0 Release Summary**:
-- **Hardware Connection Stability**: Implemented PySerial DTR/RTS signal suppression to prevent continuous ESP32 reset loops upon connecting.
-- **Manual Hardware Connection Panel**: Interactive dashboard controls to select, connect, and disconnect serial COM devices dynamically without restarting services.
-- **Enhanced Safety Enforcer**: Multi-variable physical hazard validation for Stuxnet-style coordinated attacks.
-- **Updated PDF Reporting**: Full spatial coordinate tracking included in downloadable security audit reports.
-- **Zero-Deprecation Compliance**: Updated SQLAlchemy timestamp methods for Python 3.12+ and Python 3.14 runtime environments.
+**Version 2.5.0 Release Summary**:
+- **100% Air-Gapped Offline Deployment**: Fully bundled standalone vendor static assets (`src/static/vendor/chart.umd.js` and `tailwind.min.css`) eliminating external CDN dependencies.
+- **Retrained 5-Feature ML Pipeline**: Multi-variable Random Forest anomaly detection model over `[temperature, pressure, vibration, hall_effect, current]` achieving 1.0000 ROC-AUC and 0.9993 5-fold CV F1 score.
+- **Server-Sent Events (SSE) Live Stream**: Sub-second push telemetry endpoint (`/api/stream`) for low-latency SCADA updates with automatic polling fallback.
+- **Interactive 2D Plant Digital Twin**: Vector-based spatial plant layout with animated process flow lines, sector grid coordinates, and node selection/telemetry inspector.
+- **Forensic "Black Box" Time Scrubber**: Interactive timeline scrubbing, freeze-frame playback, one-click jump-to-incident, and resume-to-live streaming.
+- **Gamified Cyber Defense Arena**: NIST SP 800-61 incident response challenge arena with 3 timed simulation scenarios (Stuxnet, Rogue HMAC, Thermal Creep) and defense scoring.
+- **Aegis Tactical Copilot Assistant**: Interactive slide-over assistant drawer providing situational root-cause analysis and mandated NIST SP 800-61 containment SOP guidance.
+- **Aesthetic Monotone Splines & Multi-Tone Soundscapes**: Dynamic cubic spline waveform smoothing and Web Audio multi-tone industrial annunciator chimes.
+- **100% Test Suite Coverage**: 36/36 passing automated unit and integration tests covering all critical paths.
 
 For a full list of historical release changes, see [release_notes.txt](release_notes.txt).
 
