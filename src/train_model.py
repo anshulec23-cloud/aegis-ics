@@ -35,15 +35,10 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     n_nominal = n_samples // 2
     n_anomaly = n_samples - n_nominal
 
-    # 1. Generate Nominal Plant Operations across 4 Industrial Zones
     nominal_zones = [
-        # Reactor 01: temp=26°C, pres=4.2 bar, vib=1.1, hall=0, curr=4.5A
         {"t": (26.0, 2.5), "p": (4.2, 0.4), "v": (1.1, 0.2), "h": (0.0, 20.0), "c": (4.5, 0.4)},
-        # Pump 02: temp=41°C, pres=5.4 bar, vib=1.8, hall=1500 RPM, curr=5.2A
         {"t": (41.0, 2.5), "p": (5.4, 0.5), "v": (1.8, 0.3), "h": (1500.0, 80.0), "c": (5.2, 0.4)},
-        # Cryo 03: temp=18.5°C, pres=2.2 bar, vib=0.6, hall=0, curr=2.8A
         {"t": (18.5, 1.8), "p": (2.2, 0.3), "v": (0.6, 0.1), "h": (0.0, 15.0), "c": (2.8, 0.3)},
-        # Turbine 04: temp=33°C, pres=3.8 bar, vib=2.2, hall=2200 RPM, curr=7.1A
         {"t": (33.0, 2.5), "p": (3.8, 0.4), "v": (2.2, 0.3), "h": (2200.0, 120.0), "c": (7.1, 0.5)},
     ]
 
@@ -61,11 +56,9 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     X_nom = np.vstack(nom_features)
     y_nom = np.zeros(len(X_nom), dtype=int)
 
-    # 2. Generate Realistic Cyber-Physical Anomalies
     anom_samples = []
     n_each = n_anomaly // 5
 
-    # Attack Vector 1: Stuxnet Resonance (High Vibration + RPM Overspeed + Current Spike)
     t1 = np.random.normal(48.0, 6.0, n_each)
     p1 = np.random.normal(4.2, 0.5, n_each)
     v1 = np.random.normal(5.8, 1.2, n_each)  # Extreme vibration > 5.0
@@ -73,7 +66,6 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     c1 = np.random.normal(8.8, 1.0, n_each)
     anom_samples.append(np.column_stack([t1, p1, v1, h1, c1]))
 
-    # Attack Vector 2: False Data Injection / Sensor Spike (Severe Out-of-Bounds)
     t2 = np.random.uniform(70.0, 110.0, n_each)
     p2 = np.random.uniform(9.0, 15.0, n_each)
     v2 = np.random.uniform(4.5, 9.0, n_each)
@@ -81,7 +73,6 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     c2 = np.random.uniform(10.0, 22.0, n_each)
     anom_samples.append(np.column_stack([t2, p2, v2, h2, c2]))
 
-    # Attack Vector 3: Thermal Runaway (High Temperature while pressure rises)
     t3 = np.random.normal(65.0, 5.0, n_each)
     p3 = np.random.normal(7.2, 0.8, n_each)
     v3 = np.random.normal(2.5, 0.5, n_each)
@@ -89,7 +80,6 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     c3 = np.random.normal(6.5, 0.5, n_each)
     anom_samples.append(np.column_stack([t3, p3, v3, h3, c3]))
 
-    # Attack Vector 4: Hydraulic Overpressure & Burst Hazard
     t4 = np.random.normal(35.0, 4.0, n_each)
     p4 = np.random.uniform(8.5, 13.0, n_each)
     v4 = np.random.normal(3.5, 0.6, n_each)
@@ -97,7 +87,6 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     c4 = np.random.normal(7.5, 0.8, n_each)
     anom_samples.append(np.column_stack([t4, p4, v4, h4, c4]))
 
-    # Attack Vector 5: Motor Bearing Failure / Cavitation (Extreme Jitter & Current Draw)
     t5 = np.random.normal(52.0, 4.0, n_each)
     p5 = np.random.normal(5.0, 0.8, n_each)
     v5 = np.random.uniform(6.5, 12.0, n_each)
@@ -111,7 +100,6 @@ def generate_synthetic_dataset(n_samples: int = 5000, random_state: int = 42):
     X = np.vstack([X_nom, X_anom])
     y = np.concatenate([y_nom, y_anom])
 
-    # Shuffle dataset
     indices = np.arange(len(X))
     np.random.shuffle(indices)
     return X[indices], y[indices]
@@ -144,10 +132,8 @@ def train_and_export_model():
     )
     model.fit(X_train, y_train)
 
-    # Attach feature names for Scikit-Learn inspectability
     model.feature_names_in_ = np.array(feature_names)
 
-    # Evaluation
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
     auc = roc_auc_score(y_test, y_prob)
@@ -167,11 +153,9 @@ def train_and_export_model():
         bar = "#" * int(imp * 40)
         print(f"  {name:14s} : {imp:6.3f} | {bar}")
 
-    # Cross-validation
     cv_scores = cross_val_score(model, X, y, cv=5, scoring="f1")
     print(f"\n5-Fold Cross-Validation F1-Score: {cv_scores.mean():.4f} (±{cv_scores.std():.4f})")
 
-    # Export to src/model/rf_model.pkl
     base_dir = os.path.dirname(os.path.abspath(__file__))
     model_dir = os.path.join(base_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
@@ -181,7 +165,6 @@ def train_and_export_model():
         pickle.dump(model, f)
     print(f"\n[+] Successfully saved model to: {out_path} ({os.path.getsize(out_path):,} bytes)")
 
-    # Test baseline predictions
     import pandas as pd
     test_nominal = pd.DataFrame([[26.0, 4.2, 1.1, 0.0, 4.5]], columns=feature_names)
     test_stuxnet = pd.DataFrame([[52.0, 4.2, 6.2, 3400.0, 9.2]], columns=feature_names)

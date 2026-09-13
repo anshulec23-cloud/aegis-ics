@@ -24,11 +24,9 @@ def get_database_url():
                     print(f"[Database] Could not copy bundled db to AEGIS_DATA_DIR: {e}")
         return f"sqlite:///{os.path.abspath(target_db)}"
     
-    # Frozen executable mode: store database next to binary if writable, else user/system data dir
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(os.path.abspath(sys.executable))
         
-        # Test if exe_dir is writable (e.g. portable extraction vs /opt or /usr/bin)
         exe_dir_writable = os.access(exe_dir, os.W_OK)
         if exe_dir_writable:
             target_dir = exe_dir
@@ -54,7 +52,6 @@ def get_database_url():
                     print(f"[Database] Could not copy bundled db: {e}")
         return f"sqlite:///{os.path.abspath(target_db)}"
     
-    # Development mode: default to repository root
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     dev_db = os.path.join(base_dir, "aegis_v2.db")
     return f"sqlite:///{os.path.abspath(dev_db)}"
@@ -194,7 +191,6 @@ def init_db ():
             if not db.query(DeviceState).filter_by(device_id=node_id).first():
                 db.add(DeviceState(device_id=node_id, is_isolated=False))
 
-        # Seed baseline NIST SP 800-53 / 800-82r3 Audit Records if empty
         if db.query(AuditLog).count() == 0:
             admin_user = db.query(User).filter_by(username="admin").first()
             admin_id = admin_user.id if admin_user else None

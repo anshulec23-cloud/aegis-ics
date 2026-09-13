@@ -79,7 +79,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         query = query.filter_by(device_id=device_id)
     telemetry = query.order_by(TelemetryLog.timestamp.desc()).limit(60).all()
 
-    # Query active cyber attacks from serial gateway
     active_attacks = {}
     try:
         import serial_gateway
@@ -97,16 +96,13 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     if device_id and device_id != "ALL":
         target_attack = active_attacks.get(device_id)
     else:
-        # If looking at ALL, pick highest priority active attack across cluster
         if active_attacks:
             target_attack = list(active_attacks.values())[0]
 
-    # Query active isolated devices
     isolated_devs = db.query(DeviceState).filter_by(is_isolated=True).all()
     isolated_ids = [d.device_id for d in isolated_devs]
     is_target_isolated = (device_id in isolated_ids) if (device_id and device_id != "ALL") else (len(isolated_ids) > 0)
 
-    # Filter audit log violations from the active operating session (or recent window)
     audit_query = db.query(AuditLog).filter(
         or_(
             AuditLog.action.like("%VIOLATION%"),
@@ -119,7 +115,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     violations = audit_query.all()
     violation_count = len(violations)
 
-    # Telemetry risk metrics
     threat_index = 0.0
     drift_risk = 0.0
     corr_risk = 0.0
@@ -158,7 +153,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
 
         threat_index = min(100.0, drift_risk + corr_risk + boundary_risk)
 
-    # If an attack is actively injected onto hardware/simulation, reflect true threat level
     if target_attack == "stuxnet":
         threat_index = max(threat_index, 94.5)
     elif target_attack in ("fdi_spike", "injection"):
@@ -170,7 +164,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     elif target_attack == "thermal_drift":
         threat_index = max(threat_index, 52.0)
 
-    # Subsystem profiles and downtime rates
     if device_id and device_id in SUBSYSTEM_PROFILES:
         target_profile = SUBSYSTEM_PROFILES[device_id]
         base_sle = target_profile["base_sle"]
@@ -183,22 +176,18 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         max_epa = sum(p["epa_fines"] for p in SUBSYSTEM_PROFILES.values())
         max_nerc = sum(p["nerc_cip_fines"] for p in SUBSYSTEM_PROFILES.values())
 
-    # Active outage hourly rate for isolated nodes
     if device_id and device_id in SUBSYSTEM_PROFILES:
         active_hourly_outage = downtime_rate if is_target_isolated else 0.0
     else:
         active_hourly_outage = sum(SUBSYSTEM_PROFILES[did]["downtime_rate_per_hour"] for did in isolated_ids if did in SUBSYSTEM_PROFILES)
 
-    # MTTR Projections (potential liability if 4h, 8h, or 24h outage occurs)
     proj_4h = round(downtime_rate * 4.0, 2)
     proj_8h = round(downtime_rate * 8.0, 2)
     proj_24h = round(downtime_rate * 24.0, 2)
 
-    # Potential Regulatory Exposure Cap (statutory maximums)
     nis2_fines = 100000.0 if threat_index > 50 else 25000.0
     total_regulatory = round(max_epa + max_nerc + nis2_fines, 2)
 
-    # Dynamic Incident & Attack Quantification
     active_incident_loss = 0.0
     active_incurred_fines = 0.0
 
@@ -225,7 +214,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if (target_attack or is_target_isolated) else 0.0)), 2)
     expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if (target_attack or is_target_isolated) else 5000.0), 2)
 
-    # FAIR Model
     has_active_incident = bool(target_attack) or is_target_isolated or (boundary_risk > 0) or (violation_count > 0)
     tef = round(max(0.05, float(violation_count) * 0.3 if has_active_incident else 0.05), 2)
     vuln_factor = 0.15 if threat_index < 30 else (0.45 if threat_index < 70 else 0.85)
@@ -257,7 +245,6 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         "active_incident_loss": round(active_incident_loss, 2),
         "active_incurred_fines": round(active_incurred_fines, 2),
 
-        # Expanded Cyber-Financial Governance Metrics
         "fair_model": {
             "tef": round(tef, 2),
             "vulnerability_pct": round(vuln_factor * 100.0, 1),
@@ -307,7 +294,6 @@ def calculate_monte_carlo_distribution(db, device_id: str = None) -> List[Dict[s
     expected_loss = fin["expected_loss"]
     active_attack = fin.get("active_attack")
 
-    # Base starts at minimal nominal variance if zero attack, expanding to empirical loss when attack occurs
     base = expected_loss if (expected_loss > 0 and active_attack) else 50.0
 
     percentiles = [

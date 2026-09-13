@@ -43,7 +43,6 @@ def validate_command (command :dict ,db :Session ,target_device :str =None )->tu
             return False ,f"Rule violation: Pressure setpoint {value } bar exceeds boundaries ({p_min }-{p_max } bar)."
 
 
-    # Multi-variable Stuxnet Coordinated Stress Check (scoped to target device)
     telemetry_query = db.query(TelemetryLog)
     if device_id:
         telemetry_query = telemetry_query.filter_by(device_id=device_id)
@@ -51,8 +50,6 @@ def validate_command (command :dict ,db :Session ,target_device :str =None )->tu
 
     dev_label = f" on {device_id}" if device_id else ""
 
-    # Telemetry Freshness Check: Stuxnet coordinated check requires active telemetry (< 120s old)
-    # Stale/offline readings from hours or days ago do not indefinitely lock out setpoints
     is_fresh = bool(
         latest_telemetry 
         and latest_telemetry.timestamp is not None 

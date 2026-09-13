@@ -23,7 +23,6 @@ def compute_device_trust_score(
     """
     Computes real-time 4-parameter continuous trust score for a specific ESP32 node.
     """
-    # 1. Query device quarantine state
     dev_state = db_session.query(DeviceState).filter_by(device_id=device_id).first()
     if dev_state and dev_state.is_isolated:
         return {
@@ -39,7 +38,6 @@ def compute_device_trust_score(
             "details": "Device quarantined by Zero-Trust microsegmentation policy"
         }
 
-    # 2. Query historical telemetry for this device (last 15 readings)
     logs: List[TelemetryLog] = (
         db_session.query(TelemetryLog)
         .filter_by(device_id=device_id)
@@ -48,7 +46,6 @@ def compute_device_trust_score(
         .all()
     )
 
-    # If no logs exist yet, return baseline trusted score
     if not logs:
         return {
             "device_id": device_id,
@@ -63,20 +60,16 @@ def compute_device_trust_score(
             "details": "New device initialization — baseline trust assigned"
         }
 
-    # --- Metric 1: Anomaly Frequency (S_anomaly) ---
     recent_anomalies = [1.0 if t.is_anomaly else 0.0 for t in logs]
     s_anomaly = sum(recent_anomalies) / len(recent_anomalies) if recent_anomalies else 0.0
     if latest_is_anomaly is True:
         s_anomaly = max(s_anomaly, 0.7)
 
-    # --- Metric 2: Cryptographic Signature Validity (S_signature) ---
     if latest_sig_valid is not None:
         s_signature = 1.0 if latest_sig_valid else 0.0
     else:
-        # Cryptographic integrity is decoupled from physical process anomalies (captured by S_anomaly)
         s_signature = 1.0
 
-    # --- Metric 3: Historical Deviation (S_history) ---
     valid_temps = [t.temperature for t in logs if t.temperature is not None]
     valid_press = [t.pressure for t in logs if t.pressure is not None]
 
@@ -89,7 +82,6 @@ def compute_device_trust_score(
         combined_dev = (delta_t / 25.0) + (delta_p / 5.0)
         s_history = max(0.0, 1.0 - min(1.0, combined_dev / 2.0))
 
-    # --- Metric 4: Signal Stability / Population Variance (S_stability) ---
     s_stability = 1.0
     if len(valid_temps) >= 3 and len(valid_press) >= 3:
         mu_t = sum(valid_temps) / len(valid_temps)
@@ -99,7 +91,6 @@ def compute_device_trust_score(
         combined_var = (var_t / 100.0) + (var_p / 10.0)
         s_stability = max(0.0, 1.0 - min(1.0, combined_var))
 
-    # --- Combine Scores ---
     t_score = (
         0.35 * (1.0 - s_anomaly)
         + 0.30 * s_signature
@@ -107,7 +98,6 @@ def compute_device_trust_score(
         + 0.15 * s_stability
     )
 
-    # --- Low-Confidence Fallback Logic ---
     if model_confidence < 0.50:
         penalties = 0.0
         if valid_temps and (valid_temps[0] < 0.0 or valid_temps[0] > 60.0):

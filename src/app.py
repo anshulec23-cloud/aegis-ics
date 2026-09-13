@@ -168,7 +168,6 @@ class LocalRFModel :
 
         anomaly = 0.0
 
-        # Safety threshold check against dynamic database rules
         if temp_val is not None:
             try:
                 temp = float(temp_val)
@@ -189,9 +188,6 @@ class LocalRFModel :
                     anomaly += 0.6
             except (ValueError, TypeError):
                 anomaly += 0.6
-        # Device-specific Hall-effect RPM limits:
-        # ESP32_004 (Turbine Generator) has a normal operating baseline of 2200.0 RPM, with overspeed trip at 3000.0 RPM.
-        # Pump and auxiliary nodes (ESP32_002) have baseline of 1500.0 RPM, with overspeed trip at 2000.0 RPM.
         dev_id_val = str(telemetry.get("device_id", ""))
         hall_max = 3000.0 if dev_id_val == "ESP32_004" else 2000.0
         if hall_val is not None:
@@ -207,7 +203,6 @@ class LocalRFModel :
             except (ValueError, TypeError):
                 anomaly += 0.6
 
-        # Only execute 5D Random Forest ML model if all core metrics are provided in payload
         all_features_present = (temp_val is not None and pres_val is not None and vib_val is not None and curr_val is not None)
         if all_features_present and self.model is not None:
             try:
@@ -299,7 +294,6 @@ def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
             db .commit ()
             print (f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id } ({reason_str })")
 
-            # Dispatch physical isolation command to hardware via serial gateway
             try :
                 import serial_gateway 
                 serial_gateway .send_command ({
@@ -557,7 +551,6 @@ def connect_com_port ():
 
 
         db =SessionLocal ()
-        # Reset quarantine across all cluster nodes on fresh hardware COM connection
         cluster_nodes = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
         for cid in cluster_nodes:
             dev_state = db.query(DeviceState).filter_by(device_id=cid).first()
@@ -623,7 +616,6 @@ def list_all_devices ():
             profile =SUBSYSTEM_PROFILES .get (dev_id ,{})
 
             last_ts = last_log.timestamp if last_log else None
-            # Hardware is actively communicating if telemetry was received within the last 10 seconds
             is_active = bool(last_ts is not None and (now_ts - last_ts) <= 10.0 and not is_isolated)
 
             results .append ({
@@ -686,7 +678,6 @@ def isolate_device_v2 ():
     db .commit ()
     db .close ()
 
-    # Dispatch physical isolation frame to hardware via serial gateway
     try :
         import serial_gateway 
         serial_gateway .send_command ({
@@ -727,7 +718,6 @@ def rejoin_device_v2 ():
     db .commit ()
     db .close ()
 
-    # Dispatch physical rearm frame to hardware via serial gateway
     try :
         import serial_gateway 
         serial_gateway .send_command ({
@@ -971,7 +961,6 @@ def save_report_dialog():
         payload = request.json or {} if request.is_json else {}
         force_native = payload.get("force_native") or request.args.get("native")
 
-        # If not running in desktop GUI mode and not requesting native dialog, provide direct download url
         if not os.environ.get("AEGIS_DESKTOP_MODE") and not force_native:
             return jsonify({
                 "success": True,
@@ -979,7 +968,6 @@ def save_report_dialog():
                 "message": "Report generated. Use direct download endpoint in web mode."
             })
 
-        # Open native Windows save file dialog using Tkinter
         import tkinter as tk
         from tkinter import filedialog
 
@@ -1100,7 +1088,6 @@ def update_rules ():
     payload =request .json or {}
     db =SessionLocal ()
     try :
-        # 1. Fetch current rules
         current_rules = {r.key: r.value for r in db.query(Rule).all()}
         new_rules = dict(current_rules)
 
@@ -1116,20 +1103,17 @@ def update_rules ():
                 except (ValueError, TypeError):
                     return jsonify({"success": False, "error": f"Invalid numeric value for '{key}'."}), 400
 
-        # 2. Validate non-inverted boundaries
         if new_rules.get("temp_min", 0.0) >= new_rules.get("temp_max", 60.0):
             return jsonify({"success": False, "error": "Minimum temperature threshold must be strictly less than maximum temperature."}), 400
 
         if new_rules.get("pressure_min", 0.0) >= new_rules.get("pressure_max", 8.0):
             return jsonify({"success": False, "error": "Minimum pressure threshold must be strictly less than maximum pressure."}), 400
 
-        # 3. Apply updates to database
         for key, fval in new_rules.items():
             rule = db.query(Rule).filter_by(key=key).first()
             if rule:
                 rule.value = fval
 
-        # 4. Commit AuditLog record for NIST SP 800-82 / 800-53 AU-2 compliance
         audit = AuditLog(
             user_id=session.get("user_id"),
             action="UPDATE_SAFETY_RULES",
@@ -1163,7 +1147,6 @@ def simulate_attack():
     print(f"[AttackEngine] Executing attack simulation profile: '{attack_type}' for user {user_id}")
 
     if attack_type == "stuxnet":
-        # Simulate Stuxnet Coordinated Stress Attack: Telemetry pressure & temp stress surge
         for offset, (t_val, p_val, vib_val, curr_val) in enumerate([
             (48.0, 6.8, 4.5, 6.2),
             (52.0, 7.4, 5.8, 7.5),
@@ -1194,7 +1177,6 @@ def simulate_attack():
         details = "Simulated Stuxnet Coordinated Stress Attack: Blocked command dispatch due to high pressure/temperature cross-correlation limits."
 
     elif attack_type == "injection":
-        # Simulate Telemetry Injection / HMAC Spoofing Attack
         for offset, (t_val, p_val, vib_val) in enumerate([
             (42.0, 5.0, 3.1),
             (58.0, 6.2, 7.5)
@@ -1228,7 +1210,6 @@ def simulate_attack():
         details = "Simulated Telemetry Injection Attack: Detected invalid HMAC signature, recorded anomaly, and automatically isolated ESP32_001."
 
     elif attack_type == "privilege":
-        # Simulate Privilege Escalation Attempt
         audit = AuditLog(
             user_id=user_id,
             action="SECURITY_VIOLATION_PRIVILEGE_BLOCKED",
@@ -1262,7 +1243,6 @@ def get_data ():
         query = query .filter (TelemetryLog .is_simulated == False )
     telemetry = query .order_by (TelemetryLog .timestamp .desc ()).limit (100 ).all ()
 
-    # Dedicated per-node telemetry streams for 4-node multi-grid
     node_ids = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
     telemetry_by_node = {}
     for nid in node_ids:
