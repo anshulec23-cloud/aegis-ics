@@ -1,0 +1,60 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          aegis-ics
+# Required-Start:    $network $local_fs $remote_fs
+# Required-Stop:     $network $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Aegis ICS Zero-Trust Security Gateway Daemon
+# Description:       Production-ready zero-trust security gateway and SCADA enforcer
+### END INIT INFO
+
+NAME="aegis-ics"
+DAEMON="/opt/aegis-ics/AegisICS"
+DAEMON_ARGS="--server --port 5000 --host 0.0.0.0"
+PIDFILE="/var/run/${NAME}.pid"
+LOGFILE="/var/log/${NAME}.log"
+USER="root"
+DATA_DIR="/var/lib/aegis-ics"
+
+export AEGIS_SERVER_MODE=1
+export AEGIS_DATA_DIR="${DATA_DIR}"
+export FLASK_PORT=5000
+
+test -x "$DAEMON" || exit 0
+
+case "$1" in
+  start)
+    echo "Starting Aegis ICS Gateway..."
+    mkdir -p "$DATA_DIR"
+    start-stop-daemon --start --background --make-pidfile --pidfile "$PIDFILE" \
+      --startas /bin/sh -- -c "exec $DAEMON $DAEMON_ARGS >> $LOGFILE 2>&1"
+    echo "Aegis ICS started."
+    ;;
+  stop)
+    echo "Stopping Aegis ICS Gateway..."
+    start-stop-daemon --stop --quiet --oknodo --pidfile "$PIDFILE"
+    rm -f "$PIDFILE"
+    echo "Aegis ICS stopped."
+    ;;
+  restart)
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+  status)
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+      echo "Aegis ICS is running (PID $(cat "$PIDFILE"))."
+      exit 0
+    else
+      echo "Aegis ICS is stopped."
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Usage: /etc/init.d/aegis-ics {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
+
+exit 0

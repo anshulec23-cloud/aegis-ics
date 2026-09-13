@@ -1401,7 +1401,7 @@ def api_version ():
         from security import APP_VERSION 
         version =APP_VERSION 
     except ImportError :
-        version ="2.5.0"
+        version ="2.5.2"
     return jsonify ({"version":version ,"name":"Aegis ICS"})
 
 

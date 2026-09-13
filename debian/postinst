@@ -1,0 +1,42 @@
+#!/bin/sh
+set -e
+
+# Setup data directory
+mkdir -p /var/lib/aegis-ics
+chmod 755 /var/lib/aegis-ics
+
+# Setup symlink in /usr/local/bin
+if [ -x /opt/aegis-ics/AegisICS ]; then
+    ln -sf /opt/aegis-ics/AegisICS /usr/local/bin/aegis-ics
+    chmod +x /opt/aegis-ics/AegisICS
+fi
+
+# Install SysVinit script if init.d exists (standard in MX Linux)
+if [ -d /etc/init.d ] && [ -f /opt/aegis-ics/aegis-ics.init ]; then
+    cp /opt/aegis-ics/aegis-ics.init /etc/init.d/aegis-ics
+    chmod 755 /etc/init.d/aegis-ics
+fi
+
+# Update desktop and icon databases if tools are available
+if which update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications || true
+fi
+if which gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+fi
+
+# Output guidance on hardware serial port access (dialout group)
+echo "=================================================================="
+echo " Aegis ICS v2.5.0 successfully installed!"
+echo " "
+echo " Desktop GUI Mode : Run 'aegis-ics' or launch from Application Menu"
+echo " Headless Server  : Run 'aegis-ics --server --port 5000'"
+echo " Service (SysV)   : sudo service aegis-ics start (MX Linux default)"
+echo " Service (systemd): sudo systemctl start aegis-ics"
+echo " "
+echo " [NOTE] To allow access to USB/Serial COM devices (ESP32/PLC):"
+echo "        Ensure your user is in the 'dialout' group:"
+echo "        sudo usermod -a -G dialout \$USER"
+echo "=================================================================="
+
+exit 0

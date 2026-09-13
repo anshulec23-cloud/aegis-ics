@@ -69,10 +69,27 @@ Open your browser and navigate to `http://127.0.0.1:5000`.
 ### Mode B: Standalone Native Desktop Application
 
 ```powershell
+# Windows:
 python src/main.py
+
+# Linux / MX Linux:
+python3 src/main.py
+
+# Or run the standalone compiled binary:
+./dist/AegisICS
 ```
 
 Launches the native PyWebView window with anti-debugging protections, ephemeral port allocation, system tray integration (`pystray`), and background GitHub update checking.
+
+### Mode C: Headless Linux Server / Daemon Mode (MX Linux)
+
+```bash
+# Launch as a background SCADA server:
+./dist/AegisICS --server --port 5000 --host 0.0.0.0
+
+# Or via MX Linux SysVinit service:
+sudo service aegis-ics start
+```
 
 ---
 

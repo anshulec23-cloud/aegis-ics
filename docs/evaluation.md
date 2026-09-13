@@ -62,7 +62,7 @@ Measurement of elapsed time from anomalous wire packet arrival to physical relay
 
 ## 5. Automated Test Suite Validation Matrix
 
-The complete test suite (`tests/test_full_suite.py`) executed against Python 3.14 with 100% pass rate across all 36 modules:
+The complete test suite (`tests/test_full_suite.py`) executed against Python 3.14 on both Windows and Linux (Debian / MX Linux runtime) with 100% pass rate across all 39 modules:
 
 ```
 tests/test_full_suite.py::test_database_init_and_users PASSED
@@ -101,6 +101,10 @@ tests/test_full_suite.py::test_hardware_isolation_command_dispatched PASSED
 tests/test_full_suite.py::test_airgap_offline_assets PASSED
 tests/test_full_suite.py::test_ml_model_synthetic_inference PASSED
 tests/test_full_suite.py::test_sse_stream_endpoint PASSED
+tests/test_full_suite.py::test_terminal_css_and_1980s_assets PASSED
+tests/test_full_suite.py::test_forensic_time_scrubber_slicing PASSED
+tests/test_full_suite.py::test_terminal_dashboard_routes_and_html_render PASSED
 
-Result: 36 passed in 13.15s
+Result: 39 passed in 28.25s (100% pass rate)
 ```
+

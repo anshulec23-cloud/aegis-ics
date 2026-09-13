@@ -27,6 +27,10 @@ isolated_devices.json
 # Build artifacts
 dist/*
 !dist/AegisICS.exe
+!dist/README.md
+!dist/linux/
+dist/linux/*
+!dist/linux/README.md
 build/
 build_temp/
 obfuscated/

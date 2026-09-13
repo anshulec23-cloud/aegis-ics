@@ -20,7 +20,7 @@ from flask import jsonify ,request
 
 
 
-APP_VERSION :str ="2.5.0"
+APP_VERSION :str ="2.5.2"
 """Current application version string."""
 
 GITHUB_REPO :str ="anshulec23-cloud/aegis-ics"
@@ -159,18 +159,28 @@ def generate_runtime_secret ()->str :
 
 
 def check_debugger ()->bool :
-    """Perform basic anti-debug detection on Windows.
+    """Perform basic anti-debug detection on Windows and Linux.
 
-    Calls ``kernel32.IsDebuggerPresent()`` via :mod:`ctypes` to determine
-    whether the current process is being run under a debugger.
+    On Windows: Calls ``kernel32.IsDebuggerPresent()`` via :mod:`ctypes`.
+    On Linux: Checks ``/proc/self/status`` for non-zero ``TracerPid``.
 
     Returns:
         bool: ``True`` if a debugger is detected, ``False`` otherwise.
-              Always returns ``False`` on non-Windows platforms or if the
-              check fails for any reason.
     """
-    try :
-        return bool (ctypes .windll .kernel32 .IsDebuggerPresent ())
-    except (AttributeError ,OSError ):
-
-        return False 
+    if sys.platform == "win32":
+        try :
+            return bool (ctypes .windll .kernel32 .IsDebuggerPresent ())
+        except (AttributeError ,OSError ):
+            return False 
+    elif sys.platform.startswith("linux"):
+        try:
+            status_path = "/proc/self/status"
+            if os.path.exists(status_path):
+                with open(status_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.startswith("TracerPid:"):
+                            tracer_pid = int(line.split(":", 1)[1].strip())
+                            return tracer_pid > 0
+        except Exception:
+            return False
+    return False 

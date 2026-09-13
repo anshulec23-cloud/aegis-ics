@@ -10,11 +10,41 @@ def get_database_url():
     explicit_url = os.environ.get("DATABASE_URL")
     if explicit_url:
         return explicit_url
+
+    explicit_data_dir = os.environ.get("AEGIS_DATA_DIR")
+    if explicit_data_dir:
+        os.makedirs(explicit_data_dir, exist_ok=True)
+        target_db = os.path.join(explicit_data_dir, "aegis_v2.db")
+        if not os.path.exists(target_db) and hasattr(sys, "_MEIPASS"):
+            bundled_db = os.path.join(sys._MEIPASS, "aegis_v2.db")
+            if os.path.exists(bundled_db):
+                try:
+                    shutil.copy2(bundled_db, target_db)
+                except Exception as e:
+                    print(f"[Database] Could not copy bundled db to AEGIS_DATA_DIR: {e}")
+        return f"sqlite:///{os.path.abspath(target_db)}"
     
-    # Frozen executable mode: store database next to executable binary
+    # Frozen executable mode: store database next to binary if writable, else user/system data dir
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-        target_db = os.path.join(exe_dir, "aegis_v2.db")
+        
+        # Test if exe_dir is writable (e.g. portable extraction vs /opt or /usr/bin)
+        exe_dir_writable = os.access(exe_dir, os.W_OK)
+        if exe_dir_writable:
+            target_dir = exe_dir
+        else:
+            if sys.platform.startswith("linux") or sys.platform.startswith("darwin"):
+                if hasattr(os, "geteuid") and os.geteuid() == 0:
+                    target_dir = "/var/lib/aegis-ics"
+                else:
+                    data_home = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+                    target_dir = os.path.join(data_home, "aegis-ics")
+            else:
+                local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+                target_dir = os.path.join(local_app_data, "AegisICS")
+
+        os.makedirs(target_dir, exist_ok=True)
+        target_db = os.path.join(target_dir, "aegis_v2.db")
         if not os.path.exists(target_db) and hasattr(sys, "_MEIPASS"):
             bundled_db = os.path.join(sys._MEIPASS, "aegis_v2.db")
             if os.path.exists(bundled_db):

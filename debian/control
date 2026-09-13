@@ -1,0 +1,15 @@
+Package: aegis-ics
+Version: 2.5.2
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Aegis ICS Operations Team <support@aegis-ics.internal>
+Depends: libc6 (>= 2.31)
+Recommends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libgtk-3-0
+Description: Aegis ICS - Industrial Zero-Trust Security Gateway & Physical Enforcer
+ Production-ready zero-trust security gateway, physical safety enforcer,
+ and real-time SCADA monitoring application built for Industrial Control
+ Systems (ICS) and Operational Technology (OT) environments.
+ Features multi-variable Stuxnet hazard boundaries, HMAC-SHA256 telemetry
+ verification, 5-feature Random Forest anomaly detection, and automated
+ incident reporting adhering to NIST SP 800-82 Rev 3 and NIST SP 800-53 Rev 5.

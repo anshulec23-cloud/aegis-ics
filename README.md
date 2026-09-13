@@ -1,12 +1,12 @@
 # Aegis ICS - Industrial Zero-Trust Security Gateway & Physical Enforcer
 
-[![Release Version](https://img.shields.io/badge/release-v2.5.0-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.0)
+[![Release Version](https://img.shields.io/badge/release-v2.5.2-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
-[![Tests Status](https://img.shields.io/badge/tests-36%2F36%20passing-brightgreen.svg)](#quality-assurance--testing)
+[![Tests Status](https://img.shields.io/badge/tests-39%2F39%20passing-brightgreen.svg)](#quality-assurance--testing)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Official Software Application Release (v2.5.0)**: Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application built for Industrial Control Systems (ICS) and Operational Technology (OT) environments.
+> **Official Software Application Release (v2.5.2 — Final Production Release)**: Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application built for Industrial Control Systems (ICS) and Operational Technology (OT) environments. Concludes the v2.x architecture cycle, subject to future LTS maintenance or security updates as needed.
 
 ---
 
@@ -100,7 +100,25 @@ sequenceDiagram
 2. Double-click `AegisICS.exe` to start the standalone desktop application.
 3. The desktop application window will open automatically with the embedded SCADA dashboard interface.
 
-### Option B: Running from Source Code (Developer Mode)
+### Option B: Debian Package & Linux Distribution (MX Linux / Debian)
+
+1. Download the Debian package `aegis-ics_2.5.0_amd64.deb` or portable tarball `aegis-ics-2.5.0-linux-x86_64.tar.gz`.
+2. Install via `dpkg` or MX Package Installer / GDebi:
+   ```bash
+   sudo dpkg -i aegis-ics_2.5.0_amd64.deb
+   sudo usermod -a -G dialout $USER   # Allow USB/Serial hardware COM access
+   ```
+3. Run as Desktop Application:
+   ```bash
+   aegis-ics
+   ```
+4. Or run as 24/7 background service:
+   * **MX Linux SysVinit**: `sudo service aegis-ics start`
+   * **systemd**: `sudo systemctl start aegis-ics`
+
+For full details, see [docs/linux_deployment.md](docs/linux_deployment.md).
+
+### Option C: Running from Source Code (Developer Mode)
 
 #### Prerequisites
 - **Python 3.12+**
@@ -206,29 +224,30 @@ aegis-ics/
 
 ---
 
-## 🔄 Release Notes & Version 2.5.0 Updates
+## 🔄 Release Notes & Version 2.5.2 Updates
 
-**Version 2.5.0 Release Summary**:
+**Version 2.5.2 Final Production Release Summary**:
+- **Cross-Platform Linux & Windows Deliverables**: Self-contained standalone binaries for Linux 64-bit ELF (`dist/linux/AegisICS`), Debian package (`dist/linux/aegis-ics_2.5.0_amd64.deb`), portable tarball (`dist/linux/aegis-ics-2.5.0-linux-x86_64.tar.gz`), and Windows desktop executable (`dist/AegisICS.exe`).
+- **MX Linux XFCE Specialization**: Native SysVinit service management (`/etc/init.d/aegis-ics`), systemd unit alternative, XFCE desktop launcher and panel icons, dialout serial port permissions, and automatic headless fallback.
+- **Universal Documentation Coverage**: 100% of all repository folders (17/17) contain clear, dedicated `README.md` guides.
 - **100% Air-Gapped Offline Deployment**: Fully bundled standalone vendor static assets (`src/static/vendor/chart.umd.js` and `tailwind.min.css`) eliminating external CDN dependencies.
-- **Retrained 5-Feature ML Pipeline**: Multi-variable Random Forest anomaly detection model over `[temperature, pressure, vibration, hall_effect, current]` achieving 1.0000 ROC-AUC and 0.9993 5-fold CV F1 score.
+- **Retrained 5-Feature ML Pipeline**: Multi-variable Random Forest anomaly detection model over `[temperature, pressure, vibration, hall_effect, current]` achieving 1.0000 ROC-AUC.
 - **Server-Sent Events (SSE) Live Stream**: Sub-second push telemetry endpoint (`/api/stream`) for low-latency SCADA updates with automatic polling fallback.
 - **Interactive 2D Plant Digital Twin**: Vector-based spatial plant layout with animated process flow lines, sector grid coordinates, and node selection/telemetry inspector.
 - **Forensic "Black Box" Time Scrubber**: Interactive timeline scrubbing, freeze-frame playback, one-click jump-to-incident, and resume-to-live streaming.
 - **Gamified Cyber Defense Arena**: NIST SP 800-61 incident response challenge arena with 3 timed simulation scenarios (Stuxnet, Rogue HMAC, Thermal Creep) and defense scoring.
-- **Aegis Tactical Copilot Assistant**: Interactive slide-over assistant drawer providing situational root-cause analysis and mandated NIST SP 800-61 containment SOP guidance.
-- **Aesthetic Monotone Splines & Multi-Tone Soundscapes**: Dynamic cubic spline waveform smoothing and Web Audio multi-tone industrial annunciator chimes.
-- **100% Test Suite Coverage**: 36/36 passing automated unit and integration tests covering all critical paths.
+- **100% Test Suite Coverage**: 39/39 passing automated unit and integration tests covering all critical paths across both Linux and Windows runtimes.
 
 For a full list of historical release changes, see [release_notes.txt](release_notes.txt).
 
 ---
 
-## 👤 Authors & Contact
+## 👤 Development & Maintenance Team
 
-- **Anshul R** (Lead Developer & Security Researcher)
-  - **LinkedIn**: [Anshul R](https://www.linkedin.com/in/anshul-r-68b50229a/)
-  - **Email**: [anshul.ec23@sahyadri.edu.in](mailto:anshul.ec23@sahyadri.edu.in)
-  - **GitHub**: [@anshulec23-cloud](https://github.com/anshulec23-cloud)
+- **Aegis ICS Core Engineering & Security Team**
+  - **Organization**: Industrial Zero-Trust Working Group
+  - **Email**: `security@aegis-ics.internal` / `support@aegis-ics.org`
+  - **Repository**: [github.com/anshulec23-cloud/aegis-ics](https://github.com/anshulec23-cloud/aegis-ics)
 
 ---
 *Aegis ICS - Safeguard Industrial Operations through Zero-Trust Engineering.*

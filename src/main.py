@@ -47,9 +47,9 @@ def _configure_paths ():
         logger .info ("Running in development mode — base: %s",source_dir )
 
 
-def _create_flask_server (port :int ):
+def _create_flask_server (port :int, host: str = "127.0.0.1" ):
     """
-    Create and return a Werkzeug WSGI server bound to 127.0.0.1:<port>.
+    Create and return a Werkzeug WSGI server bound to <host>:<port>.
 
     This avoids the race condition that exists with Flask's app.run()
     by binding the socket immediately and atomically.
@@ -61,9 +61,9 @@ def _create_flask_server (port :int ):
     app .config ["DEBUG"]=False 
     app .config ["TESTING"]=False 
 
-    server =make_server ("127.0.0.1",port ,app ,threaded =True )
+    server =make_server (host ,port ,app ,threaded =True )
     actual_port =server .socket .getsockname ()[1 ]
-    logger .info ("Flask server bound to 127.0.0.1:%d",actual_port )
+    logger .info ("Flask server bound to %s:%d",host ,actual_port )
     return server ,actual_port 
 
 
@@ -181,6 +181,32 @@ def main ():
         print(f"Aegis ICS v{APP_VERSION} [SELF-TEST OK]")
         sys.exit(0)
 
+    server_mode = any(arg in sys.argv for arg in ("--server", "--headless", "-s")) or os.environ.get("AEGIS_SERVER_MODE") == "1"
+
+    target_host = "127.0.0.1"
+    target_port = None
+
+    for i, arg in enumerate(sys.argv):
+        if arg in ("--host", "-h") and i + 1 < len(sys.argv):
+            target_host = sys.argv[i + 1]
+        elif arg.startswith("--host="):
+            target_host = arg.split("=", 1)[1]
+        elif arg in ("--port", "-p") and i + 1 < len(sys.argv):
+            try:
+                target_port = int(sys.argv[i + 1])
+            except ValueError:
+                pass
+        elif arg.startswith("--port="):
+            try:
+                target_port = int(arg.split("=", 1)[1])
+            except ValueError:
+                pass
+
+    if sys.platform.startswith("linux") and not server_mode:
+        has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        if not has_display:
+            logger.info("No graphical display detected ($DISPLAY/$WAYLAND_DISPLAY unset). Switching to headless server mode.")
+            server_mode = True
 
     try :
         from security import check_debugger 
@@ -190,62 +216,81 @@ def main ():
     except Exception :
         pass 
 
+    if target_port is not None:
+        port = target_port
+    elif server_mode:
+        port = int(os.environ.get("FLASK_PORT", 5000))
+    else:
+        from security import find_free_port 
+        port =find_free_port ()
+    logger .info ("Selected port: %d",port )
 
-    from security import find_free_port 
-    port =find_free_port ()
-    logger .info ("Selected ephemeral port: %d",port )
-
-
-    _flask_server ,actual_port =_create_flask_server (port )
+    _flask_server ,actual_port =_create_flask_server (port, host=target_host )
     os .environ ["FLASK_PORT"]=str (actual_port )
 
     flask_thread =threading .Thread (
-    target =_flask_server .serve_forever ,
-    daemon =True ,
-    name ="flask-backend",
+        target =_flask_server .serve_forever ,
+        daemon =True ,
+        name ="flask-backend",
     )
     flask_thread .start ()
     logger .info ("Flask backend started on thread '%s'",flask_thread .name )
 
-
-
+    if server_mode:
+        import time
+        logger.info("=" * 60)
+        logger.info(" Aegis ICS Industrial Security Gateway running in SERVER mode")
+        logger.info(" SCADA Dashboard: http://%s:%d", target_host if target_host != "0.0.0.0" else "127.0.0.1", actual_port)
+        logger.info(" Press Ctrl+C to stop.")
+        logger.info("=" * 60)
+        try:
+            while True:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Shutdown requested...")
+        finally:
+            _on_quit()
+            os._exit(0)
 
     try :
         import webview 
     except ImportError :
-        logger .critical (
-        "pywebview is not installed. Install it with: pip install pywebview"
+        logger .warning (
+            "pywebview is not installed. Falling back to background server mode at http://127.0.0.1:%d", actual_port
         )
-        sys .exit (1 )
-
+        import time
+        try:
+            while True:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            _on_quit()
+            os._exit(0)
 
     _webview_window =webview .create_window (
-    title ="Aegis ICS — Industrial Control System Security",
-    url =f"http://127.0.0.1:{actual_port }",
-    width =1366 ,
-    height =800 ,
-    resizable =True ,
-    min_size =(1024 ,600 ),
-    text_select =False ,
-    zoomable =False ,
+        title ="Aegis ICS — Industrial Control System Security",
+        url =f"http://127.0.0.1:{actual_port }",
+        width =1366 ,
+        height =800 ,
+        resizable =True ,
+        min_size =(1024 ,600 ),
+        text_select =False ,
+        zoomable =False ,
     )
 
-
     _webview_window .events .closing +=_on_window_closing 
-
 
     try :
         from tray import AegisTray 
 
         _tray =AegisTray (
-        window =_webview_window ,
-        on_quit_callback =_on_quit ,
-        on_check_updates =_on_check_updates_from_tray ,
+            window =_webview_window ,
+            on_quit_callback =_on_quit ,
+            on_check_updates =_on_check_updates_from_tray ,
         )
         tray_thread =threading .Thread (
-        target =_tray .run ,
-        daemon =True ,
-        name ="system-tray",
+            target =_tray .run ,
+            daemon =True ,
+            name ="system-tray",
         )
         tray_thread .start ()
         logger .info ("System tray started on thread '%s'",tray_thread .name )
@@ -254,22 +299,27 @@ def main ():
     except Exception as exc :
         logger .warning ("System tray failed to start: %s",exc )
 
-
     update_thread =threading .Thread (
-    target =_start_update_check ,
-    args =(_webview_window ,),
-    daemon =True ,
-    name ="update-checker",
+        target =_start_update_check ,
+        args =(_webview_window ,),
+        daemon =True ,
+        name ="update-checker",
     )
     update_thread .start ()
 
-
     logger .info ("Starting PyWebView event loop...")
-    webview .start (debug =False )
-
+    try:
+        webview .start (debug =False )
+    except Exception as e:
+        logger.warning(f"PyWebView GUI loop terminated or failed to display ({e}). Serving in background...")
+        import time
+        try:
+            while True:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            pass
 
     logger .info ("Aegis ICS Edge is shutting down... Cleaning up background threads.")
-
 
     try :
         import serial_gateway 
@@ -279,7 +329,6 @@ def main ():
 
     import time 
     time .sleep (0.5 )
-
 
     os ._exit (0 )
 
