@@ -4,7 +4,7 @@ This directory contains the database migration environment for **Aegis ICS**, po
 
 ---
 
-## 📁 Directory Structure
+## Directory Structure
 
 * `env.py`: Python script run whenever Alembic is invoked; connects to SQLAlchemy models in `database.py`.
 * `script.py.mako`: Template file for generating new database migration revisions.
@@ -12,7 +12,7 @@ This directory contains the database migration environment for **Aegis ICS**, po
 
 ---
 
-## 🛠️ Usage
+## Usage
 
 ```powershell
 # Create a new revision

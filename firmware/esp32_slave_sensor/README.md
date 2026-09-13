@@ -4,7 +4,7 @@ This directory contains the production C/C++ firmware sketch for the **Aegis ICS
 
 ---
 
-## 🎯 Role & Capabilities
+## Role & Capabilities
 
 Each slave node interfaces with physical plant transducers, acquires multi-sensor process signals, formats canonical JSON packets, generates cryptographic HMAC-SHA256 signatures via hardware-accelerated **mbedTLS**, and directly drives optocoupler isolation relays.
 
@@ -15,7 +15,7 @@ Each slave node interfaces with physical plant transducers, acquires multi-senso
 
 ---
 
-## 🔧 Multi-Node Flashing Configuration Matrix
+## Multi-Node Flashing Configuration Matrix
 
 Before flashing, uncomment exactly **ONE** macro in `esp32_slave_sensor.ino`:
 
@@ -28,7 +28,7 @@ Before flashing, uncomment exactly **ONE** macro in `esp32_slave_sensor.ino`:
 
 ---
 
-## 🔌 Hardware Wiring & Pin Assignments
+## Hardware Wiring & Pin Assignments
 
 | Component / Sensor | Pin Function | ESP32 GPIO |
 |---|---|---|
@@ -43,7 +43,7 @@ Before flashing, uncomment exactly **ONE** macro in `esp32_slave_sensor.ino`:
 
 ---
 
-## ⚡ Flashing Instructions
+## Flashing Instructions
 
 ```bash
 # PlatformIO

@@ -73,7 +73,7 @@ Aegis ICS protects critical Operational Technology (OT) and Industrial Control S
          ├─ Nominal (Tfinal >= 0.75) ──► SCADA Live Stream & Digital Twin
          │
          └─ Compromised (Tfinal < 0.75) ──► Autonomous Hardware Relay Open
-                                              + NIST SP 800-61 Copilot SOP
+                                              + NIST SP 800-61 Incident Advisor SOP
                                               + Multi-Tone Annunciator Chime
 ```
 

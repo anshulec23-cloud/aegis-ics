@@ -4,7 +4,7 @@ This directory contains the comprehensive automated test suite for validating al
 
 ---
 
-## 🧪 Test Suite Overview (`test_full_suite.py`)
+## Test Suite Overview (`test_full_suite.py`)
 
 The suite contains **39 automated test modules** providing 100% pass rate across:
 
@@ -23,13 +23,13 @@ The suite contains **39 automated test modules** providing 100% pass rate across
 
 ---
 
-## 🔒 Test Database Isolation
+## Test Database Isolation
 
 All automated tests use an isolated database (`tests/test_aegis.db` via `DATABASE_URL=sqlite:///tests/test_aegis.db`). This guarantees that test runs **never** pollute, modify, or corrupt the production rules or audit records in `aegis_v2.db`.
 
 ---
 
-## 🚀 Running the Tests
+## Running the Tests
 
 ### On Windows:
 ```powershell

@@ -4,7 +4,7 @@ This directory contains Debian packaging metadata, desktop launcher files, maint
 
 ---
 
-## 📁 File Manifest
+## File Manifest
 
 | File | Type | Purpose |
 |---|---|---|
@@ -18,7 +18,7 @@ This directory contains Debian packaging metadata, desktop launcher files, maint
 
 ---
 
-## 📦 Target Filesystem Layout upon `.deb` Installation
+## Target Filesystem Layout upon `.deb` Installation
 
 When `aegis-ics_2.5.0_amd64.deb` is installed via `dpkg -i`, files are placed in standard Linux directories:
 * `/opt/aegis-ics/AegisICS`: Main executable binary

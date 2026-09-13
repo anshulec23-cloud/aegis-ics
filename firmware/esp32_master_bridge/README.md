@@ -4,7 +4,7 @@ This folder contains the production C/C++ firmware sketch for the **ESP32 Master
 
 ---
 
-## 🎯 Role & Functionality
+## Role & Functionality
 
 The Master Concentrator node acts as the physical, high-speed bridge between:
 1. **RS-485 Differential Fieldbus**: Interrogates and receives signed sensor frames from multi-node slave units (`ESP32_001` through `ESP32_004`).
@@ -13,7 +13,7 @@ The Master Concentrator node acts as the physical, high-speed bridge between:
 
 ---
 
-## 🔌 Electrical Connections & Pinout
+## Electrical Connections & Pinout
 
 ```text
   ESP32 Master Concentrator                    MAX485 Module
@@ -35,7 +35,7 @@ The Master Concentrator node acts as the physical, high-speed bridge between:
 
 ---
 
-## ⚡ Flashing Instructions
+## Flashing Instructions
 
 ### Arduino IDE
 1. Select board: `ESP32 Dev Module`.

@@ -4,7 +4,7 @@ This directory contains static styling, visual assets, application branding icon
 
 ---
 
-## 📁 File Manifest
+## File Manifest
 
 | File | Purpose |
 |---|---|
@@ -15,6 +15,6 @@ This directory contains static styling, visual assets, application branding icon
 
 ---
 
-## 🗂️ Subdirectories
+## Subdirectories
 
 * [`vendor/`](vendor): Contains fully air-gapped, offline vendor JavaScript and CSS bundles (`chart.umd.js` and `tailwind.min.css`), eliminating any external CDN dependency.

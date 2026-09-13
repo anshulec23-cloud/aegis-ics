@@ -165,8 +165,8 @@
                 </button>
             </nav>
             <div class="flex items-center gap-2">
-                <button onclick="toggleCopilotDrawer()" id="btn-copilot-toggle" class="terminal-btn py-1.5 px-3">
-                    [ F7: TACTICAL COPILOT ]
+                <button onclick="toggleAdvisorDrawer()" id="btn-advisor-toggle" class="terminal-btn py-1.5 px-3">
+                    [ F7: INCIDENT ADVISOR ]
                 </button>
                 <button onclick="downloadReport()" id="btn-download-report" class="terminal-btn py-1.5 px-3">
                     [ F12: NIST PDF REPORT ]
@@ -1179,19 +1179,19 @@
         </div>
     </div>
 
-    <!-- AEGIS TACTICAL COPILOT ASSISTANT DRAWER -->
-    <div id="copilot-drawer" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-[var(--crt-panel)] border-l border-[var(--crt-border-dim)] shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+    <!-- AEGIS INCIDENT ADVISOR DRAWER -->
+    <div id="advisor-drawer" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-[var(--crt-panel)] border-l border-[var(--crt-border-dim)] shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
         <div class="p-5 border-b border-[var(--crt-border-dim)] flex items-center justify-between bg-[var(--crt-bg-deep)]">
             <div class="flex items-center gap-2.5">
                 <div class="w-7 h-7 rounded-none bg-[var(--crt-panel)] border border-[var(--crt-border-mid)] flex items-center justify-center phosphor-bright">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold phosphor-text font-mono">Aegis Tactical Copilot</h3>
+                    <h3 class="text-sm font-bold phosphor-text font-mono">Aegis Incident Advisor</h3>
                     <p class="text-[10px] phosphor-dim font-mono">NIST SP 800-61 Incident Guidance</p>
                 </div>
             </div>
-            <button onclick="toggleCopilotDrawer()" class="text-slate-400 hover:phosphor-text p-1 rounded-none hover:bg-[var(--crt-panel-hover)] transition">
+            <button onclick="toggleAdvisorDrawer()" class="text-slate-400 hover:phosphor-text p-1 rounded-none hover:bg-[var(--crt-panel-hover)] transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1201,15 +1201,15 @@
             <div class="p-4 rounded-sm bg-[var(--crt-bg-deep)] border border-[var(--crt-border-dim)]">
                 <span class="text-[10px] phosphor-dim uppercase tracking-wider font-semibold font-mono">CURRENT THREAT LEVEL</span>
                 <div class="flex items-center justify-between mt-2">
-                    <span id="copilot-threat-level" class="text-base font-bold font-mono text-emerald-400">NOMINAL (SECURE)</span>
-                    <span id="copilot-threat-score" class="text-xs font-mono text-slate-400">Index: 0.0</span>
+                    <span id="advisor-threat-level" class="text-base font-bold font-mono text-emerald-400">NOMINAL (SECURE)</span>
+                    <span id="advisor-threat-score" class="text-xs font-mono text-slate-400">Index: 0.0</span>
                 </div>
             </div>
 
             <!-- Root Cause Analysis -->
             <div class="space-y-2">
                 <span class="text-[10px] phosphor-dim uppercase tracking-wider font-semibold font-mono">SITUATIONAL ROOT CAUSE</span>
-                <div id="copilot-root-cause" class="p-3.5 rounded-sm bg-[var(--crt-bg-deep)] border border-[var(--crt-border-dim)] text-slate-200 leading-relaxed font-light">
+                <div id="advisor-root-cause" class="p-3.5 rounded-sm bg-[var(--crt-bg-deep)] border border-[var(--crt-border-dim)] text-slate-200 leading-relaxed font-light">
                     All industrial edge microcontrollers are reporting valid HMAC-SHA256 signatures within configured safety boundaries. No cross-parameter Stuxnet stress hazards detected.
                 </div>
             </div>
@@ -1217,7 +1217,7 @@
             <!-- NIST Remediation SOP Steps -->
             <div class="space-y-2">
                 <span class="text-[10px] phosphor-dim uppercase tracking-wider font-semibold font-mono">MANDATED NIST SP 800-61 SOP</span>
-                <div class="space-y-2 font-mono text-[11px]" id="copilot-sop-steps">
+                <div class="space-y-2 font-mono text-[11px]" id="advisor-sop-steps">
                     <div class="p-2.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-start gap-2">
                         <span>1.</span><span>CONTAINMENT: Physical relay engaged. RS-485 bus healthy.</span>
                     </div>
@@ -1234,10 +1234,10 @@
             <div class="space-y-2 pt-2">
                 <span class="text-[10px] phosphor-dim uppercase tracking-wider font-semibold font-mono">EMERGENCY ACTIONS</span>
                 <div class="grid grid-cols-2 gap-2 font-mono">
-                    <button onclick="copilotQuickAction('isolate')" class="py-2 px-3 rounded-none bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600/30 transition text-left">
+                    <button onclick="advisorQuickAction('isolate')" class="py-2 px-3 rounded-none bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600/30 transition text-left">
                         ! ISOLATE ACTIVE
                     </button>
-                    <button onclick="copilotQuickAction('rearm')" class="py-2 px-3 rounded-none bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 transition text-left">
+                    <button onclick="advisorQuickAction('rearm')" class="py-2 px-3 rounded-none bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 transition text-left">
                         REARM NODE
                     </button>
                     <button onclick="downloadReport()" class="py-2 px-3 rounded-none bg-[var(--crt-panel)] phosphor-text border border-[var(--crt-border-mid)] hover:bg-[var(--crt-panel-hover)] transition text-left col-span-2">
@@ -1742,9 +1742,9 @@
             showAlert(`[!] REWOUND TO SAFETY TRIP AT FRAME #${incidentIdx + 1} (${forensicHistoryBuffer[incidentIdx].device_id})`, 'error');
         }
 
-        // --- Tactical Copilot Drawer & NIST Guidance Engine ---
-        function toggleCopilotDrawer() {
-            const drawer = document.getElementById('copilot-drawer');
+        // --- Tactical Incident Advisor Drawer & NIST Guidance Engine ---
+        function toggleAdvisorDrawer() {
+            const drawer = document.getElementById('advisor-drawer');
             if (!drawer) return;
             if (drawer.classList.contains('translate-x-full')) {
                 drawer.classList.remove('translate-x-full');
@@ -1753,10 +1753,10 @@
             }
         }
 
-        function updateCopilotState(data) {
-            const lvlEl = document.getElementById('copilot-threat-level');
-            const scEl = document.getElementById('copilot-threat-score');
-            const causeEl = document.getElementById('copilot-root-cause');
+        function updateAdvisorState(data) {
+            const lvlEl = document.getElementById('advisor-threat-level');
+            const scEl = document.getElementById('advisor-threat-score');
+            const causeEl = document.getElementById('advisor-root-cause');
             if (!lvlEl || !scEl || !causeEl) return;
 
             let hasThreat = false;
@@ -1785,7 +1785,7 @@
             }
         }
 
-        async function copilotQuickAction(action) {
+        async function advisorQuickAction(action) {
             if (action === 'isolate') {
                 const target = activeControlDevice || 'ESP32_001';
                 toggleIsolation(target, true);
@@ -3261,8 +3261,8 @@
                     refreshTwinMetrics();
                 }
 
-                // Update Tactical Copilot state & SOP guidance
-                updateCopilotState(data);
+                // Update Incident Advisor state & SOP guidance
+                updateAdvisorState(data);
 
                 // Update Forensic Scrubber Buffer
                 if (data.telemetry && data.telemetry.length > 0) {

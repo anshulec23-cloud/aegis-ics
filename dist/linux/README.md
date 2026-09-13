@@ -4,7 +4,7 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 
 ---
 
-## 📋 What is Aegis ICS?
+## What is Aegis ICS?
 
 **Aegis ICS** is an industrial zero-trust security gateway, cyber-physical safety enforcer, and real-time SCADA supervisory system. It bridges physical field edge devices (such as ESP32 microcontrollers, RTUs, and industrial PLCs) across **Purdue Model Levels 0, 1, and 2** with cryptographic authentication, multi-variable safety rules, and autonomous hardware microsegmentation.
 
@@ -18,7 +18,7 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 
 ---
 
-## 📦 File Inventory in this Directory
+## File Inventory in this Directory
 
 | File Name | Format | Size | Description |
 |---|---|---|---|
@@ -28,7 +28,7 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 
 ---
 
-## 🚀 Quickstart Commands for Any Linux Environment
+## Quickstart Commands for Any Linux Environment
 
 ### Method 1: Run the Standalone Binary Directly (Fastest)
 
@@ -133,7 +133,7 @@ cd aegis-ics-2.5.0/
 
 ---
 
-## 🔌 Hardware USB/Serial Configuration (ESP32 / Industrial PLC)
+## Hardware USB/Serial Configuration (ESP32 / Industrial PLC)
 
 To allow Aegis ICS to communicate with edge microcontrollers over USB/Serial (`/dev/ttyUSB0`, `/dev/ttyACM0`):
 
@@ -152,7 +152,7 @@ In the SCADA Dashboard, navigate to **Hardware Connection**, click **Scan Ports*
 
 ---
 
-## 🛠️ CLI Options Reference
+## CLI Options Reference
 
 | Flag | Argument | Default | Description |
 |---|---|---|---|
@@ -164,7 +164,7 @@ In the SCADA Dashboard, navigate to **Hardware Connection**, click **Scan Ports*
 
 ---
 
-## 🔑 Default Credentials & Access
+## Default Credentials & Access
 
 * **Operator Username**: `admin`
 * **Operator Password**: `admin` (or configured via `ADMIN_PASSWORD` environment variable)
@@ -172,7 +172,7 @@ In the SCADA Dashboard, navigate to **Hardware Connection**, click **Scan Ports*
 
 ---
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 1. **GUI Window fails to open on minimal server**:
    - Install WebKitGTK: `sudo apt-get install -y libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 libgtk-3-0`

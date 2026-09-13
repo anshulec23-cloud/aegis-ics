@@ -4,7 +4,7 @@ This directory contains the serialized machine learning anomaly classifier used 
 
 ---
 
-## 🧠 Model Specifications
+## Model Specifications
 
 | Property | Value |
 |---|---|
@@ -18,7 +18,7 @@ This directory contains the serialized machine learning anomaly classifier used 
 
 ---
 
-## 📊 Feature Vector & Gini Importance
+## Feature Vector & Gini Importance
 
 The model evaluates a 5-dimensional physical state vector $\vec{x} = [T, P, V, R, I]$:
 
@@ -36,7 +36,7 @@ features = ["temperature", "pressure", "vibration", "hall_effect", "current"]
 
 ---
 
-## 🧪 Empirical Validation Metrics
+## Empirical Validation Metrics
 
 Trained on a balanced dataset of 12,000 multi-node industrial telemetry records:
 * **ROC-AUC**: **1.0000**
@@ -46,7 +46,7 @@ Trained on a balanced dataset of 12,000 multi-node industrial telemetry records:
 
 ---
 
-## 🔄 Retraining the Model
+## Retraining the Model
 
 To retrain the model with updated baseline parameters:
 

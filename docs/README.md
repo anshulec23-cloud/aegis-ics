@@ -4,7 +4,7 @@ Welcome to the technical documentation repository for **Aegis ICS v2.5.2**. This
 
 ---
 
-## 📚 Documentation Index & Sitemap
+## Documentation Index & Sitemap
 
 | Document | Format | Description |
 |---|---|---|
@@ -18,7 +18,7 @@ Welcome to the technical documentation repository for **Aegis ICS v2.5.2**. This
 
 ---
 
-## 🛡️ Industrial Zero-Trust Enforcement Pipeline
+## Industrial Zero-Trust Enforcement Pipeline
 
 ```text
 [ Field Sensor Nodes ] (ESP32 / RTU / PLC)
@@ -37,13 +37,13 @@ Welcome to the technical documentation repository for **Aegis ICS v2.5.2**. This
          ├─ Nominal (Tfinal >= 0.75) ──► SCADA Live Stream & 2D Digital Twin
          │
          └─ Compromised (Tfinal < 0.75) ──► Autonomous Hardware Relay Open (13.4 ms)
-                                              + NIST SP 800-61 Tactical Copilot SOP
+                                              + NIST SP 800-61 Tactical Incident Advisor SOP
                                               + Multi-Tone Auditory Annunciator Chime
 ```
 
 ---
 
-## 🏛️ Purdue Model Level Mapping
+## Purdue Model Level Mapping
 
 * **Purdue Level 0 (Physical Process)**: Industrial transducers, thermowells, pressure vessels, rotating turbine shafts, and optocoupler isolation relays.
 * **Purdue Level 1 (Basic Control)**: ESP32 field microcontrollers executing C/C++ firmware with hardware mbedTLS HMAC signing.

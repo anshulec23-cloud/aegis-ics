@@ -4,7 +4,7 @@ This directory contains the production release artifacts and compiled standalone
 
 ---
 
-## 📁 Directory Structure & Deliverables
+## Directory Structure & Deliverables
 
 ```text
 dist/
@@ -23,7 +23,7 @@ dist/
 
 ---
 
-## 🚀 Operating System Quickstart
+## Operating System Quickstart
 
 ### For Linux Users (MX Linux / Debian / Ubuntu):
 Navigate to the dedicated [`dist/linux/`](linux) folder and consult [`dist/linux/README.md`](linux/README.md):
@@ -41,7 +41,7 @@ Double-click [`dist/AegisICS.exe`](AegisICS.exe) to start the standalone native 
 
 ---
 
-## 🔒 Cryptographic Integrity & Offline Readiness
+## Cryptographic Integrity & Offline Readiness
 All binaries in this directory are 100% self-contained and pre-bundled with:
 * Local vendor static assets (`chart.umd.js`, `tailwind.min.css`) in `src/static/vendor/`
 * Scikit-Learn 5-feature Random Forest classifier (`rf_model.pkl`)

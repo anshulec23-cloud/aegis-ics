@@ -273,7 +273,7 @@ $$g_1(T, P) = T - \left(T_{\text{max}} - \lambda \cdot \max(0, P - P_{\text{knee
 Specifically:
 $$g_1(T, P) = \begin{cases} T - 35.0 \le 0, & \text{if } P > 4.5\text{ bar} \\ T - 50.0 \le 0, & \text{if } P \le 4.5\text{ bar} \end{cases}$$
 If an operator or compromised script requests $T = 40.0^\circ\text{C}$ while $P = 5.2\text{ bar}$, the command violates $g_1$, resulting in an immediate **HTTP 403 Forbidden** rejection:
-`"AI SECURITY EXPOSURE BLOCK (Stuxnet Prevention): Cannot elevate temperature while pressure exceeds 4.5 bar."`
+`"SAFETY INTERLOCK BLOCK (Stuxnet Prevention): Cannot elevate temperature while pressure exceeds 4.5 bar."`
 
 #### Constraint 2: Rotational Overspeed & Mechanical Runaway
 For rotating equipment (specifically monitored by `ESP32_004: Main Turbine Generator`), rotational frequency must strictly avoid critical mechanical resonance modes:
@@ -369,7 +369,7 @@ Rather than making binary pass/fail determinations on individual packets, Aegis 
                      - Update 2D Digital Twin         - Dispatch Hardware ISOLATE (UART/MQTT)
                      - Log Audit Baseline             - De-energize GPIO 25 Relay (13.4 ms)
                                                       - Sound CRT Annunciator Chime
-                                                      - Launch NIST Incident Copilot
+                                                      - Launch NIST Incident Advisor
 ```
 
 ### A. Mathematical Derivation of the Trust Formalism
@@ -417,7 +417,7 @@ $$\text{State}_{t+1}(\text{node}_i) = \begin{cases} \text{NOMINAL}, & \text{if }
 When $\text{State}(\text{node}_i) \to \text{ISOLATED}$:
 1. **Hardware Micro-Segmentation**: The supervisory gateway immediately dispatches an authenticated `ISOLATE` serial packet down the bus. The edge microcontroller decodes the command and de-energizes the optocoupler relay on GPIO 25, physically cutting electrical power to the downstream actuator/motor.
 2. **Network Quarantine**: The gateway drops node $i$ from supervisory SCADA poll loops and responds to subsequent telemetry packets with **HTTP 403 Forbidden**.
-3. **Tactical Incident Escalation**: The supervisory console launches the **Aegis Tactical Copilot** drawer, fires a multi-tone auditory annunciator chime, and generates an automated NIST SP 800-61 incident record.
+3. **Tactical Incident Escalation**: The supervisory console launches the **Aegis Incident Advisor** drawer, fires a multi-tone auditory annunciator chime, and generates an automated NIST SP 800-61 incident record.
 
 ---
 

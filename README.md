@@ -10,7 +10,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 - [Executive Summary & Software Application Overview](#software-application-overview)
 - [The Problem Aegis ICS Solves](#the-problem-aegis-ics-solves)
 - [Key Features & Capabilities](#key-features--capabilities)
@@ -25,9 +25,9 @@
 
 ---
 
-## 🚀 Software Application Overview
+## Software Application Overview
 
-**Aegis ICS** is a complete industrial cybersecurity solution engineered to bridge physical edge devices (such as ESP32 microcontrollers, PLCs, and field sensors) with zero-trust security policies and physical safety enforcement rules. 
+**Aegis ICS** is a complete industrial cybersecurity solution engineered to bridge physical edge devices (such as ESP32 microcontrollers, PLCs, and field sensors) with zero-trust security policies and physical safety enforcement rules.
 
 Unlike traditional Intrusion Detection Systems (IDS) that passively observe cyberattacks after malicious commands reach physical machinery, **Aegis ICS functions as an active enforcer gateway**. It intercepts telemetry and control commands in real-time, verifying payload HMAC signatures, enforcing cross-parameter physical stress boundaries (preventing Stuxnet-style physical destruction), auditing operator actions with 3D spatial coordinates (`X, Y, Z`), and micro-segmenting compromised devices automatically.
 
@@ -35,7 +35,7 @@ Aegis ICS is distributed as both a standalone desktop application (`AegisICS.exe
 
 ---
 
-## 🛡️ The Problem Aegis ICS Solves
+## The Problem Aegis ICS Solves
 
 1. **Stuxnet-Style Coordinated Physical Stress Attacks**: Cyber-adversaries often send individual commands (e.g., raising temperature or pressure) that appear benign when viewed in isolation, but result in physical destruction when executed concurrently under specific operating states. Aegis ICS evaluates **multi-variable stress vectors** to block dangerous combinations before execution.
 2. **Field Device Compromise**: If an edge device or broker credential is hijacked, plain network traffic allows unauthorized command injection. Aegis ICS enforces **HMAC-SHA256 payload signing** on every telemetry packet and command response.
@@ -44,19 +44,19 @@ Aegis ICS is distributed as both a standalone desktop application (`AegisICS.exe
 
 ---
 
-## ✨ Key Features & Capabilities
+## Key Features & Capabilities
 
-- 🔒 **Zero-Trust Telemetry Ingestion**: Every sensor transmission is validated for schema structure, timestamp freshness, and HMAC-SHA256 cryptographic signature integrity.
-- ⚡ **Stuxnet-Proof Physical Safety Enforcer**: Evaluates mathematical physical limits across temperature, pressure, vibration, current, and RPM variables to reject hazardous operator setpoints.
-- 🔌 **Hardware Serial & COM Gateway**: Built-in PySerial communication layer supporting direct USB/Serial connection to ESP32 microcontrollers and industrial PLCs with custom RTS/DTR reset loop prevention.
-- 📊 **Real-Time Interactive SCADA Dashboard**: Built with dynamic Chart.js graphing, live telemetry streaming, device quarantine toggles, and safety rule configuration controls.
-- 💰 **Financial Risk & Threat Index Engine**: Quantifies potential financial loss, prevented asset damage, telemetry noise index, and sensor drift risk in real time.
-- 📄 **Automated PDF & CSV Security Reporting**: Uses ReportLab to dynamically build comprehensive security incident reports complete with operator location metadata and violation logs.
-- 🖥️ **Standalone Executable Deployment**: Bundled via PyInstaller into a standalone executable (`AegisICS.exe`) requiring zero pre-installed Python dependencies for deployment.
+- **Zero-Trust Telemetry Ingestion**: Every sensor transmission is validated for schema structure, timestamp freshness, and HMAC-SHA256 cryptographic signature integrity.
+- **Stuxnet-Proof Physical Safety Enforcer**: Evaluates mathematical physical limits across temperature, pressure, vibration, current, and RPM variables to reject hazardous operator setpoints.
+- **Hardware Serial & COM Gateway**: Built-in PySerial communication layer supporting direct USB/Serial connection to ESP32 microcontrollers and industrial PLCs with custom RTS/DTR reset loop prevention.
+- **Real-Time Interactive SCADA Dashboard**: Built with dynamic Chart.js graphing, live telemetry streaming, device quarantine toggles, and safety rule configuration controls.
+- **Financial Risk & Threat Index Engine**: Quantifies potential financial loss, prevented asset damage, telemetry noise index, and sensor drift risk in real time.
+- **Automated PDF & CSV Security Reporting**: Uses ReportLab to dynamically build comprehensive security incident reports complete with operator location metadata and violation logs.
+- **Standalone Executable Deployment**: Bundled via PyInstaller into a standalone executable (`AegisICS.exe`) requiring zero pre-installed Python dependencies for deployment.
 
 ---
 
-## 📐 System Architecture & Workflow
+## System Architecture & Workflow
 
 ### Zero-Trust Telemetry & Enforcer Sequence
 
@@ -92,7 +92,7 @@ sequenceDiagram
 
 ---
 
-## 📥 Installation & Quickstart Guide
+## Installation & Quickstart Guide
 
 ### Option A: Running Standalone Executable (Windows)
 
@@ -146,7 +146,7 @@ After starting `app.py`, navigate to `http://127.0.0.1:5000` in your web browser
 
 ---
 
-## 🔌 Hardware & Serial Integration
+## Hardware & Serial Integration
 
 Aegis ICS supports direct physical connection with hardware devices (e.g. ESP32, Arduino, industrial sensors):
 
@@ -158,7 +158,7 @@ Aegis ICS supports direct physical connection with hardware devices (e.g. ESP32,
 
 ---
 
-## 🧪 Quality Assurance & Testing
+## Quality Assurance & Testing
 
 Aegis ICS includes a comprehensive automated test suite covering unit logic, HMAC cryptography, physical safety rules, stress concurrency, fuzzing, and PDF generation.
 
@@ -169,18 +169,18 @@ To run the complete test suite:
 ```
 
 ### Test Coverage Highlights
-- ✅ **Database & User Authentication**: User creation, hashed credentials, and spatial audit log verification.
-- ✅ **Cryptographic HMAC Security**: Key derivation, canonical payload serialization, and signature matching.
-- ✅ **Stuxnet Safety Rules**: Single-parameter boundary enforcement and multi-variable coordinated hazard prevention.
-- ✅ **Financial & Threat Index**: Asset loss calculation, noise ratio, and sensor drift risk metrics.
-- ✅ **Incident Report Generation**: PDF creation and structural validation via ReportLab.
-- ✅ **Serial Parser**: Multi-format parsing (JSON, CSV, Key-Value) with error tolerance.
-- ✅ **Stress & Concurrency**: Multi-threaded client API requests under heavy load.
-- ✅ **Payload Fuzzing**: Malformed inputs, SQL injection attempts, XSS payloads, and boundary conditions.
+- **Database & User Authentication**: User creation, hashed credentials, and spatial audit log verification.
+- **Cryptographic HMAC Security**: Key derivation, canonical payload serialization, and signature matching.
+- **Stuxnet Safety Rules**: Single-parameter boundary enforcement and multi-variable coordinated hazard prevention.
+- **Financial & Threat Index**: Asset loss calculation, noise ratio, and sensor drift risk metrics.
+- **Incident Report Generation**: PDF creation and structural validation via ReportLab.
+- **Serial Parser**: Multi-format parsing (JSON, CSV, Key-Value) with error tolerance.
+- **Stress & Concurrency**: Multi-threaded client API requests under heavy load.
+- **Payload Fuzzing**: Malformed inputs, SQL injection attempts, XSS payloads, and boundary conditions.
 
 ---
 
-## 🌐 REST API Reference
+## REST API Reference
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
@@ -197,7 +197,7 @@ To run the complete test suite:
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 aegis-ics/
@@ -224,7 +224,7 @@ aegis-ics/
 
 ---
 
-## 🔄 Release Notes & Version 2.5.2 Updates
+## Release Notes & Version 2.5.2 Updates
 
 **Version 2.5.2 Final Production Release Summary**:
 - **Cross-Platform Linux & Windows Deliverables**: Self-contained standalone binaries for Linux 64-bit ELF (`dist/linux/AegisICS`), Debian package (`dist/linux/aegis-ics_2.5.0_amd64.deb`), portable tarball (`dist/linux/aegis-ics-2.5.0-linux-x86_64.tar.gz`), and Windows desktop executable (`dist/AegisICS.exe`).
@@ -242,7 +242,7 @@ For a full list of historical release changes, see [release_notes.txt](release_n
 
 ---
 
-## 👤 Development & Maintenance Team
+## Development & Maintenance Team
 
 - **Aegis ICS Core Engineering & Security Team**
   - **Organization**: Industrial Zero-Trust Working Group

@@ -4,7 +4,7 @@ This directory stores historical schema migrations for the **Aegis ICS** SQLite 
 
 ---
 
-## 📜 Migration Revisions
+## Migration Revisions
 
 | Revision ID | Description | Changes Applied |
 |---|---|---|

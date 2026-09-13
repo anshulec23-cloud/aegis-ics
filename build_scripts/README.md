@@ -4,7 +4,7 @@ This directory contains the automated build specifications, compilation scripts,
 
 ---
 
-## 📁 File Manifest
+## File Manifest
 
 | File | Target OS | Purpose |
 |---|---|---|
@@ -18,7 +18,7 @@ This directory contains the automated build specifications, compilation scripts,
 
 ---
 
-## 🛠️ How to Build
+## How to Build
 
 ### Compiling on Linux (Debian / MX Linux / WSL):
 ```bash

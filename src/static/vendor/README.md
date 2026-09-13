@@ -4,7 +4,7 @@ This directory contains standalone, pre-compiled third-party vendor assets bundl
 
 ---
 
-## 🔒 Why Offline Vendor Bundling is Required
+## Why Offline Vendor Bundling is Required
 
 Critical Operational Technology (OT) and SCADA environments are deployed on isolated industrial control networks with **zero outbound internet connectivity**. Traditional web applications that import JavaScript or CSS from external Content Delivery Networks (CDNs) fail to render or introduce severe supply-chain attack vectors.
 
@@ -12,7 +12,7 @@ Aegis ICS bundles all required visual libraries locally.
 
 ---
 
-## 📁 Bundled Assets
+## Bundled Assets
 
 | File | Library | Size | Function in Aegis ICS |
 |---|---|---|---|

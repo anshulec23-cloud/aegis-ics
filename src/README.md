@@ -4,7 +4,7 @@ This directory contains the primary backend application source code, security en
 
 ---
 
-## 📁 Source Code Modules & Responsibilities
+## Source Code Modules & Responsibilities
 
 | Module | Primary Responsibility |
 |---|---|
@@ -23,7 +23,7 @@ This directory contains the primary backend application source code, security en
 
 ---
 
-## 🗂️ Subdirectories in `src/`
+## Subdirectories in `src/`
 
 * [`model/`](model): Contains the trained Scikit-Learn Random Forest anomaly detection model (`rf_model.pkl`).
 * [`static/`](static): Contains terminal styling (`terminal.css`), application icons, and offline vendor libraries (`src/static/vendor/`).
