@@ -39,6 +39,7 @@ def generate_incident_report_pdf(db_session, username, location):
      10. NIST SP 800-53 Rev 5 Mandated Technical Mitigations
     """
     buffer = BytesIO()
+    # Letter dimensions: 612 x 792 pt. Margins: 36 pt (0.5 in). Usable width: 540 pt.
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
@@ -51,6 +52,7 @@ def generate_incident_report_pdf(db_session, username, location):
 
     styles = getSampleStyleSheet()
 
+    # High-Assurance Industrial Color Palette (NIST / OT Cyber-Physical Standard)
     PRIMARY_NAVY = colors.HexColor('#0F172A')
     SECONDARY_SLATE = colors.HexColor('#1E293B')
     HEADER_ACCENT = colors.HexColor('#1E3A8A')
@@ -65,6 +67,7 @@ def generate_incident_report_pdf(db_session, username, location):
     TEXT_DARK = colors.HexColor('#0F172A')
     TEXT_MUTED = colors.HexColor('#475569')
 
+    # Typography Styles
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Heading1'],
@@ -148,10 +151,12 @@ def generate_incident_report_pdf(db_session, username, location):
         textColor=colors.white
     )
 
+    # --- Header / Document Title Block ---
     story.append(Paragraph("AEGIS ICS SECURITY &amp; OT COMPLIANCE AUDIT REPORT", title_style))
     story.append(Paragraph("NIST SP 800-82 REV 3 &amp; NIST SP 800-53 REV 5 · INDUSTRIAL CONTROL SYSTEMS CYBERSECURITY AUDIT", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=PRIMARY_NAVY, spaceAfter=6))
 
+    # --- Document Metadata & Computer / Station Login Control Block ---
     hostname = socket.gethostname()
     generated_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
@@ -196,6 +201,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(meta_table)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 1: Executive Summary & System Control Briefing
+    # =========================================================================
     story.append(Paragraph("1. Executive Incident Summary &amp; System Control Briefing", h2_style))
     story.append(Paragraph(
         "This security audit and forensic incident report documents the real-time operational posture, threat landscape, "
@@ -206,6 +214,9 @@ def generate_incident_report_pdf(db_session, username, location):
         body_style
     ))
 
+    # =========================================================================
+    # SECTION 2: Multi-Node Edge SCADA Parameter Inventory (All ESP Nodes)
+    # =========================================================================
     story.append(Paragraph("2. NIST SP 800-82r3 Multi-Node Edge SCADA Parameter Inventory (All ESP Nodes)", h2_style))
     story.append(Paragraph(
         "Exhaustive real-time telemetry inventory of all edge sensor/PLC nodes communicating over the industrial fieldbus. "
@@ -214,12 +225,14 @@ def generate_incident_report_pdf(db_session, username, location):
     ))
 
     cluster_device_ids = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
+    # Check if any additional device states exist in DB
     extra_states = db_session.query(DeviceState).all()
     for es in extra_states:
         if es.device_id and es.device_id not in cluster_device_ids:
             cluster_device_ids.append(es.device_id)
     cluster_device_ids.sort()
 
+    # Table 2A: Node Network State & Trust Overview
     node_overview_headers = [
         Paragraph("Slave Node ID", table_header),
         Paragraph("Designated Subsystem", table_header),
@@ -282,6 +295,7 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_node_overview)
     story.append(Spacer(1, 5))
 
+    # Table 2B: Detailed Sensor Parameter Telemetry per ESP Node
     story.append(Paragraph("<b>Table 2.1: Real-Time Sensor Telemetry &amp; Parameter Matrix (All ESP Nodes)</b>", body_style))
     param_headers = [
         Paragraph("Node ID", table_header),
@@ -321,6 +335,7 @@ def generate_incident_report_pdf(db_session, username, location):
             else:
                 ts_str = str(ts_val)[:19]
         else:
+            # Standby state if telemetry log not yet received
             temp_str = "STANDBY"
             pres_str = "STANDBY"
             vib_str = "STANDBY"
@@ -359,6 +374,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_params)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 3: Physical Safeguard Boundaries & Stuxnet Enforcement Rules
+    # =========================================================================
     story.append(Paragraph("3. Physical Safeguard Boundaries &amp; Stuxnet Enforcement Rules", h2_style))
     story.append(Paragraph(
         "Active operational setpoint thresholds and physical cross-variable enforcement interlocks stored in the gateway "
@@ -367,6 +385,7 @@ def generate_incident_report_pdf(db_session, username, location):
         body_style
     ))
 
+    # Query active rules from DB
     active_rules = db_session.query(Rule).all()
     rules_dict = {r.key: (r.value, r.description) for r in active_rules}
 
@@ -408,6 +427,7 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_rules)
     story.append(Spacer(1, 4))
 
+    # Multi-Variable Stuxnet Prevention Policies Box
     stuxnet_policies = [
         "<b>Interlock Rule 1 (Coordinated Overpressure &amp; Temperature Prevention)</b>: Temperature &gt; 45.0°C and Pressure &gt;= 6.0 bar is strictly prohibited. Dispatched setpoints violating this condition are blocked with HTTP 403, and the target node is flagged for inspection.",
         "<b>Interlock Rule 2 (Safeguard Boundary Inversion Prevention)</b>: Rule kernel enforces temp_min &lt; temp_max and pressure_min &lt; pressure_max. Inverted boundary submissions are rejected and logged under NIST AU-2.",
@@ -418,6 +438,9 @@ def generate_incident_report_pdf(db_session, username, location):
         story.append(Paragraph(f"• {p_text}", body_style))
     story.append(Spacer(1, 4))
 
+    # =========================================================================
+    # SECTION 4: FAIR Quantitative Cyber-Physical Risk Framework
+    # =========================================================================
     story.append(Paragraph("4. FAIR Quantitative Cyber-Physical Risk Projections", h2_style))
     story.append(Paragraph(
         "Factor Analysis of Information Risk (FAIR) quantitative modeling evaluates empirical threat event frequencies, "
@@ -464,6 +487,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_fair)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 5: Financial Loss Exposure, Outage Liabilities & Regulatory Penalties
+    # =========================================================================
     story.append(Paragraph("5. Financial Loss Exposure, Outage Liabilities &amp; Regulatory Penalties", h2_style))
     story.append(Paragraph(
         "Quantitative financial impact breakdown including Annualized Loss Expectancy (ALE), Single Loss Expectancy (SLE), "
@@ -515,6 +541,7 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_fin_summary)
     story.append(Spacer(1, 4))
 
+    # Subsystem MTTR Hourly Outage Liabilities Table
     story.append(Paragraph("<b>Table 5.1: Critical Subsystem MTTR Downtime Liabilities &amp; Outage Rates</b>", body_style))
     subsystem_rows = [[
         Paragraph("Subsystem ID &amp; Name", table_header),
@@ -561,6 +588,7 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_subsystems)
     story.append(Spacer(1, 4))
 
+    # Regulatory Liabilities Summary
     story.append(Paragraph(
         f"<b>Statutory Regulatory Penalties Exposure:</b> EPA Clean Air/Water Act Non-Compliance: <b>${epa_fines:,.2f}</b> · "
         f"NERC-CIP Critical Infrastructure Sanctions: <b>${nerc_fines:,.2f}</b> · "
@@ -570,6 +598,9 @@ def generate_incident_report_pdf(db_session, username, location):
     ))
     story.append(Spacer(1, 4))
 
+    # =========================================================================
+    # SECTION 6: Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)
+    # =========================================================================
     story.append(Paragraph("6. Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)", h2_style))
     story.append(Paragraph(
         "A 12-point Monte Carlo stochastic loss distribution evaluates catastrophic tail risk (P05 median to P99 extreme), "
@@ -633,6 +664,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_mc)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 7: Cyber Threat Vectors & Security Incident Breakdown
+    # =========================================================================
     story.append(Paragraph("7. Cyber Threat Vectors &amp; Security Incident Breakdown", h2_style))
     story.append(Paragraph(
         "Categorized record of all cyber security attack vectors identified, blocked, or isolated during system operation:",
@@ -716,6 +750,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_attack)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 8: Sensor Telemetry Dynamics & Physical Waveform Plot
+    # =========================================================================
     story.append(Paragraph("8. Sensor Telemetry Dynamics &amp; Physical Waveform Plot", h2_style))
     telemetry = db_session.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).limit(35).all()
 
@@ -758,6 +795,9 @@ def generate_incident_report_pdf(db_session, username, location):
         story.append(Paragraph("No telemetry readings available for charting.", body_style))
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 9: Append-Only Chronological Security Audit Trail
+    # =========================================================================
     story.append(Paragraph("9. Append-Only Chronological Security Audit Trail", h2_style))
 
     audit_logs = db_session.query(AuditLog).options(joinedload(AuditLog.user)).order_by(AuditLog.timestamp.desc()).limit(35).all()
@@ -814,6 +854,9 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(t_audit)
     story.append(Spacer(1, 6))
 
+    # =========================================================================
+    # SECTION 10: NIST SP 800-53r5 Mandated Technical Mitigations
+    # =========================================================================
     story.append(Paragraph("10. NIST SP 800-82r3 &amp; NIST SP 800-53r5 Technical Mitigation Protocols", h2_style))
     story.append(Paragraph(
         "Adhering to National Institute of Standards and Technology (NIST) Special Publication 800-82 Revision 3 "

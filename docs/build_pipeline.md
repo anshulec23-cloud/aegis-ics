@@ -1,6 +1,6 @@
 # Aegis ICS — Compilation, Packaging & Release Pipeline Architecture
 
-This document details the complete build, compilation, and packaging architecture for **Aegis ICS v2.5.0** across both **Linux (Debian / MX Linux)** and **Windows**.
+This document details the complete build, compilation, and packaging architecture for **Aegis ICS v2.5.2** across both **Linux (Debian / MX Linux)** and **Windows**.
 
 ---
 
@@ -24,7 +24,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
        │               │                         │
        ▼               ▼                         ▼
    aegis-ics.deb    aegis-ics.tar.gz          AegisICS.exe
-   (85.32 MB)       (85.49 MB)                (348.5 MB)
+   (85.32 MB)       (85.49 MB)                (348.97 MB)
 ```
 
 ---
@@ -37,7 +37,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
 * **Static Assets Bundled**:
   * `src/templates/` -> `templates` (SCADA dashboard, login terminal)
   * `src/static/` -> `static` (`terminal.css`, `vendor/chart.umd.js`, `vendor/tailwind.min.css`, brand icons)
-  * `src/model/` -> `model` (`rf_model.pkl`)
+  * `src/model/` -> `model` (`rf_model.pkl`, `neural_safety_policy.pt`, `neural_safety_policy.npz`, `training_metrics.json`)
   * `aegis_v2.db` -> `.` (seed database schema)
 * **Dynamic Linking**: Statically links required Python bytecode and shared C-extensions; dynamically links system `libc.so.6` (compatible with `libc6 >= 2.31`).
 

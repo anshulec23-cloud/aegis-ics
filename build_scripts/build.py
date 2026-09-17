@@ -25,12 +25,18 @@ def main():
     if sys.platform == "win32":
         subprocess.run(["powershell", "-Command", "Stop-Process -Name AegisICS -Force -ErrorAction SilentlyContinue"], capture_output=True)
 
-    print("\n[1/3] Purging build/ and dist/ directories...")
-    for folder in ["build", "dist"]:
-        folder_path = os.path.join(root_dir, folder)
-        if os.path.exists(folder_path):
-            shutil.rmtree(folder_path, ignore_errors=True)
-            print(f"      Removed {folder}/")
+    print("\n[1/3] Purging build/ and previous Windows binary...")
+    build_path = os.path.join(root_dir, "build")
+    if os.path.exists(build_path):
+        shutil.rmtree(build_path, ignore_errors=True)
+        print("      Removed build/")
+    target_exe = os.path.join(root_dir, "dist", "AegisICS.exe")
+    if os.path.exists(target_exe):
+        try:
+            os.remove(target_exe)
+            print("      Removed previous dist/AegisICS.exe")
+        except Exception as e:
+            print(f"      [WARN] Could not remove {target_exe}: {e}")
 
     # 2. Verify spec file exists
     spec_file = os.path.join(root_dir, "build_scripts", "AegisICS.spec")

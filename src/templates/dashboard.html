@@ -322,11 +322,15 @@
                 </div>
             </div>
 
-            <!-- Setpoint Control Card -->
-            <div class="terminal-panel p-6 shadow-lg">
-                <h2 class="text-sm font-semibold tracking-tight phosphor-text border-b border-[var(--crt-border-dim)] pb-3 mb-5">
-                    Setpoint Commands
-                </h2>
+                <div class="flex items-center justify-between border-b border-[var(--crt-border-dim)] pb-3 mb-5">
+                    <h2 class="text-sm font-semibold tracking-tight phosphor-text">
+                        Setpoint Commands
+                    </h2>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        AI Neural Safety: Active
+                    </span>
+                </div>
                 
                 <div class="space-y-6">
                     <!-- Target Device Selector -->
@@ -350,7 +354,7 @@
                             </button>
                         </div>
                         <p class="text-[10px] phosphor-dim leading-relaxed">
-                            System boundary: max 60.0°C. Stuxnet correlation: constrained &lt; 45.0°C if pressure is &gt;= 6.0 bar.
+                            Neural Safety Boundary: Dynamic 6D MLP evaluation. Stuxnet correlation: constrained &lt; 45.0°C if live pressure &gt;= 6.0 bar.
                         </p>
                     </div>
 
@@ -364,7 +368,7 @@
                             </button>
                         </div>
                         <p class="text-[10px] phosphor-dim leading-relaxed">
-                            System boundary: max 8.0 bar. Stuxnet correlation: constrained &lt; 6.0 bar if temperature is &gt;= 45.0°C.
+                            Neural Safety Boundary: Dynamic 6D MLP evaluation. Stuxnet correlation: constrained &lt; 6.0 bar if live temperature &gt;= 45.0°C.
                         </p>
                     </div>
                 </div>

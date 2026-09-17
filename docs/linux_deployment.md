@@ -2,7 +2,7 @@
 
 ## 1. Overview & Compatibility
 
-**Aegis ICS v2.5.0** is fully optimized for **Debian-based Linux distributions**, with dedicated support for **MX Linux** (MX-21 / MX-23, Debian Bullseye / Bookworm / Trixie).
+**Aegis ICS v2.5.2** is fully optimized for **Debian-based Linux distributions**, with dedicated support for **MX Linux** (MX-21 / MX-23, Debian Bullseye / Bookworm / Trixie).
 
 Aegis ICS supports both of MX Linux's operating modes:
 * **Standalone Desktop GUI Application**: Native desktop window powered by PyWebView and WebKitGTK with system tray integration.

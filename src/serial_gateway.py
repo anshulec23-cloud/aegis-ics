@@ -125,6 +125,7 @@ def parse_serial_line (line :str ,mode :str ):
     except Exception as e :
         pass
 
+    # Key-Value fallback parsing (e.g., "TEMP:42.5", "T:42.5", "temp=42.5", "P:4.2")
     kv_res = {}
     for item in line.replace('=', ':').split(','):
         if ':' in item:
@@ -298,12 +299,14 @@ def mock_serial_stream(mode):
     attack = _active_attacks.get(dev_id)
 
     if attack == "stuxnet":
+        # Stuxnet resonance vector: Severe vibration and Hall RPM overspeed, while reporting spoofed baseline pressure
         packet["vib"] = round(4.8 + random.uniform(0.1, 1.2), 2)
         packet["hall"] = 3250.0 + random.choice([0, 150, 300])
         packet["temp"] = round(dev["temp_base"] + random.uniform(8.0, 15.0), 2)
         packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
         packet["curr"] = round(dev["curr_base"] + random.uniform(2.5, 4.0), 2)
     elif attack == "hmac_tamper":
+        # Cryptographic tamper vector: Valid sensors but deliberately corrupted HMAC signature
         active_sensors = dev["sensors"]
         if "temp" in active_sensors: packet["temp"] = dev["temp_base"]
         if "pres" in active_sensors: packet["pres"] = dev["pres_base"]
@@ -312,6 +315,7 @@ def mock_serial_stream(mode):
         if "curr" in active_sensors: packet["curr"] = dev["curr_base"]
         packet["signature"] = "BAD_HMAC_SIGNATURE_TAMPERED_000011112222333344445555666677778888"
     elif attack == "thermal_drift":
+        # Stealth thermal drift: Creeps temperature upward progressively to test rolling deviation / variance
         _thermal_drift_offsets[dev_id] = _thermal_drift_offsets.get(dev_id, 0.0) + 0.65
         drift_val = _thermal_drift_offsets[dev_id]
         packet["temp"] = round(dev["temp_base"] + drift_val, 2)
@@ -320,18 +324,21 @@ def mock_serial_stream(mode):
         if dev["hall_base"] > 0: packet["hall"] = dev["hall_base"]
         packet["curr"] = dev["curr_base"]
     elif attack == "fdi_spike":
+        # False Data Injection: Extreme critical out-of-boundary spike
         packet["temp"] = 96.8
         packet["pres"] = 12.4
         packet["vib"] = 5.8
         if dev["hall_base"] > 0: packet["hall"] = 3500.0
         packet["curr"] = 19.2
     elif attack == "ddos":
+        # Denial of Service: High bus latency, buffer saturation, signal degradation
         packet["temp"] = round(dev["temp_base"] + random.uniform(-0.5, 0.5), 2)
         packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
         packet["vib"] = dev["vib_base"]
         packet["rssi"] = -98.0
         packet["is_anomaly"] = True
     else:
+        # Normal baseline telemetry
         active_sensors = dev["sensors"]
         if "temp" in active_sensors or random.random() < 0.2:
             packet["temp"] = round(dev["temp_base"] + random.uniform(-1.2, 1.2), 2)
@@ -389,6 +396,7 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
 
     while not _gateway_stop_event.is_set():
         try:
+            # Auto-reconnect if physical serial connection was lost or interrupted
             if not mock and (ser is None or not ser.is_open):
                 print(f"[Gateway] Attempting auto-reconnect to {port}...")
                 if not _try_connect():
@@ -439,7 +447,7 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
             else:
                 if "timestamp" not in payload:
                     payload["timestamp"] = time.time()
-                target_key = get_device_key(target_device_id)
+                target_key = hmac_key if hmac_key else get_device_key(target_device_id)
                 payload["signature"] = sign_message(payload, target_key)
 
             headers = {"Content-Type": "application/json"}

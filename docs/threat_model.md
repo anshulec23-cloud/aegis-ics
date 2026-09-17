@@ -1,4 +1,4 @@
-# Aegis ICS: Industrial Zero-Trust Threat Model & Risk Taxonomy (v2.5.0)
+# Aegis ICS: Industrial Zero-Trust Threat Model & Risk Taxonomy (v2.5.2)
 
 ## 1. System Overview & Scope
 Aegis ICS protects critical Operational Technology (OT) and Industrial Control Systems (ICS) at Purdue Levels 0, 1, and 2. The boundary encloses:
@@ -70,9 +70,9 @@ Aegis ICS protects critical Operational Technology (OT) and Industrial Control S
   ├─ 4. 5-Feature Random Forest ML Anomaly Classification
   └─ 5. Continuous 4-Parameter Trust Engine (Tfinal)
          │
-         ├─ Nominal (Tfinal >= 0.75) ──► SCADA Live Stream & Digital Twin
+         ├─ Nominal (Tfinal >= 0.50) ──► SCADA Live Stream & Digital Twin
          │
-         └─ Compromised (Tfinal < 0.75) ──► Autonomous Hardware Relay Open
+         └─ Compromised (Tfinal < 0.40) ──► Autonomous Hardware Relay Open
                                               + NIST SP 800-61 Incident Advisor SOP
                                               + Multi-Tone Annunciator Chime
 ```

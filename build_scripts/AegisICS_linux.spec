@@ -64,6 +64,7 @@ hiddenimports = [
     'security',
     'database',
     'safety_enforcer',
+    'neural_policy',
     'serial_gateway',
     'updater',
     'tray',

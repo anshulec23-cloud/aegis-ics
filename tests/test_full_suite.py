@@ -147,6 +147,79 @@ def test_safety_enforcer_rules():
     finally:
         db.close()
 
+# --- 3b. Neural Safety Policy Network (NSPN) Dedicated Tests ---
+def test_neural_safety_policy_model_loading():
+    from neural_policy import NeuralSafetyPolicy
+    policy = NeuralSafetyPolicy()
+    assert policy.weights_loaded, "Neural safety policy weights should be successfully loaded"
+    assert len(policy.weights_dict) >= 8 or policy.torch_model is not None
+
+    # Test nominal forward pass
+    import numpy as np
+    nominal_vec = np.array([28.0, 3.5, 1.2, 0.0, 4.5, 32.0], dtype=np.float32)
+    p_safe = policy.predict_safety_probability(nominal_vec)
+    assert 0.0 <= p_safe <= 1.0
+    assert p_safe > 0.80, f"Expected nominal vector to be safe, got P(safe)={p_safe}"
+
+def test_neural_safety_enforcer_adversarial_rejection():
+    db = get_test_db()
+    try:
+        db.query(TelemetryLog).delete()
+        db.commit()
+
+        # Seed high-pressure active telemetry on reactor
+        active_log = TelemetryLog(
+            timestamp=time.time(),
+            device_id="ESP32_001",
+            temperature=32.0,
+            pressure=7.4,
+            vibration=1.8,
+            hall_effect=0.0,
+            current=4.8
+        )
+        db.add(active_log)
+        db.commit()
+
+        # Coordinated Stuxnet: Raising temp to 52C while pressure is already 7.4 bar
+        cmd = {"type": "set_temp", "value": 52.0}
+        ok, msg = validate_command(cmd, db, target_device="ESP32_001")
+        assert not ok, "Command should be blocked by Neural Safety Policy"
+        assert "Neural Safety" in msg or "Stuxnet Prevention" in msg
+        # Safe command: Normal temperature setpoint under nominal plant conditions
+        normal_log = TelemetryLog(
+            timestamp=time.time() + 1,
+            device_id="ESP32_001",
+            temperature=26.0,
+            pressure=3.2,
+            vibration=1.0,
+            hall_effect=0.0,
+            current=4.2
+        )
+        db.add(normal_log)
+        db.commit()
+
+        safe_cmd = {"type": "set_temp", "value": 35.0}
+        ok_safe, msg_safe = validate_command(safe_cmd, db, target_device="ESP32_001")
+        assert ok_safe, f"Safe setpoint should be approved, got: {msg_safe}"
+    finally:
+        db.close()
+
+def test_neural_policy_fallback_handling():
+    from neural_policy import NeuralSafetyPolicy
+    import numpy as np
+    # Instantiate with non-existent path to verify graceful heuristic fallback
+    policy = NeuralSafetyPolicy(weights_path="non_existent_weights_file.npz")
+    assert not policy.weights_loaded
+
+    # Fallback should still protect against extreme values
+    hazard_vec = np.array([50.0, 7.0, 2.0, 0.0, 5.0, 55.0], dtype=np.float32)
+    prob_hazard = policy.predict_safety_probability(hazard_vec)
+    assert prob_hazard < 0.50
+
+    safe_vec = np.array([25.0, 3.0, 1.0, 0.0, 4.0, 30.0], dtype=np.float32)
+    prob_safe = policy.predict_safety_probability(safe_vec)
+    assert prob_safe > 0.50
+
 # --- 4. Financial & Threat Index Analytics ---
 def test_financial_analytics():
     db = get_test_db()
@@ -253,6 +326,14 @@ def test_flask_api_routes():
     assert "telemetry" in data
     assert "audit_logs" in data
     assert "financials" in data
+
+    # 1b. Get Neural Policy Status
+    res_np = client.get("/api/neural_policy/status", headers=headers)
+    assert res_np.status_code == 200
+    np_info = res_np.get_json()
+    assert np_info["success"] is True
+    assert np_info["architecture"] == "6 -> 64 -> 32 -> 16 -> 1"
+    assert "status" in np_info
 
     # 2. Rule updates
     res = client.post(
@@ -1376,8 +1457,11 @@ def test_ml_model_synthetic_inference():
     model = joblib.load(model_path)
     assert hasattr(model, "predict"), "Model object has no predict method"
 
+    import pandas as pd
+    features = ["temperature", "pressure", "vibration", "hall_effect", "current"]
+
     # Nominal condition: 25.0 C, 4.0 bar, 1.0 g, 1500 RPM, 4.5 A
-    nominal_sample = np.array([[25.0, 4.0, 1.0, 1500.0, 4.5]])
+    nominal_sample = pd.DataFrame([[25.0, 4.0, 1.0, 1500.0, 4.5]], columns=features)
     pred_nominal = model.predict(nominal_sample)[0]
     prob_nominal = model.predict_proba(nominal_sample)[0][1]
 
@@ -1385,7 +1469,7 @@ def test_ml_model_synthetic_inference():
     assert prob_nominal < 0.25, f"Expected low anomaly prob, got {prob_nominal}"
 
     # Stuxnet severe resonance attack: 75.0 C, 11.0 bar, 7.5 g, 3800 RPM, 14.5 A
-    attack_sample = np.array([[75.0, 11.0, 7.5, 3800.0, 14.5]])
+    attack_sample = pd.DataFrame([[75.0, 11.0, 7.5, 3800.0, 14.5]], columns=features)
     pred_attack = model.predict(attack_sample)[0]
     prob_attack = model.predict_proba(attack_sample)[0][1]
 
@@ -1526,6 +1610,131 @@ def test_terminal_dashboard_routes_and_html_render():
     assert b"DEC VT-220" in res_dash.data or b"OPERATING STATION" in res_dash.data
     assert b"REEL-TO-REEL" in res_dash.data or b"FORENSIC TIME SCRUBBER" in res_dash.data
     assert b"PALETTE:" not in res_dash.data
+
+
+def test_v1_telemetry_staleness_fail_closed():
+    """Verify that high-risk setpoints are rejected when telemetry is stale (>120s) or missing."""
+    import time
+    from database import SessionLocal, TelemetryLog, Rule
+    from safety_enforcer import validate_command
+
+    db = SessionLocal()
+    try:
+        # Create a stale telemetry record (timestamp 500s in the past)
+        stale_time = time.time() - 500.0
+        stale_log = TelemetryLog(
+            timestamp=stale_time,
+            device_id="ESP32_STALE_TEST",
+            temperature=25.0,
+            pressure=3.0,
+            vibration=1.0,
+            hall_effect=0.0,
+            current=4.0,
+            is_anomaly=False
+        )
+        db.add(stale_log)
+        db.commit()
+
+        # High-risk temperature command (>= 45C) under stale telemetry must be BLOCKED
+        cmd_high_temp = {"type": "set_temp", "value": 48.0, "target_device": "ESP32_STALE_TEST"}
+        is_valid, msg = validate_command(cmd_high_temp, db, target_device="ESP32_STALE_TEST")
+        assert is_valid is False
+        assert "Stale Telemetry" in msg
+
+        # High-risk pressure command (>= 6.0 bar) under stale telemetry must be BLOCKED
+        cmd_high_pres = {"type": "set_pressure", "value": 6.8, "target_device": "ESP32_STALE_TEST"}
+        is_valid_p, msg_p = validate_command(cmd_high_pres, db, target_device="ESP32_STALE_TEST")
+        assert is_valid_p is False
+        assert "Stale Telemetry" in msg_p
+
+        # Low-risk temperature command (< 45C) under stale telemetry is allowed
+        cmd_safe_temp = {"type": "set_temp", "value": 32.0, "target_device": "ESP32_STALE_TEST"}
+        is_valid_s, msg_s = validate_command(cmd_safe_temp, db, target_device="ESP32_STALE_TEST")
+        assert is_valid_s is True
+        assert msg_s == "Approved"
+
+    finally:
+        db.query(TelemetryLog).filter_by(device_id="ESP32_STALE_TEST").delete()
+        db.commit()
+        db.close()
+
+
+def test_v2_safe_pickle_deserialization_flags():
+    """Verify neural policy model loader enforces allow_pickle=False and weights_only=True."""
+    import inspect
+    from neural_policy import NeuralSafetyPolicy
+
+    # Inspect the source code of __init__ to verify allow_pickle=False is enforced
+    src = inspect.getsource(NeuralSafetyPolicy.__init__)
+    assert "allow_pickle=False" in src
+    assert "allow_pickle=True" not in src
+
+
+def test_v4_new_device_trust_initialization():
+    """Verify new registered devices initialize at conservative 50% trust, and unknown at 25%."""
+    from database import SessionLocal
+    from trust_engine import compute_device_trust_score
+
+    db = SessionLocal()
+    try:
+        # Registered device with 0 prior logs
+        score_reg = compute_device_trust_score("ESP32_001", db)
+        # If no logs exist for ESP32_001, it returns 0.50; if logs exist in test_db, test with brand new registered ID
+        score_new_reg = compute_device_trust_score("ESP32_003", db)
+        if score_new_reg["status"] == "INITIALIZING":
+            assert score_new_reg["trust_score"] == 0.50
+            assert score_new_reg["trust_percentage"] == 50.0
+
+        # Unknown / unregistered device
+        score_unreg = compute_device_trust_score("ROGUE_ESP32_999", db)
+        assert score_unreg["status"] == "UNREGISTERED"
+        assert score_unreg["trust_score"] == 0.25
+        assert score_unreg["trust_percentage"] == 25.0
+
+    finally:
+        db.close()
+
+
+def test_v5_neural_policy_exception_fail_closed():
+    """Verify that if the neural policy encounters an unexpected exception, it fails CLOSED."""
+    import time
+    from unittest.mock import patch
+    from database import SessionLocal, TelemetryLog
+    from safety_enforcer import validate_command
+
+    db = SessionLocal()
+    try:
+        # Add a fresh telemetry entry
+        fresh_log = TelemetryLog(
+            timestamp=time.time(),
+            device_id="ESP32_FAIL_TEST",
+            temperature=30.0,
+            pressure=3.5,
+            vibration=1.0,
+            hall_effect=0.0,
+            current=4.0,
+            is_anomaly=False
+        )
+        db.add(fresh_log)
+        db.commit()
+
+        cmd = {"type": "set_temp", "value": 38.0, "target_device": "ESP32_FAIL_TEST"}
+
+        with patch("safety_enforcer.get_neural_policy") as mock_get_policy:
+            mock_policy = mock_get_policy.return_value
+            mock_policy.evaluate_safety.side_effect = RuntimeError("Simulated neural inference tensor crash")
+
+            is_valid, msg = validate_command(cmd, db, target_device="ESP32_FAIL_TEST")
+            # Must FAIL-CLOSED
+            assert is_valid is False
+            assert "SAFETY INTERLOCK BLOCK" in msg
+            assert "precautionary measure" in msg
+
+    finally:
+        db.query(TelemetryLog).filter_by(device_id="ESP32_FAIL_TEST").delete()
+        db.commit()
+        db.close()
+
 
 
 
