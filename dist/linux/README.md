@@ -11,8 +11,8 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 ### Core Capabilities:
 * **Zero-Trust Telemetry Ingestion**: Every sensor transmission is cryptographically validated using canonical HMAC-SHA256 signatures with per-node key isolation.
 * **Stuxnet-Proof Physical Safety Enforcer**: Evaluates mathematical physical stress boundaries across temperature, pressure, vibration, rotor RPM, and stator current to block dangerous setpoint combinations before execution.
-* **5-Feature Machine Learning Anomaly Classifier**: 50-tree Random Forest model running local real-time inference (0.42 ms) with 1.0000 ROC-AUC and 0.9993 cross-validated F1 score.
-* **Autonomous Microsegmentation**: Sub-second transition to `ISOLATED` state upon anomaly detection, returning HTTP 403 and dispatching physical optocoupler relay trip commands over serial UART within 13.4 ms.
+* **Dual-Engine AI/ML Pipeline**: 5-feature Random Forest model running local real-time inference with 0.9755 ROC-AUC (5-fold CV F1: 0.9623) alongside a 6D Deep Neural Safety Policy Network (NSPN) achieving 96.08% validation accuracy and 0.025 ms vectorized inference.
+* **Autonomous Microsegmentation**: Sub-second transition to `ISOLATED` state upon anomaly detection, returning HTTP 403 and dispatching physical optocoupler relay trip commands over serial UART within 12.74 ms.
 * **100% Air-Gapped Operation**: Bundled offline Chart.js and Tailwind CSS assets requiring zero internet connectivity.
 * **Authentic 1980s DEC VT-220 SCADA Dashboard**: Green phosphor CRT interface with interactive 2D Plant Digital Twin, forensic "Black Box" time scrubber, and gamified NIST SP 800-61 operator defense drills.
 
@@ -22,9 +22,9 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 
 | File Name | Format | Size | Description |
 |---|---|---|---|
-| `AegisICS` | ELF 64-bit Executable | **86.12 MB** | Standalone native Linux binary. Statically bundles Python 3 runtime, Flask web gateway, Scikit-Learn ML pipeline, SQLite WAL database, and UI assets. Requires **no** external Python libraries. |
-| `aegis-ics_2.5.0_amd64.deb` | Debian Package | **85.32 MB** | Native installer for MX Linux (MX-21 / MX-23) and Debian (Bullseye / Bookworm). Integrates with GDebi, MX Package Installer, and `dpkg`. Configures XFCE menu shortcuts, SysVinit script, and systemd service. |
-| `aegis-ics-2.5.0-linux-x86_64.tar.gz` | Portable Tarball | **85.49 MB** | Self-contained portable archive for non-root environments or running directly from a USB flash drive. Includes `run.sh` and `install.sh`. |
+| `AegisICS` | ELF 64-bit Executable | **92.14 MB** | Standalone native Linux binary. Statically bundles Python 3 runtime, Flask web gateway, Scikit-Learn ML pipeline, SQLite WAL database, and UI assets. Requires **no** external Python libraries. |
+| `aegis-ics_2.5.0_amd64.deb` | Debian Package | **91.27 MB** | Native installer for MX Linux (MX-21 / MX-23) and Debian (Bullseye / Bookworm). Integrates with GDebi, MX Package Installer, and `dpkg`. Configures XFCE menu shortcuts, SysVinit script, and systemd service. |
+| `aegis-ics-2.5.0-linux-x86_64.tar.gz` | Portable Tarball | **91.45 MB** | Self-contained portable archive for non-root environments or running directly from a USB flash drive. Includes `run.sh` and `install.sh`. |
 
 ---
 
