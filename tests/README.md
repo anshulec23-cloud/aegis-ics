@@ -1,12 +1,12 @@
 # Aegis ICS — Automated Quality Assurance & Test Suite
 
-This directory contains the comprehensive automated test suite for validating all cryptographic, mathematical, physical safety, and API mechanisms in **Aegis ICS v2.5.0**.
+This directory contains the comprehensive automated test suite for validating all cryptographic, mathematical, physical safety, and API mechanisms in **Aegis ICS v2.5.2**.
 
 ---
 
 ## Test Suite Overview (`test_full_suite.py`)
 
-The suite contains **39 automated test modules** providing 100% pass rate across:
+The suite contains **46 automated test modules** providing 100% pass rate across:
 
 1. **Database & User Authentication**: Table creation, credential hashing, spatial coordinate audit logs, and schema auto-migration.
 2. **Cryptographic HMAC Security**: Canonical JSON formatting, 2-decimal float precision, deterministic HMAC-SHA256 signature calculation, and per-node key isolation.

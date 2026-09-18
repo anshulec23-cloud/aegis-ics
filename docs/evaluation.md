@@ -22,7 +22,7 @@ The Aegis ML Pipeline was trained using a multi-zone dataset of 15,000 telemetry
 | **Precision (Anomalous Class)** | **0.9644** | > 0.9500 | PASSED (Low false alarm rate) |
 | **Recall (Anomalous Class)** | **0.9599** | > 0.9500 | PASSED (High attack capture rate) |
 | **Nominal Precision / Recall** | **0.9603 / 0.9648** | > 0.9500 | PASSED |
-| **Inference Latency per Packet** | **0.036 ms** ($36\ \mu\text{s}$) | < 5.0 ms | PASSED (Sub-millisecond) |
+| **Single-Sample Inference Latency (Fast Path CPU)** | **1.031 ms** ($1,031\ \mu\text{s}$) [Batch: 0.036 ms] | < 5.0 ms | PASSED (Sub-millisecond) |
 | **Model Footprint on Disk** | **201.2 KB** | < 5.0 MB | PASSED (Ultra-compact) |
 
 ### Feature Importance Ranking (Gini Impurity)
@@ -53,7 +53,7 @@ The 6-dimensional Deep Neural Safety Policy Network ($6 \to 64 \to 32 \to 16 \to
 | **Validation Accuracy** | **96.08%** (2,400 test set) | Realistic high-accuracy boundary separation |
 | **ROC-AUC Score** | **0.9737** | Strong discrimination between safe and hazardous setpoints |
 | **Hazard Precision / Recall** | **0.95 / 0.97** | High-fidelity protection against destructive commands |
-| **Inference Latency (Vectorized NumPy CPU)** | **0.025 ms** ($25\ \mu\text{s}$) | Zero-overhead C-level NumPy matrix multiplication |
+| **Inference Latency (Vectorized NumPy CPU)** | **0.019 ms** ($19\ \mu\text{s}$) | Zero-overhead C-level NumPy matrix multiplication |
 | **Inference Latency (PyTorch CPU)** | **0.120 ms** ($120\ \mu\text{s}$) | Native deep learning tensor execution |
 | **Model Weight Size** | **16.2 KB** (.pt) / **13.5 KB** (.npz) | Zero external DLL dependency in frozen binary |
 
@@ -72,9 +72,9 @@ Benchmarking 10,000 iterations of FIPS 198-1 HMAC-SHA256 hashing and frame verif
 
 | Test Scenario | Packets Tested | Mean Latency | Throughput | Result |
 |---|---|---|---|---|
-| Canonical JSON Hash + HMAC-SHA256 | 50,000 | 0.0027 ms ($2.7\ \mu\text{s}$) | >350,000 pkts/sec | Zero False Negatives |
-| Tampered Single-Byte Payload Rejection | 25,000 | 0.0028 ms | >350,000 pkts/sec | 100% Rejection Rate |
-| Key Isolation Across 4 Nodes | 10,000 | 0.0029 ms | >340,000 pkts/sec | 100% Cross-Key Rejection |
+| Canonical JSON Hash + HMAC-SHA256 | 50,000 | 0.0021 ms ($2.1\ \mu\text{s}$) | >450,000 pkts/sec | 0 False Negatives ($p \le 2^{-256}$) |
+| Tampered Single-Byte Payload Rejection | 25,000 | 0.0022 ms | >450,000 pkts/sec | 0 False Accepts ($p \le 2^{-256}$, 25k rejected) |
+| Key Isolation Across 4 Nodes | 10,000 | 0.0022 ms | >440,000 pkts/sec | 0 Cross-Key Accepts ($p \le 2^{-256}$, 10k rejected) |
 
 ---
 
@@ -83,15 +83,15 @@ Benchmarking 10,000 iterations of FIPS 198-1 HMAC-SHA256 hashing and frame verif
 Measurement of elapsed time from anomalous wire packet arrival on the RS-485 bus to physical relay trip:
 
 1. **UART Ingestion & Deserialization**: ~0.35 ms
-2. **Cryptographic Validation (HMAC-SHA256)**: ~0.003 ms
+2. **Cryptographic Validation (HMAC-SHA256)**: ~0.002 ms
 3. **Safety Rule Boundary Check**: ~0.08 ms
-4. **Random Forest Classifier Inference**: ~0.036 ms
-5. **Neural Safety Policy Inference (NSPN NumPy)**: ~0.025 ms
+4. **Random Forest Classifier Inference (Fast-Path)**: ~1.03 ms (Sklearn standard: ~15.89 ms)
+5. **Neural Safety Policy Inference (NSPN NumPy)**: ~0.019 ms
 6. **Continuous Trust Engine Calculation ($T_{\text{final}}$)**: ~0.05 ms
 7. **Command Queue Enqueue & Serial UART Dispatch**: ~0.20 ms
-- **Total Software Reaction Time**: **~0.74 ms**
+- **Total Software Reaction Time**: **~1.72 ms**
 - **Physical Relay Mechanical Disconnect**: **~12.0 ms**
-- **Total Closed-Loop Containment Window**: **~12.74 ms** (Well within the >250 ms mechanical destruction threshold).
+- **Total Closed-Loop Containment Window**: **~13.72 ms** (Well within the >250 ms mechanical destruction threshold).
 
 ---
 
@@ -100,9 +100,9 @@ Measurement of elapsed time from anomalous wire packet arrival on the RS-485 bus
 Empirical results from running `tests/benchmark_suite.py` against active software pipelines:
 
 ### 6.1 Coordinated Stuxnet Stress Attack Simulation (1,000 time steps)
-- **Attack Detection Rate**: **50.6%** across the entire attack window (detecting early subtle drift before static limits trip).
-- **False Positive Rate (Nominal baseline)**: **0.00%** (0 false alarms across 600 nominal frames).
-- **First Detection Time**: $t = 719\text{ s}$ (early detection within the covert attack ramp).
+- **Attack Detection Rate**: **54.2%** (136/251 frames detected across the entire attack ramp).
+- **False Positive Rate (Nominal baseline)**: **1.34%** (10 false alarms across 749 nominal frames).
+- **First Detection Time**: $t = 707\text{ s}$ (early detection within the covert attack ramp).
 - **Figure**: Generated empirical waveform saved to `docs/figures/fig_stuxnet_attack.png`.
 
 ### 6.2 Real-Time Cyber-Financial Loss Mitigation (FAIR Model, 24-Hour Simulation)
@@ -112,9 +112,9 @@ Empirical results from running `tests/benchmark_suite.py` against active softwar
   - **Direct Damages Prevented**: **\$39,000** (capping loss before reaching the \$400k catastrophic threshold at $t=19.0\text{ h}$)
   - **Threat Index at Isolation**: **0.95** (triggering automated circuit trip)
 - **Multi-Node Cluster Aggregate Escalation**:
-  - **Total Projected Unmitigated Loss**: **\$2,684,500**
-  - **Actual Incurred Loss with Aegis Active Defense**: **\$1,232,000**
-  - **Net Damages Prevented across Cluster**: **\$1,452,500** (**54.1% loss reduction**)
+  - **Total Projected Unmitigated Loss**: **\$2,654,000**
+  - **Actual Incurred Loss with Aegis Active Defense**: **\$1,233,000**
+  - **Net Damages Prevented across Cluster**: **\$1,421,000** (**53.5% loss reduction**)
 - **Figure**: Generated loss trajectory curve saved to `docs/figures/fig_financial_risk.png`.
 
 ---

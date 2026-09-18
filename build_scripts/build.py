@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.0 — Automated Standalone Executable Build Runner
+Aegis ICS v2.5.2 — Automated Standalone Executable Build Runner
 ==============================================================
 Rebuilt from scratch. Cleans prior build artifacts, compiles the standalone
 AegisICS.exe binary using PyInstaller, and verifies the generated executable.
@@ -18,7 +18,7 @@ def main():
     os.chdir(root_dir)
 
     print("=" * 60)
-    print(" Aegis ICS v2.5.0 — Standalone Executable Build Pipeline")
+    print(" Aegis ICS v2.5.2 — Standalone Executable Build Pipeline")
     print("=" * 60)
 
     # 1. Clean previous build artifacts & release file locks

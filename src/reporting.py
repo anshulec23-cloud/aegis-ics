@@ -169,7 +169,7 @@ def generate_incident_report_pdf(db_session, username, location):
         ],
         [
             Paragraph("Document Identifier:", meta_label),
-            Paragraph("AEGIS-NIST-800-82-v2.5.0", meta_val),
+            Paragraph("AEGIS-NIST-800-82-v2.5.2", meta_val),
             Paragraph("Station Coordinates:", meta_label),
             Paragraph(html.escape(str(location)), meta_val)
         ],

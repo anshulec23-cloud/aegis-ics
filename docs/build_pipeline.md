@@ -41,7 +41,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
   * `aegis_v2.db` -> `.` (seed database schema)
 * **Dynamic Linking**: Statically links required Python bytecode and shared C-extensions; dynamically links system `libc.so.6` (compatible with `libc6 >= 2.31`).
 
-### 2.2 Debian Package (`dist/linux/aegis-ics_2.5.0_amd64.deb`)
+### 2.2 Debian Package (`dist/linux/aegis-ics_2.5.2_amd64.deb`)
 * **Builder**: [`build_scripts/package_deb.py`](../build_scripts/package_deb.py)
 * **Assembler**: Uses `dpkg-deb --build --root-owner-group` with automatic pure-Python `ar` archive fallback.
 * **Target Layout**:
@@ -54,7 +54,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
   * `/lib/systemd/system/aegis-ics.service`: systemd unit definition
   * `/var/lib/aegis-ics/`: Persistent database and WAL directory
 
-### 2.3 Portable Tarball (`dist/linux/aegis-ics-2.5.0-linux-x86_64.tar.gz`)
+### 2.3 Portable Tarball (`dist/linux/aegis-ics-2.5.2-linux-x86_64.tar.gz`)
 * **Builder**: [`build_scripts/package_tarball.py`](../build_scripts/package_tarball.py)
 * **Contents**:
   * `AegisICS`: Executable binary
@@ -101,9 +101,9 @@ Every compiled binary must be validated through the two-phase verification check
 ```bash
 # Phase 1: Semantic Version Check
 ./dist/linux/AegisICS --version
-# Expected Output: Aegis ICS v2.5.0
+# Expected Output: Aegis ICS v2.5.2
 
 # Phase 2: Internal Self-Test
 ./dist/linux/AegisICS --check
-# Expected Output: Aegis ICS v2.5.0 [SELF-TEST OK]
+# Expected Output: Aegis ICS v2.5.2 [SELF-TEST OK]
 ```

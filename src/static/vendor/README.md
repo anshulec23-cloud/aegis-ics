@@ -1,6 +1,6 @@
 # Aegis ICS — Offline Air-Gapped Vendor Bundles
 
-This directory contains standalone, pre-compiled third-party vendor assets bundled directly with **Aegis ICS v2.5.0** to satisfy **100% Air-Gapped Industrial Facility Compliance** (NIST SP 800-82 Rev 3).
+This directory contains standalone, pre-compiled third-party vendor assets bundled directly with **Aegis ICS v2.5.2** to satisfy **100% Air-Gapped Industrial Facility Compliance** (NIST SP 800-82 Rev 3).
 
 ---
 

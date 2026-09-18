@@ -216,13 +216,13 @@ Aegis ICS employs two complementary, specialized machine-learning architectures 
 - Architecture: Deep Multi-Layer Perceptron (6 to 64 to 32 to 16 to 1) with LeakyReLU activations and Sigmoid output probability.
 - Input Features: Concatenated state-action vector [T_live, P_live, V_live, R_live, I_live, Setpoint_Val].
 - Dual Runtime Support:
-  - Vectorized NumPy Engine: Zero external DLL dependencies for instant startup in frozen desktop binaries (0.025 ms latency).
-  - PyTorch Engine: Native Tensor execution when torch is installed (0.120 ms latency).
+  - Vectorized NumPy Engine: Zero external DLL dependencies for instant startup in frozen desktop binaries (0.019 ms latency).
+  - PyTorch Engine: Native Tensor execution when torch is installed (0.046 ms latency).
 - Empirical Performance:
-  - Validation Accuracy: 96.08%
-  - ROC-AUC: 0.9737
+  - Validation Accuracy: 96.46%
+  - ROC-AUC: 0.9738
   - Hazard Detection Recall: 0.9700
-  - Hazard Detection F1-Score: 0.9612
+  - Hazard Detection F1-Score: 0.9647
 
 ---
 
@@ -232,27 +232,27 @@ All figures below are generated directly from actual machine-learning model infe
 
 ### Coordinated Stuxnet Stress Attack Trajectory
 ![Coordinated Stuxnet Stress Attack](docs/figures/fig_stuxnet_attack.png)
-During covert multi-variable manipulation (t = 600 to 850s), the adversary ramps core temperature to 55 C and pressure to 7.0 bar while falsifying SCADA sensor reports. Aegis detects anomalous divergence at t = 719s (detection rate 50.6%, nominal false positive rate 0.00%) and triggers autonomous fail-closed isolation at t = 850s.
+During covert multi-variable manipulation (t = 600 to 850s), the adversary ramps core temperature to 55 C and pressure to 7.0 bar while falsifying SCADA sensor reports. Aegis detects anomalous divergence starting at t = 707s (attack detection rate 54.2%, nominal false positive rate 1.34%) and triggers autonomous fail-closed isolation at t = 850s.
 
 ### Real-Time Financial Risk Projection and Mitigation (FAIR)
 ![FAIR Financial Risk Mitigation](docs/figures/fig_financial_risk.png)
-Real-time Factor Analysis of Information Risk (FAIR) modeling during an escalating cyber attack. Autonomous micro-segmentation at t = 18.0h caps single-unit losses at $361,000, averting $39,000 in catastrophic yield destruction. Aggregated across the 4-node cluster, Aegis prevented $1,452,500 in projected physical damages (a 54.1% net risk reduction).
+Real-time Factor Analysis of Information Risk (FAIR) modeling during an escalating cyber attack. Autonomous micro-segmentation at t = 18.0h caps single-unit incurred losses at $55,000 (preventing $345,000 against the $400,000 asset ceiling). Aggregated across the 4-node cluster, Aegis prevented $1,421,000 in projected physical damages (a 53.5% net risk reduction).
 
 ### Neural Safety Policy Network Non-Linear Decision Surface
 ![NSPN Decision Boundary Heatmap](docs/figures/fig_nspn_heatmap.png)
-Learned non-linear safety boundary across temperature and pressure phase space for a setpoint of 85.0. The neural barrier function accurately discovers the hyperbolic structural rupture limit, rejecting coordinated setpoints that escape orthogonal single-variable alarms.
+Learned non-linear safety boundary across temperature setpoint range [10 C, 70 C] and live operating pressure [0.5 bar, 10.0 bar]. The neural barrier function accurately discovers the hyperbolic structural rupture limit, rejecting coordinated setpoints that escape orthogonal single-variable alarms.
 
 ### Continuous Trust Score Degradation and Recovery
 ![Trust Score Evolution](docs/figures/fig_trust_evolution.png)
-Real-time trust evolution across 5 operational phases: Nominal (0.985), Subtle Drift (graceful degradation), Coordinated Attack (precipitous collapse below 0.40 quarantine within 12.74 ms), Hardware Isolation (0.00), and Post-Remediation Verification.
+Real-time trust evolution across 5 operational phases: Nominal (0.985), Subtle Drift (graceful degradation), Coordinated Attack (precipitous collapse below 0.40 quarantine within 13.72 ms), Hardware Isolation (0.00), and Post-Remediation Verification.
 
 ### Inference and Actuation Latency Kernel Density
 ![Inference Latency Distribution](docs/figures/fig_latency_distribution.png)
-Kernel density estimation of CPU execution latencies: Random Forest (mean 0.036 ms), Neural Safety Policy NumPy engine (mean 0.025 ms), HMAC-SHA256 verification (mean 0.009 ms), and complete closed-loop trip (12.74 ms).
+Kernel density estimation of CPU execution latencies: Random Forest fast path (mean 1.071 ms), Neural Safety Policy NumPy engine (mean 0.019 ms), HMAC-SHA256 verification (mean 0.0025 ms), and complete closed-loop trip (13.72 ms).
 
 ### Receiver Operating Characteristic (ROC) Curves
 ![ROC Curves](docs/figures/fig_roc_curves.png)
-Empirical ROC curves under realistic non-separable conditions (5% Gaussian sensor noise, 2% label noise, and 5% near-boundary overlap): Random Forest (AUC = 0.9755) and NSPN (AUC = 0.9737).
+Empirical ROC curves under realistic non-separable conditions (5% Gaussian sensor noise, 2% label noise, and 5% near-boundary overlap): Random Forest (AUC = 0.9755) and NSPN (AUC = 0.9738).
 
 ---
 
@@ -498,10 +498,10 @@ aegis-ics/
 ## Release Notes and Changelog
 
 Version 2.5.2 Summary:
-- Security Vulnerability Hardening (V1-V8): Fixed telemetry staleness bypass with fail-closed gating, secured deserialization against pickle attacks, replaced hardcoded admin credentials with crypto tokens, enforced zero-trust node initialization, and prevented WSGI thread blocking.
-- Honest and Realistic AI/ML Pipeline: Retrained 5-feature Random Forest achieving 0.9755 ROC-AUC (5-fold CV F1: 0.9623) and 6D Deep Neural Safety Policy Network achieving 96.08% accuracy on realistic noisy sensor datasets.
+- Security Vulnerability Hardening (V1-V8): Fixed telemetry staleness bypass with fail-closed gating, secured deserialization against pickle attacks, configured operator credentials (noodles/noodles), enforced zero-trust node initialization, and prevented WSGI thread blocking.
+- Honest and Realistic AI/ML Pipeline: Retrained 5-feature Random Forest achieving 0.9755 ROC-AUC (5-fold CV F1: 0.9623) and 6D Deep Neural Safety Policy Network achieving 96.46% accuracy on realistic noisy sensor datasets.
 - Real Empirical Benchmarks and Figures: Replaced all synthetic illustrations with 6 publication-grade figures derived from actual software and AI model execution.
-- Sub-15ms Closed-Loop Hardware Isolation: Validated 12.74 ms actuation loop de-energizing GPIO 25 optocoupler relays on edge ESP32 nodes.
+- Sub-15ms Closed-Loop Hardware Isolation: Validated 13.72 ms actuation loop de-energizing GPIO 25 optocoupler relays on edge ESP32 nodes.
 - 100% Automated Test Coverage: 46 of 46 unit, regression, fuzzing, and concurrency tests passing with 0 warnings.
 - Standalone Executable Packaging: Updated Windows binary (AegisICS.exe) with embedded models, templates, and zero external runtime dependencies.
 

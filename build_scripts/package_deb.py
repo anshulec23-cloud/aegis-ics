@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.0 — Debian (.deb) Package Builder
+Aegis ICS v2.5.2 — Debian (.deb) Package Builder
 ================================================
 Assembles a Debian binary package (.deb) targeting MX Linux and Debian.
 Packages the standalone ELF executable, desktop entry, application icons,
@@ -22,12 +22,12 @@ def build_deb():
     os.chdir(project_root)
 
     print("=" * 60)
-    print(" Aegis ICS v2.5.0 — Debian (.deb) Package Packaging Pipeline")
+    print(" Aegis ICS v2.5.2 — Debian (.deb) Package Packaging Pipeline")
     print("=" * 60)
 
     dist_dir = os.path.join(project_root, "dist")
     target_binary = os.path.join(dist_dir, "AegisICS")
-    deb_name = "aegis-ics_2.5.0_amd64.deb"
+    deb_name = "aegis-ics_2.5.2_amd64.deb"
     output_deb = os.path.join(dist_dir, deb_name)
 
     if not os.path.exists(target_binary):

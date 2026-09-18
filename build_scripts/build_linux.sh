@@ -1,5 +1,5 @@
 #!/bin/sh
-# Aegis ICS v2.5.0 — Linux Build Script for Debian & MX Linux
+# Aegis ICS v2.5.2 — Linux Build Script for Debian & MX Linux
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -7,7 +7,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ROOT_DIR"
 
 echo "================================================================="
-echo " Aegis ICS v2.5.0 — Automated Linux Build Launcher"
+echo " Aegis ICS v2.5.2 — Automated Linux Build Launcher"
 echo "================================================================="
 
 # Detect Python interpreter

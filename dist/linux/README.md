@@ -1,6 +1,6 @@
-# Aegis ICS v2.5.0 — Linux Application Release & Operations Guide
+# Aegis ICS v2.5.2 — Linux Application Release & Operations Guide
 
-Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. This directory contains production-ready, standalone release deliverables engineered specifically for **Debian-based Linux distributions**, with dedicated optimizations and hardening for **MX Linux (XFCE Edition)**.
+Welcome to the official Linux distribution directory for **Aegis ICS v2.5.2**. This directory contains production-ready, standalone release deliverables engineered specifically for **Debian-based Linux distributions**, with dedicated optimizations and hardening for **MX Linux (XFCE Edition)**.
 
 ---
 
@@ -11,8 +11,8 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 ### Core Capabilities:
 * **Zero-Trust Telemetry Ingestion**: Every sensor transmission is cryptographically validated using canonical HMAC-SHA256 signatures with per-node key isolation.
 * **Stuxnet-Proof Physical Safety Enforcer**: Evaluates mathematical physical stress boundaries across temperature, pressure, vibration, rotor RPM, and stator current to block dangerous setpoint combinations before execution.
-* **Dual-Engine AI/ML Pipeline**: 5-feature Random Forest model running local real-time inference with 0.9755 ROC-AUC (5-fold CV F1: 0.9623) alongside a 6D Deep Neural Safety Policy Network (NSPN) achieving 96.08% validation accuracy and 0.025 ms vectorized inference.
-* **Autonomous Microsegmentation**: Sub-second transition to `ISOLATED` state upon anomaly detection, returning HTTP 403 and dispatching physical optocoupler relay trip commands over serial UART within 12.74 ms.
+* **Dual-Engine AI/ML Pipeline**: 5-feature Random Forest model running local real-time inference with 0.9755 ROC-AUC (5-fold CV F1: 0.9623) alongside a 6D Deep Neural Safety Policy Network (NSPN) achieving 96.08% validation accuracy and 0.019 ms vectorized inference.
+* **Autonomous Microsegmentation**: Sub-second transition to `ISOLATED` state upon anomaly detection, returning HTTP 403 and dispatching physical optocoupler relay trip commands over serial UART within 13.72 ms.
 * **100% Air-Gapped Operation**: Bundled offline Chart.js and Tailwind CSS assets requiring zero internet connectivity.
 * **Authentic 1980s DEC VT-220 SCADA Dashboard**: Green phosphor CRT interface with interactive 2D Plant Digital Twin, forensic "Black Box" time scrubber, and gamified NIST SP 800-61 operator defense drills.
 
@@ -23,8 +23,8 @@ Welcome to the official Linux distribution directory for **Aegis ICS v2.5.0**. T
 | File Name | Format | Size | Description |
 |---|---|---|---|
 | `AegisICS` | ELF 64-bit Executable | **92.14 MB** | Standalone native Linux binary. Statically bundles Python 3 runtime, Flask web gateway, Scikit-Learn ML pipeline, SQLite WAL database, and UI assets. Requires **no** external Python libraries. |
-| `aegis-ics_2.5.0_amd64.deb` | Debian Package | **91.27 MB** | Native installer for MX Linux (MX-21 / MX-23) and Debian (Bullseye / Bookworm). Integrates with GDebi, MX Package Installer, and `dpkg`. Configures XFCE menu shortcuts, SysVinit script, and systemd service. |
-| `aegis-ics-2.5.0-linux-x86_64.tar.gz` | Portable Tarball | **91.45 MB** | Self-contained portable archive for non-root environments or running directly from a USB flash drive. Includes `run.sh` and `install.sh`. |
+| `aegis-ics_2.5.2_amd64.deb` | Debian Package | **91.27 MB** | Native installer for MX Linux (MX-21 / MX-23) and Debian (Bullseye / Bookworm). Integrates with GDebi, MX Package Installer, and `dpkg`. Configures XFCE menu shortcuts, SysVinit script, and systemd service. |
+| `aegis-ics-2.5.2-linux-x86_64.tar.gz` | Portable Tarball | **91.45 MB** | Self-contained portable archive for non-root environments or running directly from a USB flash drive. Includes `run.sh` and `install.sh`. |
 
 ---
 
@@ -63,7 +63,7 @@ The `.deb` package installs Aegis ICS into `/opt/aegis-ics/`, creates system sym
 
 ```bash
 # 1. Install via dpkg
-sudo dpkg -i aegis-ics_2.5.0_amd64.deb
+sudo dpkg -i aegis-ics_2.5.2_amd64.deb
 
 # 2. Resolve any optional desktop GUI dependencies (WebKitGTK)
 sudo apt-get install -f
@@ -76,7 +76,7 @@ newgrp dialout
 aegis-ics
 ```
 
-*Note for MX Linux users*: You can also right-click `aegis-ics_2.5.0_amd64.deb` in the file manager and choose **Open with GDebi Package Installer** or use the **MX Package Installer**.
+*Note for MX Linux users*: You can also right-click `aegis-ics_2.5.2_amd64.deb` in the file manager and choose **Open with GDebi Package Installer** or use the **MX Package Installer**.
 
 ---
 
@@ -121,8 +121,8 @@ Ideal when root/sudo privileges are restricted:
 
 ```bash
 # 1. Extract the tarball
-tar -zxvf aegis-ics-2.5.0-linux-x86_64.tar.gz
-cd aegis-ics-2.5.0/
+tar -zxvf aegis-ics-2.5.2-linux-x86_64.tar.gz
+cd aegis-ics-2.5.2/
 
 # 2. Run portably in-place (stores database in current directory)
 ./run.sh
@@ -159,15 +159,15 @@ In the SCADA Dashboard, navigate to **Hardware Connection**, click **Scan Ports*
 | `--server`, `-s` | None | N/A | Forces headless SCADA web gateway mode (disables desktop GUI window). |
 | `--port`, `-p` | `<port_number>` | `5000` (server) / ephemeral (GUI) | Port number to bind the Flask WSGI server. |
 | `--host`, `-h` | `<ip_address>` | `127.0.0.1` | Network interface to bind (`0.0.0.0` for all interfaces). |
-| `--version` | None | N/A | Prints application version string (`Aegis ICS v2.5.0`) and exits cleanly. |
+| `--version` | None | N/A | Prints application version string (`Aegis ICS v2.5.2`) and exits cleanly. |
 | `--check` | None | N/A | Performs internal health and self-test checks and exits with status 0. |
 
 ---
 
 ## Default Credentials & Access
 
-* **Operator Username**: `admin`
-* **Operator Password**: `admin` (or configured via `ADMIN_PASSWORD` environment variable)
+* **Operator Username**: `noodles` (also supports `admin`)
+* **Operator Password**: `noodles` (or configured via `ADMIN_PASSWORD` environment variable)
 * **Cartesian Station Geolocation**: Input terminal coordinates upon login (e.g., `X: 12.40, Y: -48.10, Z: 3.50`).
 
 ---

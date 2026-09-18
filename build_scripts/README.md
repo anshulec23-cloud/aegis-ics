@@ -13,7 +13,7 @@ This directory contains the automated build specifications, compilation scripts,
 | `build.py` | Windows | Automated build runner for Windows. Terminates running instances, purges previous build caches, and compiles `AegisICS.exe`. |
 | `build_linux.py` | Linux | Master Linux build pipeline runner. Compiles `dist/AegisICS`, executes self-verification tests, and invokes `package_deb.py` and `package_tarball.py`. |
 | `build_linux.sh` | Linux | Shell wrapper for `build_linux.py`. Detects Python 3, validates PyInstaller installation, and launches the build runner. |
-| `package_deb.py` | Linux | Assembles a native Debian binary package (`aegis-ics_2.5.0_amd64.deb`) with XDG desktop shortcuts, icons, SysVinit service script, and systemd unit. |
+| `package_deb.py` | Linux | Assembles a native Debian binary package (`aegis-ics_2.5.2_amd64.deb`) with XDG desktop shortcuts, icons, SysVinit service script, and systemd unit. |
 | `package_tarball.py` | Linux | Bundles the standalone ELF executable, launcher scripts (`run.sh`, `install.sh`), icons, and documentation into a portable `.tar.gz` archive. |
 
 ---

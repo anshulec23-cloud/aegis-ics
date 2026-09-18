@@ -21,13 +21,13 @@ The `.deb` package installs Aegis ICS into `/opt/aegis-ics/`, creates system sym
 cd dist/
 
 # 2. Install via dpkg
-sudo dpkg -i aegis-ics_2.5.0_amd64.deb
+sudo dpkg -i aegis-ics_2.5.2_amd64.deb
 
 # 3. Resolve any optional desktop GUI dependencies (WebKitGTK)
 sudo apt-get install -f
 ```
 
-*Note for MX Linux users*: You can also right-click `aegis-ics_2.5.0_amd64.deb` in the file manager and select **Open with GDebi Package Installer** or use the **MX Package Installer**.
+*Note for MX Linux users*: You can also right-click `aegis-ics_2.5.2_amd64.deb` in the file manager and select **Open with GDebi Package Installer** or use the **MX Package Installer**.
 
 ---
 
@@ -37,8 +37,8 @@ Ideal for environments where root access is restricted or for running from a por
 
 ```bash
 # 1. Extract the tarball
-tar -xvf aegis-ics-2.5.0-linux-x86_64.tar.gz
-cd aegis-ics-2.5.0/
+tar -xvf aegis-ics-2.5.2-linux-x86_64.tar.gz
+cd aegis-ics-2.5.2/
 
 # 2. Run portably in-place (keeps SQLite database in current folder)
 ./run.sh
@@ -161,7 +161,7 @@ python3 build_scripts/build_linux.py
 
 Generated deliverables will be placed in `dist/` and `dist/linux/`:
 * `dist/linux/AegisICS` (Standalone ELF executable)
-* `dist/linux/aegis-ics_2.5.0_amd64.deb` (Debian package)
-* `dist/linux/aegis-ics-2.5.0-linux-x86_64.tar.gz` (Portable archive)
+* `dist/linux/aegis-ics_2.5.2_amd64.deb` (Debian package)
+* `dist/linux/aegis-ics-2.5.2-linux-x86_64.tar.gz` (Portable archive)
 * `dist/linux/README.md` (Quickstart & operations guide)
 

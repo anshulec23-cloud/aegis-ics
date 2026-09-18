@@ -27,7 +27,7 @@ fi
 
 # Output guidance on hardware serial port access (dialout group)
 echo "=================================================================="
-echo " Aegis ICS v2.5.0 successfully installed!"
+echo " Aegis ICS v2.5.2 successfully installed!"
 echo " "
 echo " Desktop GUI Mode : Run 'aegis-ics' or launch from Application Menu"
 echo " Headless Server  : Run 'aegis-ics --server --port 5000'"

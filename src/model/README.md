@@ -1,6 +1,6 @@
 # Aegis ICS — Machine Learning Anomaly Detection Model
 
-This directory contains the serialized machine learning anomaly classifier used for sub-second physical process anomaly detection in **Aegis ICS v2.5.0**.
+This directory contains the serialized machine learning anomaly classifier used for sub-second physical process anomaly detection in **Aegis ICS v2.5.2**.
 
 ---
 

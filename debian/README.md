@@ -1,6 +1,6 @@
 # Aegis ICS — Debian & MX Linux Packaging Configuration
 
-This directory contains Debian packaging metadata, desktop launcher files, maintainer hook scripts, and init service scripts used to build the official `aegis-ics_2.5.0_amd64.deb` package for **MX Linux** and **Debian**.
+This directory contains Debian packaging metadata, desktop launcher files, maintainer hook scripts, and init service scripts used to build the official `aegis-ics_2.5.2_amd64.deb` package for **MX Linux** and **Debian**.
 
 ---
 
@@ -8,7 +8,7 @@ This directory contains Debian packaging metadata, desktop launcher files, maint
 
 | File | Type | Purpose |
 |---|---|---|
-| `control` | Debian Control | Package metadata: name (`aegis-ics`), version (`2.5.0`), architecture (`amd64`), and package dependencies (`libc6 >= 2.31`, recommends WebKitGTK 4.0 / 4.1). |
+| `control` | Debian Control | Package metadata: name (`aegis-ics`), version (`2.5.2`), architecture (`amd64`), and package dependencies (`libc6 >= 2.31`, recommends WebKitGTK 4.0 / 4.1). |
 | `aegis-ics.desktop` | XDG Desktop Entry | Registers Aegis ICS in the **XFCE Application Menu** under *System* and *Security*, binding to `/usr/local/bin/aegis-ics` and system icons. |
 | `aegis-ics.init` | SysVinit Script | 24/7 background service management script for **MX Linux** (which defaults to SysVinit). Installed into `/etc/init.d/aegis-ics`. |
 | `aegis-ics.service` | systemd Unit | Service configuration file for systemd-booted environments, managing daemon execution and auto-restart. |
@@ -20,7 +20,7 @@ This directory contains Debian packaging metadata, desktop launcher files, maint
 
 ## Target Filesystem Layout upon `.deb` Installation
 
-When `aegis-ics_2.5.0_amd64.deb` is installed via `dpkg -i`, files are placed in standard Linux directories:
+When `aegis-ics_2.5.2_amd64.deb` is installed via `dpkg -i`, files are placed in standard Linux directories:
 * `/opt/aegis-ics/AegisICS`: Main executable binary
 * `/opt/aegis-ics/aegis-ics.init`: SysVinit service template
 * `/usr/local/bin/aegis-ics`: Symlink for terminal execution

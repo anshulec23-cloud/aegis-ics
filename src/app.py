@@ -54,6 +54,8 @@ if not _secret_key:
         try:
             with open(_key_file, "w") as f:
                 f.write(_secret_key)
+            if hasattr(os, "chmod"):
+                os.chmod(_key_file, 0o600)
         except OSError:
             pass  # Read-only filesystem; key won't persist
         print("[Security] Generated and persisted new Flask session key.")
@@ -77,6 +79,8 @@ app .config ['SESSION_COOKIE_SECURE']=os .environ .get ("FLASK_SESSION_SECURE","
 DEVICE_KEYS ={
 "ESP32_001":get_device_key ("ESP32_001"),
 "ESP32_002":get_device_key ("ESP32_002"),
+"ESP32_003":get_device_key ("ESP32_003"),
+"ESP32_004":get_device_key ("ESP32_004"),
 }
 
 
@@ -148,10 +152,13 @@ class LocalRFModel :
         if model_path is None:
             model_path = _resource_path("model/rf_model.pkl")
         self .model =None 
+        self .fast_trees = None
         try :
             if os .path .exists (model_path ):
                 with open (model_path ,"rb")as f :
                     self .model =pickle .load (f )
+                if hasattr(self.model, "estimators_"):
+                    self.fast_trees = [t.tree_ for t in self.model.estimators_]
         except Exception as e :
             print (f"[Server] Failed to load Random Forest model: {e }")
 
@@ -225,31 +232,39 @@ class LocalRFModel :
 
         # Only execute 5D Random Forest ML model if all core metrics are provided in payload
         all_features_present = (temp_val is not None and pres_val is not None and vib_val is not None and curr_val is not None)
-        if all_features_present and self.model is not None:
+        if all_features_present and (self.fast_trees or self.model is not None):
             try:
-                feature_dict = {
-                    "temperature": [float(temp_val)],
-                    "pressure": [float(pres_val)],
-                    "vibration": [float(vib_val)],
-                    "hall_effect": [float(hall_val) if hall_val is not None else 0.0],
-                    "current": [float(curr_val)]
-                }
-                try:
+                feat_vec = [
+                    float(temp_val),
+                    float(pres_val),
+                    float(vib_val),
+                    float(hall_val) if hall_val is not None else 0.0,
+                    float(curr_val)
+                ]
+                if self.fast_trees:
+                    p_sum = 0.0
+                    for t in self.fast_trees:
+                        node = 0
+                        while t.children_left[node] != t.children_right[node]:
+                            if feat_vec[t.feature[node]] <= t.threshold[node]:
+                                node = t.children_left[node]
+                            else:
+                                node = t.children_right[node]
+                        val = t.value[node][0]
+                        p_sum += val[1] / (val[0] + val[1])
+                    rf_prob = p_sum / len(self.fast_trees)
+                else:
                     import pandas as pd
-                    features = pd.DataFrame(feature_dict)
-                except ImportError:
-                    features = [[
-                        float(temp_val),
-                        float(pres_val),
-                        float(vib_val),
-                        float(hall_val) if hall_val is not None else 0.0,
-                        float(curr_val)
-                    ]]
-                import warnings
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    proba = self.model.predict_proba(features)[0]
-                if float(proba[1]) > 0.5:
+                    features = pd.DataFrame([{
+                        "temperature": feat_vec[0],
+                        "pressure": feat_vec[1],
+                        "vibration": feat_vec[2],
+                        "hall_effect": feat_vec[3],
+                        "current": feat_vec[4]
+                    }])
+                    rf_prob = float(self.model.predict_proba(features)[0][1])
+
+                if rf_prob > 0.5:
                     anomaly += 0.6
             except Exception:
                 pass
@@ -288,48 +303,65 @@ def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
         db .add (log )
         db .commit ()
 
-        if is_anomaly and device_id !="unknown":
-            state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+        # Evaluate continuous 4-parameter Zero-Trust score
+        trust_info = compute_device_trust_score(
+            device_id,
+            db,
+            latest_is_anomaly=ml_anomaly,
+            latest_sig_valid=sig_valid
+        )
+        trust_score = trust_info.get("trust_score", 1.0)
+
+        # Autonomous Quarantine Policy:
+        # 1. Cryptographic HMAC failure (immediate wire tamper)
+        # 2. Continuous trust score collapse into CRITICAL zone (< 0.40)
+        # 3. Consecutive physical process anomalies eroding degraded trust (< 0.50)
+        is_quarantine = (not sig_valid) or (trust_score < 0.40) or (ml_anomaly and trust_score < 0.50)
+
+        if is_quarantine and device_id != "unknown":
+            state = db.query(DeviceState).filter_by(device_id=device_id).first()
             now_utc = datetime.now(timezone.utc)
-            if not state :
-                state =DeviceState (device_id =device_id ,is_isolated =True ,updated_at =now_utc )
-                db .add (state )
-            else :
-                state .is_isolated =True 
-                state .updated_at =now_utc 
+            if not state:
+                state = DeviceState(device_id=device_id, is_isolated=True, updated_at=now_utc)
+                db.add(state)
+            else:
+                state.is_isolated = True
+                state.updated_at = now_utc
 
             reasons = []
             if not sig_valid:
-                reasons.append("invalid HMAC signature")
-            if ml_anomaly:
+                reasons.append("invalid cryptographic HMAC signature")
+            if trust_score < 0.40:
+                reasons.append(f"continuous trust collapsed to {trust_score:.2f} (<0.40 quarantine threshold)")
+            elif ml_anomaly:
                 reasons.append("safeguard boundary violation / behavioral anomaly detection")
-            reason_str = " and ".join(reasons) if reasons else "anomaly detected"
+            reason_str = " and ".join(reasons) if reasons else f"critical trust score ({trust_score:.2f})"
 
-            audit =AuditLog (
-            user_id =None ,
-            action ="AUTO_ISOLATION",
-            location ="SYSTEM",
-            details =f"System automatically isolated device {device_id } due to {reason_str }."
+            audit = AuditLog(
+                user_id=None,
+                action="AUTO_ISOLATION",
+                location="SYSTEM",
+                details=f"System automatically isolated device {device_id} due to {reason_str}."
             )
-            db .add (audit )
-            db .commit ()
-            print (f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id } ({reason_str })")
+            db.add(audit)
+            db.commit()
+            print(f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id} ({reason_str})")
 
             # Dispatch physical isolation command to hardware via serial gateway
-            try :
-                import serial_gateway 
-                serial_gateway .send_command ({
-                    "command":"ISOLATE",
-                    "action":"ISOLATE",
-                    "device_id":device_id ,
-                    "target_device":device_id ,
-                    "timestamp":time .time (),
-                    "reason":reason_str 
+            try:
+                import serial_gateway
+                serial_gateway.send_command({
+                    "command": "ISOLATE",
+                    "action": "ISOLATE",
+                    "device_id": device_id,
+                    "target_device": device_id,
+                    "timestamp": time.time(),
+                    "reason": reason_str
                 })
-            except Exception as cmd_err :
-                print (f"[Server] Hardware auto-isolation dispatch note: {cmd_err }")
+            except Exception as cmd_err:
+                print(f"[Server] Hardware auto-isolation dispatch note: {cmd_err}")
 
-        return True ,200 ,"Telemetry ingested successfully."
+        return True, 200, "Telemetry ingested successfully."
     except Exception as e :
         print (f"[Server] Database write failed: {e }")
         return False ,500 ,f"Database write error: {e }"
@@ -524,6 +556,16 @@ def neural_policy_status ():
     try:
         from neural_policy import get_neural_policy
         policy = get_neural_policy()
+        latency_val = 0.019
+        try:
+            metrics_path = _resource_path(os.path.join("model", "training_metrics.json"))
+            if os.path.exists(metrics_path):
+                with open(metrics_path, "r") as mf:
+                    m_data = json.load(mf)
+                    latency_val = float(m_data.get("nspn", {}).get("inference_latency_numpy_ms", 0.019))
+        except Exception:
+            pass
+
         return jsonify({
             "success": True,
             "status": "ACTIVE" if policy.weights_loaded else "HEURISTIC_FALLBACK",
@@ -531,7 +573,7 @@ def neural_policy_status ():
             "architecture": "6 -> 64 -> 32 -> 16 -> 1",
             "activations": "LeakyReLU(0.1), Sigmoid",
             "device": "CPU (Local / Offline)",
-            "empirical_latency_ms": 0.044
+            "empirical_latency_ms": round(latency_val, 4)
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
@@ -941,7 +983,7 @@ def download_report():
     db = SessionLocal()
     try:
         username = session.get("username", "admin")
-        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+        location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
         pdf_data = generate_incident_report_pdf(db, username, location)
         filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
         response = send_file(
@@ -971,7 +1013,7 @@ def view_report():
     db = SessionLocal()
     try:
         username = session.get("username", "admin")
-        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+        location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
         pdf_data = generate_incident_report_pdf(db, username, location)
         filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
         response = send_file(
@@ -1019,7 +1061,7 @@ def save_report_dialog():
             }), 200
 
         username = session.get("username", "admin")
-        location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+        location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
         pdf_data = generate_incident_report_pdf(db, username, location)
 
         default_filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
@@ -1203,7 +1245,7 @@ def simulate_attack():
 
     db = SessionLocal()
     user_id = session.get("user_id")
-    location = session.get("location", "X:-12.40, Y:-48.10, Z:-3.50")
+    location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
     now_ts = time.time()
     print(f"[AttackEngine] Executing attack simulation profile: '{attack_type}' for user {user_id}")
 

@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-Aegis ICS v2.5.0 — Linux Standalone Executable Specification
+Aegis ICS v2.5.2 — Linux Standalone Executable Specification
 ============================================================
 Packaged for Debian / MX Linux deployment.
 Bundles Python runtime, Flask backend, SQLite database, PyWebView,

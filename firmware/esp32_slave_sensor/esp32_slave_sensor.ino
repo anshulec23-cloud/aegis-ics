@@ -209,9 +209,9 @@ void process_incoming_command(const char* cmd_line) {
         bool valid = true;
         if (cmd_doc.containsKey("temperature")) {
             float t = cmd_doc["temperature"];
-            if (t < 0.0 || t > 50.0) {
+            if (t < 0.0 || t > 60.0) {
                 valid = false;
-                Serial.printf("[POLICY VIOLATION] Temperature setpoint %.2fC violates safe envelope [0, 50]!\n", t);
+                Serial.printf("[POLICY VIOLATION] Temperature setpoint %.2fC violates safe envelope [0, 60]!\n", t);
             }
         }
         if (cmd_doc.containsKey("pressure")) {

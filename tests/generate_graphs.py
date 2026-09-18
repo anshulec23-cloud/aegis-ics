@@ -273,14 +273,14 @@ def graph_trust_evolution():
     ax1.plot(time_s, trust, color='#1f2937', linewidth=1.2, alpha=0.9)
     ax1.fill_between(time_s, trust, 0, alpha=0.15, color='#3b82f6')
 
-    # Trust zone thresholds
+    # Trust zone thresholds (aligned to src/trust_engine.py 40% quarantine threshold)
     ax1.axhline(y=80, color='#22c55e', linewidth=0.8, linestyle='--', alpha=0.6)
     ax1.axhline(y=50, color='#eab308', linewidth=0.8, linestyle='--', alpha=0.6)
-    ax1.axhline(y=30, color='#dc2626', linewidth=0.8, linestyle='--', alpha=0.6)
-    ax1.text(time_s[-1] + 5, 85, 'TRUSTED', fontsize=7, color='#22c55e', fontweight='bold')
-    ax1.text(time_s[-1] + 5, 55, 'DEGRADED', fontsize=7, color='#eab308', fontweight='bold')
-    ax1.text(time_s[-1] + 5, 35, 'SUSPICIOUS', fontsize=7, color='#f97316', fontweight='bold')
-    ax1.text(time_s[-1] + 5, 15, 'CRITICAL', fontsize=7, color='#dc2626', fontweight='bold')
+    ax1.axhline(y=40, color='#dc2626', linewidth=0.8, linestyle='--', alpha=0.6)
+    ax1.text(time_s[-1] + 5, 85, 'TRUSTED (>=80%)', fontsize=7, color='#22c55e', fontweight='bold')
+    ax1.text(time_s[-1] + 5, 55, 'DEGRADED (50-80%)', fontsize=7, color='#eab308', fontweight='bold')
+    ax1.text(time_s[-1] + 5, 42, 'SUSPICIOUS (40-50%)', fontsize=7, color='#f97316', fontweight='bold')
+    ax1.text(time_s[-1] + 5, 15, 'CRITICAL (<40%)', fontsize=7, color='#dc2626', fontweight='bold')
 
     ax1.set_ylabel('Trust Score (%)', fontsize=11)
     ax1.set_ylim(-5, 105)
@@ -315,7 +315,9 @@ def graph_latency_distribution():
 
     components = []
     if "rf_latency_ms" in data:
-        components.append(("Random Forest", data["rf_latency_ms"], "#3b82f6"))
+        components.append(("Random Forest (Sklearn)", data["rf_latency_ms"], "#3b82f6"))
+    if "rf_fast_latency_ms" in data:
+        components.append(("Random Forest (Fast-Path)", data["rf_fast_latency_ms"], "#06b6d4"))
     if "nspn_latency_ms" in data:
         components.append(("NSPN (NumPy)", data["nspn_latency_ms"], "#22c55e"))
     if "hmac_latency_ms" in data:
@@ -332,7 +334,14 @@ def graph_latency_distribution():
     for ax, (name, stats, color) in zip(axes, components):
         samples = stats.get("raw_samples", [])
         if samples:
-            ax.hist(samples, bins=40, color=color, alpha=0.7, edgecolor='white', linewidth=0.5)
+            # Filter initial un-warmed cold-start spike so histogram distribution is visually legible
+            p99 = stats.get("p99", float(np.percentile(samples, 99)))
+            p_min = stats.get("min", float(np.min(samples)))
+            filtered_samples = [s for s in samples if s <= p99 * 1.4]
+            if not filtered_samples:
+                filtered_samples = samples
+
+            ax.hist(filtered_samples, bins=25, color=color, alpha=0.7, edgecolor='white', linewidth=0.5)
             ax.axvline(x=stats["mean"], color='black', linewidth=1.5, linestyle='-',
                        label=f'Mean: {stats["mean"]:.3f}ms')
             ax.axvline(x=stats["p95"], color='#dc2626', linewidth=1, linestyle='--',
@@ -340,13 +349,18 @@ def graph_latency_distribution():
             ax.axvline(x=stats["p99"], color='#7c3aed', linewidth=1, linestyle=':',
                        label=f'P99: {stats["p99"]:.3f}ms')
 
+            # Set tight, meaningful x-limits around empirical data
+            x_low = max(0.0, p_min * 0.92)
+            x_high = max(stats["p99"] * 1.15, max(filtered_samples) * 1.05)
+            ax.set_xlim(x_low, x_high)
+
         ax.set_xlabel('Latency (ms)', fontsize=10)
         ax.set_ylabel('Count', fontsize=10)
         ax.set_title(f'{name}\n(n={stats["n_iterations"]:,})', fontsize=10, fontweight='bold')
         ax.legend(fontsize=7, framealpha=0.9)
         ax.grid(True, alpha=0.2)
 
-    fig.suptitle('Inference Latency Distribution (10,000 iterations)',
+    fig.suptitle('Empirical Inference Latency Distribution across AI/ML Components',
                  fontsize=12, fontweight='bold', y=1.02)
     plt.tight_layout()
 

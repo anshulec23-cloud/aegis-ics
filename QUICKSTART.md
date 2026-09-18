@@ -1,4 +1,4 @@
-# Quickstart Guide — Aegis ICS v2.5.0
+# Quickstart Guide — Aegis ICS v2.5.2
 
 This quickstart guide helps you set up, verify, and run the Aegis ICS Industrial Security Gateway on Windows or Linux.
 
@@ -35,13 +35,13 @@ copy .env.example .env
 Key environment variables:
 * `FLASK_SECRET_KEY`: Random 64-character hex secret for operator sessions.
 * `DEVICE_KEY_ESP32_001`: Pre-shared HMAC-SHA256 key for ESP32 edge microcontroller 001.
-* `ADMIN_PASSWORD`: Custom master administrator password (defaults to `admin` in local dev).
+* `ADMIN_PASSWORD`: Custom master administrator password (defaults to `noodles` in local dev).
 
 ---
 
 ## 3. Run the Automated Test Suite
 
-Execute the complete 36-module pytest test suite:
+Execute the complete 46-module pytest test suite:
 
 ```powershell
 python -m pytest tests/ -v
@@ -60,8 +60,8 @@ python src/app.py
 ```
 
 Open your browser and navigate to `http://127.0.0.1:5000`.
-* **Default Operator ID**: `admin`
-* **Default Access Token**: `admin`
+* **Default Operator ID**: `noodles`
+* **Default Access Token**: `noodles`
 * **Station Coordinates**: Enter your 3D terminal location (e.g. `X: 12.4, Y: -48.1, Z: 3.5`).
 
 ---

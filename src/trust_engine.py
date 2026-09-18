@@ -94,7 +94,6 @@ def compute_device_trust_score(
     valid_temps = [t.temperature for t in logs if t.temperature is not None]
     valid_press = [t.pressure for t in logs if t.pressure is not None]
 
-    s_history = 1.0
     if len(valid_temps) >= 2 and len(valid_press) >= 2:
         mu_t = sum(valid_temps) / len(valid_temps)
         mu_p = sum(valid_press) / len(valid_press)
@@ -102,9 +101,10 @@ def compute_device_trust_score(
         delta_p = abs(valid_press[0] - mu_p)
         combined_dev = (delta_t / 25.0) + (delta_p / 5.0)
         s_history = max(0.0, 1.0 - min(1.0, combined_dev / 2.0))
+    else:
+        s_history = 0.50
 
     # --- Metric 4: Signal Stability / Population Variance (S_stability) ---
-    s_stability = 1.0
     if len(valid_temps) >= 3 and len(valid_press) >= 3:
         mu_t = sum(valid_temps) / len(valid_temps)
         mu_p = sum(valid_press) / len(valid_press)
@@ -112,6 +112,8 @@ def compute_device_trust_score(
         var_p = sum((x - mu_p) ** 2 for x in valid_press) / len(valid_press)
         combined_var = (var_t / 100.0) + (var_p / 10.0)
         s_stability = max(0.0, 1.0 - min(1.0, combined_var))
+    else:
+        s_stability = 0.50
 
     # --- Combine Scores ---
     t_score = (
@@ -120,6 +122,11 @@ def compute_device_trust_score(
         + 0.20 * s_history
         + 0.15 * s_stability
     )
+
+    # Smooth Zero-Trust warming from 0.50 registration baseline across first 10 observations
+    if len(logs) < 10:
+        warmup_factor = len(logs) / 10.0
+        t_score = 0.50 * (1.0 - warmup_factor) + t_score * warmup_factor
 
     # --- Low-Confidence Fallback Logic ---
     if model_confidence < 0.50:
@@ -216,7 +223,7 @@ def get_trust_breakdown(device_id: str, db_session) -> Dict[str, Any]:
                 "value": score_info["s_history"],
                 "weight": 0.20,
                 "contribution_pct": round(0.20 * score_info["s_history"] * 100.0, 1),
-                "desc": "Euclidean deviation from 10-packet rolling mean"
+                "desc": "Euclidean deviation from 15-packet rolling mean"
             },
             "s_stability": {
                 "name": "Sensor Signal Stability",

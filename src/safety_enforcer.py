@@ -74,11 +74,12 @@ def validate_command(
 
     dev_label = f" on {device_id}" if device_id else ""
 
-    # Telemetry Freshness Check: requires active telemetry within 120s
+    # Telemetry Freshness Check: requires active telemetry within 120s (with up to 5s clock skew tolerance)
+    time_diff = (time.time() - latest_telemetry.timestamp) if (latest_telemetry and latest_telemetry.timestamp is not None) else 9999.0
     is_fresh = bool(
         latest_telemetry
         and latest_telemetry.timestamp is not None
-        and abs(time.time() - latest_telemetry.timestamp) <= 120.0
+        and -5.0 <= time_diff <= 120.0
     )
 
     # 4. Neural Safety Policy & Coordinated Stuxnet Interlock Evaluation
@@ -143,8 +144,8 @@ def validate_command(
                 f"Cannot verify cross-variable safety without live sensor data."
             )
         if latest_telemetry and not is_fresh:
-            print(f"[SafetyEnforcer] Warning: Stale telemetry for{dev_label}. Low-risk command allowed.")
+            print(f"[SafetyEnforcer] Warning: Stale telemetry{dev_label}. Low-risk command allowed.")
         elif not latest_telemetry:
-            print(f"[SafetyEnforcer] Warning: No telemetry history for{dev_label}. Low-risk command allowed.")
+            print(f"[SafetyEnforcer] Warning: No telemetry history{dev_label}. Low-risk command allowed.")
 
     return True, "Approved"

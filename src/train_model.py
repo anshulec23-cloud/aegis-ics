@@ -459,7 +459,7 @@ def train_neural_safety_policy(metrics_dict: dict):
 
     # 1. Export PyTorch checkpoint
     pt_path = os.path.join(model_dir, "neural_safety_policy.pt")
-    torch.save(model.state_dict(), pt_path)
+    torch.save({"state_dict": model.state_dict(), "means": means, "stds": stds}, pt_path)
     print(f"[+] Exported PyTorch checkpoint: {pt_path} ({os.path.getsize(pt_path):,} bytes)")
 
     # 2. Export pure NumPy weights for zero-dependency execution

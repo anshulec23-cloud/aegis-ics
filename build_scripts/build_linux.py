@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.0 — Automated Linux Executable & Debian Package Build Runner
+Aegis ICS v2.5.2 — Automated Linux Executable & Debian Package Build Runner
 ==========================================================================
 Cleans prior build artifacts, compiles the standalone ELF AegisICS binary
 using PyInstaller, tests the binary, and produces .deb and .tar.gz packages.
@@ -18,7 +18,7 @@ def main():
     os.chdir(root_dir)
 
     print("=" * 65)
-    print(" Aegis ICS v2.5.0 — Linux (Debian & MX Linux) Build Pipeline")
+    print(" Aegis ICS v2.5.2 — Linux (Debian & MX Linux) Build Pipeline")
     print("=" * 65)
 
     # 1. Clean prior Linux build artifacts
@@ -104,7 +104,7 @@ def main():
     # 7. Sync deliverables into dedicated dist/linux/ directory
     dist_linux = os.path.join(dist_dir, "linux")
     os.makedirs(dist_linux, exist_ok=True)
-    deliverables = ["AegisICS", "aegis-ics_2.5.0_amd64.deb", "aegis-ics-2.5.0-linux-x86_64.tar.gz"]
+    deliverables = ["AegisICS", "aegis-ics_2.5.2_amd64.deb", "aegis-ics-2.5.2-linux-x86_64.tar.gz"]
     for item in deliverables:
         src_item = os.path.join(dist_dir, item)
         dst_item = os.path.join(dist_linux, item)
@@ -114,8 +114,8 @@ def main():
     print("\n" + "=" * 65)
     print(" LINUX BUILD & PACKAGING PIPELINE COMPLETED SUCCESSFULLY!")
     print(f" Executable binary: {os.path.join('dist', 'linux', 'AegisICS')}")
-    print(f" Debian package:    {os.path.join('dist', 'linux', 'aegis-ics_2.5.0_amd64.deb')}")
-    print(f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-2.5.0-linux-x86_64.tar.gz')}")
+    print(f" Debian package:    {os.path.join('dist', 'linux', 'aegis-ics_2.5.2_amd64.deb')}")
+    print(f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-2.5.2-linux-x86_64.tar.gz')}")
     print("=" * 65)
 
 if __name__ == "__main__":

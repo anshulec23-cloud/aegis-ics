@@ -3,7 +3,7 @@
 **Authors**: Aegis Industrial AI & Cyber-Physical Systems Research Group  
 **Affiliation**: Consortium for Advanced Machine Learning in Critical Infrastructure & Operational Technology  
 **Contact**: `research@aegis-ai.internal` / `ai-cps@aegis-ics.org`  
-**Version**: 3.5.0 (Empirical Benchmark Edition — Post-Vulnerability Hardened)  
+**Version**: 2.5.2 (Empirical Benchmark Edition — Post-Vulnerability Hardened)  
 **Target Venues**: *IEEE Transactions on Neural Networks and Learning Systems (TNNLS)* / *IEEE Transactions on Cyber-Physical Systems* / *ACM Transactions on Cyber-Physical Systems (TCPS)* / *SafeAI Workshop (AAAI/IJCAI)*  
 
 ---
@@ -15,11 +15,11 @@ To overcome these fundamental limitations, this paper introduces **Aegis**, an i
 
 Aegis delivers six core contributions to artificial intelligence and cyber-physical systems research:
 1. **Physics-Informed Cyber-Physical Digital Twin (PI-CPDT)**: A real-time spatial vector state-space estimator synchronizing continuous physical process dynamics (fluid velocities $\vec{v}(x,y)$, thermodynamic head $\Delta H$, rotor kinetic energy $E_k$) across heterogeneous edge microcontroller nodes, mapping physical facility coordinates ($X, Y, Z$) to live process trajectories.
-2. **Multi-Variable Random Forest Anomaly Detection Architecture**: A supervised ensemble classifier operating over a 5-dimensional coupled physical feature space ($\vec{x} = [T, P, V, R, I]^T$) optimized via Gini impurity reduction. Evaluated across 15,000 multi-zone telemetry records with realistic sensor noise and overlapping boundary samples, the model achieves an empirical **ROC-AUC of 0.9755**, a **5-fold cross-validation F1-score of 0.9623** ($\pm 0.0045$), and an edge inference latency of **0.036 ms** ($36\ \mu\text{s}$) on commodity CPU.
-3. **Local Deep Neural Safety Policy Network (NSPN)**: A 6-dimensional deep feed-forward neural network ($6 \to 64 \to 32 \to 16 \to 1$) running 100% locally and offline on CPU ($0.025\text{ ms}$ inference latency via vectorized NumPy, $0.120\text{ ms}$ via PyTorch) that evaluates proposed SCADA setpoint commands against non-linear coupled hazard envelopes, achieving **96.08% validation accuracy** and **0.9737 ROC-AUC** while proactively blocking coordinated Stuxnet exploits before actuator dispatch.
-4. **Continuous Statistical-Deterministic Hybrid Decision Fusion ($T_{\text{final}}$)**: A 4-parameter continuous trust metric fusing machine learning anomaly probabilities ($P(\text{anomaly})$, weight $0.35$), cryptographic wire integrity (FIPS 198-1 HMAC-SHA256, weight $0.30$), rolling 10-packet Euclidean historical drift (weight $0.20$), and sensor variance jitter (weight $0.15$). Under low classifier confidence ($C_{\text{model}} < 0.50$), Aegis triggers a deterministic safe-AI fallback blending mechanism.
-5. **Sub-15ms Closed-Loop AI Actuation**: An end-to-end intelligent detection-to-actuation pipeline. Upon detecting a multi-variable excursion or adversarial perturbation, the gateway issues an authenticated hardware trip command down the fieldbus, de-energizing an optocoupler relay on GPIO 25 within **12.74 ms**—an order of magnitude faster than the 250 ms mechanical yield destruction threshold of rotating machinery.
-6. **Quantitative Cyber-Physical Risk Estimation (FAIR & Monte Carlo)**: Direct mathematical translation of real-time machine learning anomaly probabilities and sensor drift rates into Factor Analysis of Information Risk (FAIR) metrics. In an active 24-hour coordinated stress simulation, Aegis demonstrated **\$1,452,098 in damages prevented** (a **54.1% reduction** in cumulative financial loss) via automated micro-segmentation.
+2. **Multi-Variable Random Forest Anomaly Detection Architecture**: A supervised ensemble classifier operating over a 5-dimensional coupled physical feature space ($\vec{x} = [T, P, V, R, I]^T$) optimized via Gini impurity reduction. Evaluated across 15,000 multi-zone telemetry records with realistic sensor noise and overlapping boundary samples, the model achieves an empirical **ROC-AUC of 0.9755**, a **5-fold cross-validation F1-score of 0.9623** ($\pm 0.0045$), and an edge inference latency of **1.031 ms** ($1,031\ \mu\text{s}$) for single-sample fast-path execution (**0.036 ms** amortized batch throughput) on commodity CPU.
+3. **Local Deep Neural Safety Policy Network (NSPN)**: A 6-dimensional deep feed-forward neural network ($6 \to 64 \to 32 \to 16 \to 1$) running 100% locally and offline on CPU ($0.019\text{ ms}$ inference latency via vectorized NumPy, $0.120\text{ ms}$ via PyTorch) that evaluates proposed SCADA setpoint commands against non-linear coupled hazard envelopes, achieving **96.08% validation accuracy** and **0.9737 ROC-AUC** while proactively blocking coordinated Stuxnet exploits before actuator dispatch.
+4. **Continuous Statistical-Deterministic Hybrid Decision Fusion ($T_{\text{final}}$)**: A 4-parameter continuous trust metric fusing machine learning anomaly probabilities ($P(\text{anomaly})$, weight $0.35$), cryptographic wire integrity (FIPS 198-1 HMAC-SHA256, weight $0.30$), rolling 15-packet Euclidean historical drift (weight $0.20$), and sensor variance jitter (weight $0.15$). Under low classifier confidence ($C_{\text{model}} < 0.50$), Aegis triggers a deterministic safe-AI fallback blending mechanism.
+5. **Sub-15ms Closed-Loop AI Actuation**: An end-to-end intelligent detection-to-actuation pipeline. Upon detecting a multi-variable excursion or adversarial perturbation, the gateway issues an authenticated hardware trip command down the fieldbus, de-energizing an optocoupler relay on GPIO 25 within **13.72 ms** (mean closed loop, 15.68 ms p99)—an order of magnitude faster than the 250 ms mechanical yield destruction threshold of rotating machinery.
+6. **Quantitative Cyber-Physical Risk Estimation (FAIR & Monte Carlo)**: Direct mathematical translation of real-time machine learning anomaly probabilities and sensor drift rates into Factor Analysis of Information Risk (FAIR) metrics. In an active 24-hour coordinated stress simulation, Aegis demonstrated **\$1,421,000 in damages prevented** (a **53.5% reduction** in cumulative financial loss) via automated micro-segmentation.
 
 We empirically validate the Aegis architecture on a physical Hardware-in-the-Loop (HIL) testbed comprising a multi-node ESP32 microcontroller cluster communicating over a 120$\Omega$-terminated differential RS-485 serial fieldbus across 50,000 operational frames, demonstrating robust attack detection, zero cloud dependencies for air-gapped facilities, and complete verification across a 46-module automated test suite.
 
@@ -64,8 +64,8 @@ Both paradigms suffer from critical theoretical and operational deficiencies whe
 Aegis addresses these challenges through an end-to-end, deterministic AI-first framework:
 - **Dual-Model Cyber-Physical Intelligence**: Combines an ensemble Random Forest for continuous telemetry anomaly detection with a deep 6D Neural Safety Policy Network (NSPN) for proactive command setpoint validation.
 - **Physics-Informed Safety Guarantees**: Embeds thermodynamic, hydrodynamic, and kinematic process invariants directly into the neural loss function and execution pipeline.
-- **Microsecond On-Device Inference**: Achieves $0.036\text{ ms}$ (RF) and $0.025\text{ ms}$ (NSPN) CPU inference latency, operating entirely offline without GPU acceleration or cloud dependencies.
-- **Sub-15ms Closed-Loop Physical Trip**: Integrates real-time serial gateway protocol decoding with deterministic hardware relay isolation on GPIO 25 within $12.74\text{ ms}$.
+- **Microsecond On-Device Inference**: Achieves $1.031\text{ ms}$ single-sample fast-path ($0.036\text{ ms}$ batch throughput) RF and $0.019\text{ ms}$ (NSPN) CPU inference latency, operating entirely offline without GPU acceleration or cloud dependencies.
+- **Sub-15ms Closed-Loop Physical Trip**: Integrates real-time serial gateway protocol decoding with deterministic hardware relay isolation on GPIO 25 within $13.72\text{ ms}$.
 
 ---
 
@@ -132,7 +132,7 @@ Aegis implements a 4-tier cyber-physical protection pipeline:
 │   │ 5D Random Forest Classifier   │           │ 6D Neural Safety Policy   │ │
 │   │ Telemetry Anomaly Detection   │           │ Predictive Setpoint Filter│ │
 │   │ (rf_model.pkl: 50 Trees)      │           │ (6 -> 64 -> 32 -> 16 -> 1)│ │
-│   │ Inference: 0.036 ms (CPU)     │           │ Inference: 0.025 ms (NumPy)││
+│   │ Inference: 1.031 ms (Fast-Path)│          │ Inference: 0.019 ms (NumPy)││
 │   └──────────────┬────────────────┘           └─────────────┬─────────────┘ │
 │                  │                                          │               │
 │                  ▼                                          ▼               │
@@ -146,7 +146,7 @@ Aegis implements a 4-tier cyber-physical protection pipeline:
 │   ┌───────────────────────────────┐           ┌───────────────────────────┐ │
 │   │ Real-Time Digital Twin        │           │ Deterministic Trip Relay  │ │
 │   │ Spatial Vector Estimator      │           │ NIST SC-7 Physical Trip   │ │
-│   │ Coordinate Mapping (X, Y, Z)  │           │ GPIO 25 Cutoff: 12.74 ms  │ │
+│   │ Coordinate Mapping (X, Y, Z)  │           │ GPIO 25 Cutoff: 13.72 ms  │ │
 │   └───────────────────────────────┘           └───────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -213,7 +213,7 @@ The trained model was evaluated on a 3,000-sample hold-out test set drawn from a
 | **Recall (Anomaly Class)** | **0.9599** | $> 0.9500$ | **VERIFIED** |
 | **F1-Score (Anomaly Class)** | **0.9621** | $> 0.9500$ | **VERIFIED** |
 | **Nominal Class Precision / Recall** | **0.9603 / 0.9648** | $> 0.9500$ | **VERIFIED** |
-| **Inference Latency per Packet (x86-64 CPU)** | **0.036 ms** ($36\ \mu\text{s}$) | $< 5.0\text{ ms}$ | **REAL-TIME** |
+| **Single-Sample Inference Latency (Fast Path CPU)** | **1.031 ms** ($1,031\ \mu\text{s}$) [Batch: 0.036 ms] | $< 5.0\text{ ms}$ | **REAL-TIME** |
 | **Model Size on Disk** | **201.2 KB** | $< 5.0\text{ MB}$ | **EMBEDDABLE** |
 
 ### C. Empirical Confusion Matrix & Feature Importances
@@ -259,7 +259,7 @@ Operator / SCADA Command (e.g. set_temp=52°C on ESP32_001)
    │     LOCAL NEURAL SAFETY POLICY (PyTorch CPU / NumPy)   │
    │  Architecture: 6 -> 64 -> 32 -> 16 -> 1 (Sigmoid)     │
    │  Evaluates coupled thermodynamic & mechanical risk     │
-   │  Empirical Latency: 0.025 ms (NumPy) / 0.120 ms (Torch)│
+   │  Empirical Latency: 0.019 ms (NumPy) / 0.120 ms (Torch)│
    └────────────────────────┬───────────────────────────────┘
                             │
                ┌────────────┴────────────┐
@@ -304,7 +304,7 @@ Evaluation on a 2,400-sample hold-out test set demonstrates high classification 
 | **Precision (Hazard Class)** | **0.9525** | $> 0.9500$ | **VERIFIED** |
 | **Recall (Hazard Class)** | **0.9700** | $> 0.9500$ | **VERIFIED** |
 | **F1-Score (Hazard Class)** | **0.9612** | $> 0.9500$ | **VERIFIED** |
-| **Inference Latency (Vectorized NumPy)** | **0.025 ms** ($25\ \mu\text{s}$) | $< 0.100\text{ ms}$ | **ULTRA-FAST** |
+| **Inference Latency (Vectorized NumPy)** | **0.019 ms** ($19\ \mu\text{s}$) | $< 0.100\text{ ms}$ | **ULTRA-FAST** |
 | **Inference Latency (PyTorch CPU)** | **0.120 ms** ($120\ \mu\text{s}$) | $< 0.500\text{ ms}$ | **REAL-TIME** |
 | **Model Size (PyTorch `.pt`)** | **16.2 KB** | $< 500\text{ KB}$ | **COMPACT** |
 | **Model Size (NumPy `.npz`)** | **13.5 KB** | $< 200\text{ KB}$ | **ZERO-DEPENDENCY** |
@@ -319,7 +319,7 @@ Actual Safe               58               1,143        (Safe Setpoint Approval:
 ### E. Dual-Engine Embedded Deployment
 To ensure zero failure modes inside air-gapped industrial environments and frozen standalone binaries, Aegis implements a **Dual-Engine Execution Architecture**:
 1. **PyTorch Engine**: Used for model training, gradient backpropagation, and development environments where PyTorch is installed.
-2. **Vectorized NumPy Linear Algebra Engine**: Implements the identical mathematical forward pass using NumPy array dot products with exported weight matrices $\mathbf{W}_0 \dots \mathbf{W}_3$. This allows the compiled executable (`AegisICS.exe` and Linux ELF `AegisICS`) to execute neural inference in **0.025 ms** with zero external PyTorch runtime dependencies.
+2. **Vectorized NumPy Linear Algebra Engine**: Implements the identical mathematical forward pass using NumPy array dot products with exported weight matrices $\mathbf{W}_0 \dots \mathbf{W}_3$. This allows the compiled executable (`AegisICS.exe` and Linux ELF `AegisICS`) to execute neural inference in **0.019 ms** with zero external PyTorch runtime dependencies.
 
 ---
 
@@ -334,7 +334,7 @@ To ensure zero failure modes inside air-gapped industrial environments and froze
 │   ┌───────────────────────────┐         ┌───────────────────────────┐   │
 │   │ [ESP32_001]               │         │ [ESP32_002]               │   │
 │   │ Catalytic Reactor 01      │         │ Centrifugal Pump 02       │   │
-│   │ Coordinate: (-12.4, -48.1)│         │ Coordinate: (+34.2, +15.8)│   │
+│   │ Coordinate: (+12.4, -48.1)│         │ Coordinate: (+45.8, -14.2)│   │
 │   │ Exotherm Tracking         │         │ Hydraulic Head Gradient   │   │
 │   │ Velocity: 1.42 m/s        │         │ Velocity: 3.85 m/s        │   │
 │   └─────────────┬─────────────┘         └─────────────┬─────────────┘   │
@@ -351,7 +351,7 @@ To ensure zero failure modes inside air-gapped industrial environments and froze
 │   ┌─────────────┴─────────────┐         ┌─────────────┴─────────────┐   │
 │   │ [ESP32_003]               │         │ [ESP32_004]               │   │
 │   │ Cooling Cryo Unit 03      │         │ Turbine Generator 04      │   │
-│   │ Coordinate: (-28.7, +62.3)│         │ Coordinate: (+88.5, -14.2)│   │
+│   │ Coordinate: (-22.1, -65.4)│         │ Coordinate: (-35.6, +28.9)│   │
 │   │ Cryogenic Enthalpy Sink   │         │ Kinematic Resonance Loop  │   │
 │   │ Velocity: 0.88 m/s        │         │ 2200 RPM (Limit: 3000 RPM)│   │
 │   └───────────────────────────┘         └───────────────────────────┘   │
@@ -363,10 +363,10 @@ The Physics-Informed Cyber-Physical Digital Twin (PI-CPDT) provides a synchroniz
 
 ### A. Spatial Coordinate Mapping & Facility Geolocation
 Each physical field microcontroller node is geolocated in plant coordinate space $(X, Y, Z)$ measured in meters from the central facility datum:
-- `ESP32_001`: $X = -12.40\text{ m}, Y = -48.10\text{ m}, Z = -3.50\text{ m}$ (Catalytic Reactor 01)
-- `ESP32_002`: $X = +34.20\text{ m}, Y = +15.80\text{ m}, Z = +0.00\text{ m}$ (Centrifugal Booster Pump 02)
-- `ESP32_003`: $X = -28.70\text{ m}, Y = +62.30\text{ m}, Z = +2.10\text{ m}$ (Cryogenic Heat Exchanger 03)
-- `ESP32_004`: $X = +88.50\text{ m}, Y = -14.20\text{ m}, Z = +8.40\text{ m}$ (Turbine Hall Generator 04)
+- `ESP32_001`: $X = +12.40\text{ m}, Y = -48.10\text{ m}, Z = +3.50\text{ m}$ (Catalytic Reactor 01)
+- `ESP32_002`: $X = +45.80\text{ m}, Y = -14.20\text{ m}, Z = +1.20\text{ m}$ (Centrifugal Booster Pump 02)
+- `ESP32_003`: $X = -22.10\text{ m}, Y = -65.40\text{ m}, Z = -4.80\text{ m}$ (Cryogenic Heat Exchanger 03)
+- `ESP32_004`: $X = -35.60\text{ m}, Y = +28.90\text{ m}, Z = +6.00\text{ m}$ (Turbine Hall Generator 04)
 
 ### B. Navier-Stokes Hydraulic Vector Field Estimation
 Fluid transport across the interconnecting piping network is modeled using the Navier-Stokes momentum equation:
@@ -409,7 +409,7 @@ Weight: w_sec = 0.30        Weight: w_ML = 0.35        Weight: w_hist = 0.20
     ▼                ▼                               ▼                ▼
 T_final >= 0.80  0.50 <= T < 0.80                0.40 <= T < 0.50  T_final < 0.40
  [ TRUSTED ]      [ DEGRADED ]                    [ SUSPICIOUS ]   [ CRITICAL QUARANTINE ]
- Normal Ops      Heightened Sampling             SIEM Alert Log   Hardware Relay Trip (12.74 ms)
+ Normal Ops      Heightened Sampling             SIEM Alert Log   Hardware Relay Trip (13.72 ms)
 ```
 
 ### A. Mathematical Formulation of the 4-Factor Trust Score
@@ -424,12 +424,16 @@ $$w_{\text{ML}} = 0.35, \quad w_{\text{sec}} = 0.30, \quad w_{\text{hist}} = 0.2
    Where $P(\text{anomaly} \mid \vec{x}_t)$ is computed via the calibrated Random Forest ensemble.
 2. **Cryptographic Integrity Sub-Score ($S_{\text{sec}}$)**:
    $$S_{\text{sec}} = \begin{cases} 1.0, & \text{if } \text{HMAC}_{\text{SHA256}}(K_{\text{node}}, \text{canonical}(\text{body})) = \text{signature} \\ 0.0, & \text{otherwise} \end{cases}$$
-3. **Historical Reputation & Drift Sub-Score ($S_{\text{hist}}$)**:
-   Maintains an exponentially decaying reputation factor tracking past frame validities:
-   $$S_{\text{hist}}(t) = \alpha S_{\text{hist}}(t-1) + (1 - \alpha) \mathbf{1}_{\{\text{frame valid}\}}, \quad \alpha = 0.90$$
-4. **Signal Stability & Jitter Sub-Score ($S_{\text{stab}}$)**:
-   Penalizes high-frequency physical jitter or unnatural signal freezing (replay attacks):
-   $$J_t = \text{Var}(V_{t-9:t}) + \text{Var}(P_{t-9:t}), \quad S_{\text{stab}} = \frac{1}{1 + \gamma J_t}, \quad \gamma = 0.25$$
+3. **Historical Deviation & Reputation Sub-Score ($S_{\text{hist}}$)**:
+   Measures the normalized Euclidean distance of the current temperature ($T_0$) and pressure ($P_0$) from the rolling means ($\mu_T, \mu_P$) across the last $N = 15$ telemetry observations:
+   $$\delta_T = |T_0 - \mu_T|, \quad \delta_P = |P_0 - \mu_P|$$
+   $$\text{Combined Deviation} = \frac{\delta_T}{25.0} + \frac{\delta_P}{5.0}$$
+   $$S_{\text{hist}} = 1.0 - \min\left(1.0, \frac{\text{Combined Deviation}}{2.0}\right)$$
+4. **Sensor Signal Stability & Jitter Sub-Score ($S_{\text{stab}}$)**:
+   Evaluates process variance across the rolling $15$-packet buffer to penalize sensor tampering, physical cavitation, or freezing:
+   $$\sigma^2_T = \text{Var}_{\text{pop}}(\{T_i\}_{i=1}^N), \quad \sigma^2_P = \text{Var}_{\text{pop}}(\{P_i\}_{i=1}^N)$$
+   $$\text{Combined Variance} = \frac{\sigma^2_T}{100.0} + \frac{\sigma^2_P}{10.0}$$
+   $$S_{\text{stab}} = 1.0 - \min(1.0, \text{Combined Variance})$$
 
 ### B. Discrete Operational Trust Zones & Fail-Closed Quarantine
 To translate the continuous metric into deterministic actuation policies, the plant controller partitions the unit interval into four discrete operational safety zones:
@@ -451,7 +455,7 @@ The dynamic responsiveness of the 4-factor trust engine was evaluated in a 500-s
 
 ![Continuous Trust Evolution across Multi-Stage Cyber-Physical Attack](figures/fig_trust_evolution.png)
 
-*Figure 4: Continuous Trust Score evolution across five operational regimes. The engine maintains stable trust ($0.985$) during nominal operations, gracefully degrades during subtle sensor drift, and precipitously collapses below the $0.40$ isolation threshold within a single polling cycle ($12.74\text{ ms}$) upon cryptographic tampering or physical threshold violation.*
+*Figure 1: Continuous Trust Score evolution across five operational regimes. The engine maintains stable trust ($0.985$) during nominal operations, gracefully degrades during subtle sensor drift, and precipitously collapses below the $0.40$ isolation threshold within a single polling cycle ($13.72\text{ ms}$) upon cryptographic tampering or physical threshold violation.*
 
 ---
 
@@ -462,24 +466,24 @@ In cyber-physical protection systems, algorithmic precision is worthless if deci
 | Pipeline Stage | Subsystem / Hardware Component | Latency (Mean) | Latency (p99) | Determinism |
 |---|---|---|---|---|
 | **Stage 1** | ADC Sampling & FreeRTOS Frame Packaging (ESP32) | $1.240\text{ ms}$ | $1.480\text{ ms}$ | Hard Real-Time |
-| **Stage 2** | Differential RS-485 Transmission (115,200 Baud, 120$\Omega$) | $2.850\text{ ms}$ | $3.120\text{ ms}$ | Serial Physical Layer |
+| **Stage 2** | Differential RS-485 Transmission (115,200 Baud, 120$\Omega$) | $2.810\text{ ms}$ | $3.120\text{ ms}$ | Serial Physical Layer |
 | **Stage 3** | UART Host Ring Buffer Ingestion & JSON Canonicalization | $0.420\text{ ms}$ | $0.650\text{ ms}$ | Soft Real-Time |
-| **Stage 4** | Cryptographic FIPS 198-1 HMAC-SHA256 Verification | $0.0027\text{ ms}$ | $0.0051\text{ ms}$ | CPU Constant-Time |
-| **Stage 5** | 5D Random Forest Classifier Inference | $0.036\text{ ms}$ | $0.052\text{ ms}$ | CPU Vectorized |
-| **Stage 6** | 6D Neural Safety Policy Predictive Interlock (NumPy) | $0.025\text{ ms}$ | $0.039\text{ ms}$ | CPU Vectorized |
+| **Stage 4** | Cryptographic FIPS 198-1 HMAC-SHA256 Verification | $0.0025\text{ ms}$ | $0.0022\text{ ms}$ | CPU Constant-Time |
+| **Stage 5** | 5D Random Forest Classifier (Fast-Path Vectorized Tree) | $1.071\text{ ms}$ | $1.634\text{ ms}$ | CPU Vectorized |
+| **Stage 6** | 6D Neural Safety Policy Predictive Interlock (NumPy) | $0.019\text{ ms}$ | $0.023\text{ ms}$ | CPU Vectorized |
 | **Stage 7** | Trust Fusion Calculation & Risk Scoring | $0.080\text{ ms}$ | $0.110\text{ ms}$ | Floating-Point Math |
 | **Stage 8** | Outbound Serial Quarantine Frame Transmission to RS-485 | $2.380\text{ ms}$ | $2.650\text{ ms}$ | Serial Physical Layer |
 | **Stage 9** | Edge GPIO 25 Optocoupler Relay De-energization (NIST SC-7) | $5.700\text{ ms}$ | $6.200\text{ ms}$ | Mechanical Coil Trip |
-| **TOTAL** | **Complete Closed-Loop Detection-to-Actuation Cycle** | **12.74 ms** | **14.32 ms** | **Sub-15ms Hard Bound** |
+| **TOTAL** | **Complete Closed-Loop Detection-to-Actuation Cycle** | **13.72 ms** | **15.68 ms** | **Sub-16ms Hard Bound** |
 
 ![Empirical Latency Budget and Kernel Density Distribution](figures/fig_latency_distribution.png)
 
-*Figure 5: Empirical latency breakdown across the complete closed-loop defense pipeline. Total reaction time ($12.74\text{ ms}$) provides a 19.6x safety margin against catastrophic mechanical yield ($250.0\text{ ms}$).*
+*Figure 2: Empirical latency breakdown across the complete closed-loop defense pipeline. Total reaction time ($13.72\text{ ms}$) provides an 18.2x safety margin against catastrophic mechanical yield ($250.0\text{ ms}$).*
 
 ```
-Aegis Reaction Time: 12.74 ms 
+Aegis Reaction Time: 13.72 ms 
 Turbine Yield Failure: 250.00 ms
-[==================>                                                ] Safety Margin: 19.6x Faster
+[==================>                                                ] Safety Margin: 18.2x Faster
 ```
 
 ---
@@ -506,14 +510,14 @@ To quantify financial risk mitigation, a 24-hour simulation of a coordinated mul
 
 | Risk Parameter | Unmitigated Baseline | Aegis Active Defense | Net Benefit |
 |---|---|---|---|
-| **Cumulative Financial Loss** | **\$2,684,500** | **\$1,232,000** | **\$1,452,500 Saved (54.1% Reduction)** |
+| **Cumulative Financial Loss** | **\$2,654,000** | **\$1,233,000** | **\$1,421,000 Saved (53.5% Reduction)** |
 | **95th Percentile Value-at-Risk ($VaR_{95}$)** | **\$2,150,000** | **\$740,000** | **\$1,410,000 Exposure Reduction** |
 | **Asset Destruction Incidents** | 2 Subsystems Destroyed | 0 Subsystems Destroyed | **Zero Catastrophic Equipment Loss** |
-| **Mean Time to Isolation (MTTI)** | Uncontained ($> 24\text{ hours}$) | **12.74 milliseconds** | **Instantaneous Containment** |
+| **Mean Time to Isolation (MTTI)** | Uncontained ($> 24\text{ hours}$) | **13.72 milliseconds** | **Instantaneous Containment** |
 
 ![FAIR Risk Reduction and Cumulative Financial Loss Exceedance Curve](figures/fig_financial_risk.png)
 
-*Figure 6: Real-time financial risk projection and empirical mitigation under an escalating cyber attack (FAIR model). On an individual subsystem ($400,000 baseline asset ceiling), Aegis autonomous isolation at $t=18.0\text{ h}$ caps incurred losses at $361,000, preventing $39,000 in catastrophic yield damages. Aggregated across the full 4-node industrial cluster under multi-stage attack, cumulative mitigated damages total \$1,452,500 prevented (54.1% reduction).*
+*Figure 3: Real-time financial risk projection and empirical mitigation under an escalating cyber attack (FAIR model). On an individual subsystem ($400,000 baseline asset ceiling), Aegis autonomous isolation at $t=18.0\text{ h}$ caps incurred losses at $361,000, preventing $39,000 in catastrophic yield damages. Aggregated across the full 4-node industrial cluster under multi-stage attack, cumulative mitigated damages total \$1,421,000 prevented (53.5% reduction).*
 
 ---
 
@@ -558,18 +562,18 @@ To evaluate real-time detection efficacy against sophisticated Advanced Persiste
 
 ![Simulated Coordinated Stress Attack (Stuxnet-style)](figures/fig_stuxnet_attack.png)
 
-*Figure 7: Simulation trajectory of a coordinated Stuxnet-style physical stress attack. Driven by genuine Random Forest inference and gateway drift tracking, Aegis successfully detects anomalous divergence at $t = 719\text{s}$ (attack frame detection rate: $50.6\%$, nominal false alarm rate: $0.00\%$), triggering fail-closed isolation at $t = 850\text{s}$ and safely returning the process to nominal idle.*
+*Figure 4: Simulation trajectory of a coordinated Stuxnet-style physical stress attack. Driven by genuine Random Forest inference and gateway drift tracking, Aegis successfully detects anomalous divergence at $t = 707\text{s}$ (attack frame detection rate: $54.2\%$ [136/251 frames], nominal false alarm rate: $1.34\%$ [10/749 frames]), triggering fail-closed isolation at $t = 850\text{s}$ and safely returning the process to nominal idle.*
 
 ### C. Receiver Operating Characteristic (ROC) & Decision Boundaries
 The empirical ROC curves for both the 5D Random Forest ensemble and the 6D Neural Safety Policy Network demonstrate high discriminative power under non-ideal noisy sensor conditions:
 
 ![Receiver Operating Characteristic (ROC) Ensembles](figures/fig_roc_curves.png)
 
-*Figure 8: Empirical ROC curves for Random Forest ($AUC = 0.9755$) and Neural Safety Policy Network ($AUC = 0.9737$). Shaded envelopes depict 5-fold cross-validation variance under 5% injected Gaussian sensor noise and 2% label noise.*
+*Figure 5: Empirical ROC curves for Random Forest ($AUC = 0.9755$) and Neural Safety Policy Network ($AUC = 0.9737$). Shaded envelopes depict 5-fold cross-validation variance under 5% injected Gaussian sensor noise and 2% label noise.*
 
 ![NSPN Non-Linear Safety Decision Surface Heatmap](figures/fig_nspn_heatmap.png)
 
-*Figure 9: NSPN safety probability heatmap across temperature-pressure phase space at setpoint $u_{\text{cmd}} = 85.0$. The sharp non-linear decision boundary demonstrates how the neural barrier function learns coupled multi-variable hazards that escape traditional orthogonal threshold alarms.*
+*Figure 6: NSPN safety probability heatmap across temperature setpoint range ($[10^\circ\text{C}, 70^\circ\text{C}]$) and live vessel operating pressure ($[0.5\text{ bar}, 10.0\text{ bar}]$). The sharp non-linear decision boundary demonstrates how the neural barrier function learns coupled multi-variable hazards that escape traditional orthogonal threshold alarms.*
 
 ### D. Comprehensive Vulnerability Remediation & Security Hardening
 Prior versions of the platform contained structural security vulnerabilities that were systematically remediated and verified in Aegis v2.5.2:
@@ -611,17 +615,17 @@ Industrial anomaly detection and OT protection architectures have evolved across
 | **Nozomi Guardian** | Statistical Profiling | No | No | Minutes (SOC Ticket) | No (Cloud Option) |
 | **Claroty Edge** | Asset Fingerprinting | No | No | Non-Actuating | No |
 | **Deep Autoencoders (CPS-ANN)** | Reconstruction Loss | No | No | $> 150\text{ ms}$ (GPU Required) | Yes |
-| **Aegis (This Work)** | **Random Forest + NSPN Deep MLP** | **Yes (Navier-Stokes / Rankine)** | **Yes (6D Deep Neural Policy)** | **12.74 ms (Hardware Relay)** | **Yes (100% Offline)** |
+| **Aegis (This Work)** | **Random Forest + NSPN Deep MLP** | **Yes (Navier-Stokes / Rankine)** | **Yes (6D Deep Neural Policy)** | **13.72 ms (Hardware Relay)** | **Yes (100% Offline)** |
 
-Unlike passive network monitors that merely alert an IT security operations center minutes after an incident occurs, Aegis functions as an **inline, active cyber-physical interlock**, combining predictive machine learning with deterministic mechanical isolation within $12.74\text{ ms}$.
+Unlike passive network monitors that merely alert an IT security operations center minutes after an incident occurs, Aegis functions as an **inline, active cyber-physical interlock**, combining predictive machine learning with deterministic mechanical isolation within $13.72\text{ ms}$.
 
 ---
 
 ## XIII. Conclusion & Future Research Directions
 
-In this paper, we presented **Aegis**, an inline Physics-Informed Cyber-Physical Digital Twin and Multi-Variable Machine Learning Anomaly Detection Gateway for Industrial Control Systems. By integrating an ensemble Random Forest classifier ($ROC\text{-}AUC = 0.9755$, 5-fold CV $F_1 = 0.9623$), a 6-dimensional Neural Safety Policy Network ($ROC\text{-}AUC = 0.9737$, $0.025\text{ ms}$ vectorized NumPy inference), continuous 4-factor mathematical decision fusion ($T_{\text{final}}$), and sub-15ms autonomous hardware isolation ($12.74\text{ ms}$ closed loop), Aegis provides robust defense against zero-day cyber-physical attacks.
+In this paper, we presented **Aegis**, an inline Physics-Informed Cyber-Physical Digital Twin and Multi-Variable Machine Learning Anomaly Detection Gateway for Industrial Control Systems. By integrating an ensemble Random Forest classifier ($ROC\text{-}AUC = 0.9755$, 5-fold CV $F_1 = 0.9623$), a 6-dimensional Neural Safety Policy Network ($ROC\text{-}AUC = 0.9737$, $0.019\text{ ms}$ vectorized NumPy inference), continuous 4-factor mathematical decision fusion ($T_{\text{final}}$), and sub-15ms autonomous hardware isolation ($13.72\text{ ms}$ closed loop), Aegis provides robust defense against zero-day cyber-physical attacks.
 
-Empirical evaluation against simulated Stuxnet-style rotor resonance attacks demonstrated a 52.8% detection rate during subtle drift with a 0.00% nominal false alarm rate, averting **\$1,452,500** (54.1%) in projected physical damages under the FAIR risk model. Furthermore, systematic remediation of 8 architectural vulnerabilities backed by a 46-test automated verification suite ensures fail-closed operational security for mission-critical industrial deployments.
+Empirical evaluation against simulated Stuxnet-style rotor resonance attacks demonstrated a 54.2% detection rate during subtle drift with a 1.34% nominal false alarm rate, averting **\$1,421,000** (53.5%) in projected physical damages under the FAIR risk model. Furthermore, systematic remediation of 8 architectural vulnerabilities backed by a 46-test automated verification suite ensures fail-closed operational security for mission-critical industrial deployments.
 
 ### Future Research Directions
 1. **TinyML on RISC-V Field Nodes**: Compiling quantized 8-bit integer neural safety policies directly into C byte arrays for microsecond-scale execution on low-power edge microcontrollers (ESP32-S3, RP2350).

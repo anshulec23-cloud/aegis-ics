@@ -1,6 +1,6 @@
-# Aegis ICS v2.5.0 — Release Distribution Directory
+# Aegis ICS v2.5.2 — Release Distribution Directory
 
-This directory contains the production release artifacts and compiled standalone deliverables for **Aegis ICS v2.5.0**.
+This directory contains the production release artifacts and compiled standalone deliverables for **Aegis ICS v2.5.2**.
 
 ---
 
@@ -9,15 +9,15 @@ This directory contains the production release artifacts and compiled standalone
 ```text
 dist/
 ├── linux/                                  # Dedicated Linux application distribution
-│   ├── AegisICS                            # Standalone 64-bit ELF binary (86.12 MB)
-│   ├── aegis-ics_2.5.0_amd64.deb           # Debian package for MX Linux / Debian (85.32 MB)
-│   ├── aegis-ics-2.5.0-linux-x86_64.tar.gz # Portable standalone tarball (85.49 MB)
+│   ├── AegisICS                            # Standalone 64-bit ELF binary
+│   ├── aegis-ics_2.5.2_amd64.deb           # Debian package for MX Linux / Debian
+│   ├── aegis-ics-2.5.2-linux-x86_64.tar.gz # Portable standalone tarball
 │   └── README.md                           # Comprehensive Linux operations & quickstart guide
 │
 ├── AegisICS                                # Direct symlink/copy of standalone Linux ELF binary
-├── AegisICS.exe                            # Standalone Windows desktop executable (348.5 MB)
-├── aegis-ics_2.5.0_amd64.deb               # Direct copy of Debian package
-├── aegis-ics-2.5.0-linux-x86_64.tar.gz     # Direct copy of Linux portable tarball
+├── AegisICS.exe                            # Standalone Windows desktop executable
+├── aegis-ics_2.5.2_amd64.deb               # Direct copy of Debian package
+├── aegis-ics-2.5.2-linux-x86_64.tar.gz     # Direct copy of Linux portable tarball
 └── README.md                               # This release distribution guide
 ```
 
@@ -33,7 +33,7 @@ chmod +x dist/linux/AegisICS
 ./dist/linux/AegisICS
 
 # 2. Or install Debian package:
-sudo dpkg -i dist/linux/aegis-ics_2.5.0_amd64.deb
+sudo dpkg -i dist/linux/aegis-ics_2.5.2_amd64.deb
 ```
 
 ### For Windows Users:
