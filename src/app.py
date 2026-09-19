@@ -265,15 +265,8 @@ class LocalRFModel :
                         p_sum += val[1] / (val[0] + val[1])
                     rf_prob = p_sum / len(self.fast_trees)
                 else:
-                    import pandas as pd
-                    features = pd.DataFrame([{
-                        "temperature": feat_vec[0],
-                        "pressure": feat_vec[1],
-                        "vibration": feat_vec[2],
-                        "hall_effect": feat_vec[3],
-                        "current": feat_vec[4]
-                    }])
-                    rf_prob = float(self.model.predict_proba(features)[0][1])
+                    import numpy as np
+                    rf_prob = float(self.model.predict_proba(np.array([feat_vec]))[0][1])
 
                 if rf_prob > 0.5:
                     anomaly += 0.6

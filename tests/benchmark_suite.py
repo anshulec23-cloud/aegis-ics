@@ -127,14 +127,7 @@ def benchmark_stuxnet_attack():
                 true_pres[t] += 2.1
                 true_vib[t] += 2.0
 
-    import pandas as pd
-    df_feat = pd.DataFrame({
-        'temperature': true_temp,
-        'pressure': true_pres,
-        'vibration': true_vib,
-        'hall_effect': true_hall,
-        'current': true_curr
-    })
+    df_feat = np.column_stack([true_temp, true_pres, true_vib, true_hall, true_curr])
     rf_probs = rf_model.predict_proba(df_feat)[:, 1] if rf_model is not None else np.zeros(n_steps)
 
     # Genuine Random Forest anomaly probability from active model without synthetic drift blending

@@ -1457,11 +1457,8 @@ def test_ml_model_synthetic_inference():
     model = joblib.load(model_path)
     assert hasattr(model, "predict"), "Model object has no predict method"
 
-    import pandas as pd
-    features = ["temperature", "pressure", "vibration", "hall_effect", "current"]
-
     # Nominal condition: 25.0 C, 4.0 bar, 1.0 g, 1500 RPM, 4.5 A
-    nominal_sample = pd.DataFrame([[25.0, 4.0, 1.0, 1500.0, 4.5]], columns=features)
+    nominal_sample = np.array([[25.0, 4.0, 1.0, 1500.0, 4.5]])
     pred_nominal = model.predict(nominal_sample)[0]
     prob_nominal = model.predict_proba(nominal_sample)[0][1]
 
@@ -1469,7 +1466,7 @@ def test_ml_model_synthetic_inference():
     assert prob_nominal < 0.25, f"Expected low anomaly prob, got {prob_nominal}"
 
     # Stuxnet severe resonance attack: 75.0 C, 11.0 bar, 7.5 g, 3800 RPM, 14.5 A
-    attack_sample = pd.DataFrame([[75.0, 11.0, 7.5, 3800.0, 14.5]], columns=features)
+    attack_sample = np.array([[75.0, 11.0, 7.5, 3800.0, 14.5]])
     pred_attack = model.predict(attack_sample)[0]
     prob_attack = model.predict_proba(attack_sample)[0][1]
 
