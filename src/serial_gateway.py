@@ -35,19 +35,106 @@ DEFAULT_GATEWAY_URL ="http://127.0.0.1:5000/api/telemetry"
 DEFAULT_DEVICE_KEY = get_device_key ("ESP32_001")
 
 import threading 
+import collections
+
 _gateway_stop_event =threading .Event ()
 _active_port =None 
 _command_queue =queue .Queue ()
+_raw_packet_buffer =collections.deque(maxlen=150)
+_buffer_lock =threading.Lock()
+
+_active_nodes = {}
+_master_bridge_info = {"status": "OFFLINE", "last_seen": None, "details": None}
+_gateway_state = "DISCONNECTED"
 
 def stop_gateway ():
+    global _gateway_state
     _gateway_stop_event .set ()
+    _gateway_state = "DISCONNECTED"
 
 def get_active_port ():
     return _active_port if not _gateway_stop_event .is_set ()else None 
 
+def get_gateway_state():
+    return _gateway_state
+
+def get_master_bridge_info():
+    with _buffer_lock:
+        return dict(_master_bridge_info)
+
+def get_active_nodes():
+    """Returns detected active slave nodes and their sensor profiles."""
+    now = time.time()
+    with _buffer_lock:
+        result = {}
+        for dev_id, info in _active_nodes.items():
+            sensors_list = sorted(list(info.get("sensors", [])))
+            result[dev_id] = {
+                "device_id": dev_id,
+                "first_seen": info.get("first_seen"),
+                "last_seen": info.get("last_seen"),
+                "packet_count": info.get("packet_count", 0),
+                "sensors": sensors_list,
+                "active_sensors_count": len(sensors_list),
+                "is_online": (now - info.get("last_seen", 0)) <= 10.0,
+                "latest_values": dict(info.get("latest_values", {}))
+            }
+        return result
+
+def get_gateway_health():
+    """Returns comprehensive gateway health and bus topology status."""
+    active = get_active_nodes()
+    total_sensors = sum(n["active_sensors_count"] for n in active.values())
+    online_nodes = sum(1 for n in active.values() if n["is_online"])
+    return {
+        "state": _gateway_state,
+        "active_port": _active_port,
+        "active_nodes_count": len(active),
+        "online_nodes_count": online_nodes,
+        "total_active_sensors": total_sensors,
+        "master_bridge": get_master_bridge_info()
+    }
+
+def find_esp32_ports():
+    """Scans and returns serial ports with ESP32 / USB-UART hardware flags."""
+    if not serial_available:
+        return []
+    try:
+        from serial.tools import list_ports
+        results = []
+        # Common USB-UART bridge identifiers used with ESP32 boards
+        esp_keywords = ["CP210", "CH340", "CH341", "FTDI", "UART", "ESP32", "USB SERIAL", "USB-SERIAL"]
+        for p in list_ports.comports():
+            desc = p.description or ""
+            hwid = getattr(p, "hwid", "") or ""
+            is_esp = any(k in desc.upper() or k in hwid.upper() for k in esp_keywords)
+            results.append({
+                "device": p.device,
+                "description": desc,
+                "hwid": hwid,
+                "is_esp32_candidate": is_esp
+            })
+        return results
+    except Exception as e:
+        print(f"[Gateway] Error enumerating ports: {e}")
+        return []
+
 def send_command (payload_dict ):
     """Enqueues a command to be written to the serial port."""
     _command_queue .put (payload_dict )
+
+def get_recent_raw_packets(limit=50):
+    with _buffer_lock:
+        return list(_raw_packet_buffer)[-limit:]
+
+def log_raw_wire_packet(line: str, parsed: bool = True, target_id: str = "ESP32_001"):
+    with _buffer_lock:
+        _raw_packet_buffer.append({
+            "timestamp": time.time(),
+            "line": line.strip(),
+            "parsed": parsed,
+            "device_id": target_id
+        })
 
 def canonicalize_payload (payload :dict )->dict :
     canonical ={}
@@ -65,17 +152,26 @@ def sign_message (payload :dict ,key :str )->str :
     canonical =json .dumps (canonical_payload ,sort_keys =True ,separators =(",",":"))
     return hmac .new (key .encode ("utf-8"),canonical .encode ("utf-8"),hashlib .sha256 ).hexdigest ()
 
-def parse_serial_line (line :str ,mode :str ):
+def parse_serial_line (line :str ,mode :str = "production" ):
     line =line .strip ()
     if not line :
         return None 
-
 
     import re 
     json_match =re .search (r'(\{.*\})',line )
     if json_match :
         try :
             data =json .loads (json_match .group (1 ))
+            # Intercept and register Master Concentrator Bridge status frames
+            if "system" in data and ("Concentrator" in str(data.get("system", "")) or "Master" in str(data.get("system", ""))):
+                with _buffer_lock:
+                    _master_bridge_info["status"] = data.get("status", "ONLINE")
+                    _master_bridge_info["last_seen"] = time.time()
+                    _master_bridge_info["details"] = data
+                    _master_bridge_info["bridge_id"] = data.get("bridge_id", "MASTER_CONCENTRATOR")
+                    _master_bridge_info["firmware"] = data.get("firmware", "2.3.0")
+                return {"_is_bridge_msg": True, "bridge_data": data, "type": "MASTER_ANNOUNCEMENT", "bridge_id": data.get("bridge_id", "MASTER_CONCENTRATOR")}
+
             res = {}
             if "device_id" in data or "id" in data or "slave_id" in data:
                 res["device_id"] = str(data.get("device_id", data.get("id", data.get("slave_id"))))
@@ -87,8 +183,8 @@ def parse_serial_line (line :str ,mode :str ):
                 res["pressure"] = float(data.get("pres", data.get("pressure")))
             if "vib" in data or "vibration" in data:
                 res["vibration"] = float(data.get("vib", data.get("vibration")))
-            if "hall" in data or "hall_effect" in data:
-                res["hall_effect"] = float(data.get("hall", data.get("hall_effect")))
+            if "hall" in data or "hall_effect" in data or "rpm" in data:
+                res["hall_effect"] = float(data.get("hall", data.get("hall_effect", data.get("rpm", 0.0))))
             if "curr" in data or "current" in data:
                 res["current"] = float(data.get("curr", data.get("current")))
             if "hum" in data or "humidity" in data:
@@ -354,7 +450,7 @@ def mock_serial_stream(mode):
     return json.dumps(packet) + "\n"
 
 def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_key =None ,url =DEFAULT_GATEWAY_URL ,mock =False ):
-    global _active_port 
+    global _active_port, _gateway_state
     import time 
     _gateway_stop_event .clear ()
     _active_port = (port if port else "SIM_CLUSTER") if mock else port
@@ -371,10 +467,13 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
     ser = None
     def _try_connect():
         nonlocal ser
+        global _gateway_state
         if mock:
+            _gateway_state = "CONNECTED"
             return True
         if not serial_available:
             print("[CRITICAL] PySerial not installed. Install it or run with mock=True.")
+            _gateway_state = "DISCONNECTED"
             return False
         try:
             ser = serial.Serial(port, baudrate=baud, timeout=1)
@@ -383,10 +482,12 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
             ser.reset_input_buffer()
             ser.reset_output_buffer()
             print(f"[Gateway] Connected to COM port: {port} @ {baud} baud (Buffers Cleared)")
+            _gateway_state = "CONNECTED"
             return True
         except Exception as e:
             print(f"[Gateway] Could not connect to COM port {port}: {e}")
             ser = None
+            _gateway_state = "RECONNECTING" if not _gateway_stop_event.is_set() else "DISCONNECTED"
             return False
 
     if not mock:
@@ -399,6 +500,7 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
             # Auto-reconnect if physical serial connection was lost or interrupted
             if not mock and (ser is None or not ser.is_open):
                 print(f"[Gateway] Attempting auto-reconnect to {port}...")
+                _gateway_state = "RECONNECTING"
                 if not _try_connect():
                     for _ in range(10):
                         if _gateway_stop_event.is_set():
@@ -426,9 +528,36 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
 
             raw_data = parse_serial_line(line, mode)
             if not raw_data:
+                log_raw_wire_packet(line, parsed=False, target_id="UNKNOWN")
+                continue
+
+            # Check if this frame is a Master Concentrator announcement
+            if raw_data.get("_is_bridge_msg"):
+                log_raw_wire_packet(line, parsed=True, target_id="MASTER_BRIDGE")
+                print(f"[Gateway] Master Concentrator Bridge verified: {raw_data.get('bridge_data')}")
                 continue
 
             target_device_id = raw_data.get("device_id") or default_dev_id
+            log_raw_wire_packet(line, parsed=True, target_id=target_device_id)
+
+            # Update active nodes & sensor detection registry
+            detected_sensors = []
+            for s_name in ("temperature", "pressure", "vibration", "hall_effect", "current"):
+                if s_name in raw_data and raw_data[s_name] is not None:
+                    detected_sensors.append(s_name)
+
+            with _buffer_lock:
+                if target_device_id not in _active_nodes:
+                    _active_nodes[target_device_id] = {
+                        "first_seen": time.time(),
+                        "packet_count": 0,
+                        "sensors": set()
+                    }
+                _active_nodes[target_device_id]["last_seen"] = time.time()
+                _active_nodes[target_device_id]["packet_count"] += 1
+                _active_nodes[target_device_id]["sensors"].update(detected_sensors)
+                _active_nodes[target_device_id]["latest_values"] = {k: raw_data[k] for k in detected_sensors}
+
             payload = {
                 "device_id": target_device_id,
             }
@@ -440,7 +569,7 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
                     payload[k] = raw_data[k]
 
             reported_fields = [k for k in raw_data.keys()]
-            print(f"[Gateway DEBUG] [{target_device_id}] Fields: {reported_fields}")
+            print(f"[Gateway DEBUG] [{target_device_id}] Fields: {reported_fields} (Detected {len(detected_sensors)}/5 sensors)")
 
             if "signature" in raw_data and raw_data["signature"]:
                 payload["signature"] = raw_data["signature"]
@@ -479,6 +608,7 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
         except Exception as e:
             print(f"[Gateway] Error closing COM port: {e}")
     _active_port = None
+    _gateway_state = "DISCONNECTED"
     print("[Gateway] Shutdown complete.")
 
 if __name__ == "__main__":

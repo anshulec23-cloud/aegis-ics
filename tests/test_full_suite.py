@@ -1736,6 +1736,127 @@ def test_v5_neural_policy_exception_fail_closed():
         db.close()
 
 
+def test_login_audit_success_and_failure():
+    """Verify that both valid and invalid authentication attempts are audited with operator identity and IP."""
+    from app import app
+    from database import SessionLocal, AuditLog
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    # 1. Failed login
+    res = client.post("/login", data={"username": "unauthorized_user", "password": "wrong_password"}, follow_redirects=False)
+    assert res.status_code == 401
+
+    db = SessionLocal()
+    try:
+        failed_log = db.query(AuditLog).filter_by(action="LOGIN_FAILED").order_by(AuditLog.timestamp.desc()).first()
+        assert failed_log is not None
+        assert "unauthorized_user" in failed_log.details
+        assert "Client IP" in failed_log.details
+
+        # 2. Successful login with noodles / noodles
+        res_ok = client.post("/login", data={"username": "noodles", "password": "noodles"}, follow_redirects=False)
+        assert res_ok.status_code == 302
+
+        success_log = db.query(AuditLog).filter_by(action="LOGIN_SUCCESS").order_by(AuditLog.timestamp.desc()).first()
+        assert success_log is not None
+        assert "noodles" in success_log.details
+        assert success_log.user_id is not None
+    finally:
+        db.close()
+
+
+def test_audit_logs_enriched_filters_and_operator():
+    """Verify /api/audit/logs enriched schema (operator, severity, nist_control) and filtering."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["csrf_token"] = "valid_csrf"
+    headers = {"X-CSRF-Token": "valid_csrf"}
+
+    res = client.get("/api/audit/logs?limit=50", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert isinstance(data["logs"], list)
+    assert len(data["logs"]) > 0
+
+    first = data["logs"][0]
+    assert "operator" in first
+    assert "action" in first
+    assert "severity" in first
+    assert "nist_control" in first
+    assert "location" in first
+    assert "timestamp" in first
+
+    # Test category filter
+    res_auth = client.get("/api/audit/logs?category=AUTH", headers=headers)
+    assert res_auth.status_code == 200
+    data_auth = res_auth.get_json()
+    for log in data_auth["logs"]:
+        act = log["action"].upper()
+        assert any(k in act for k in ("LOGIN", "LOGOUT", "AUTH"))
+
+
+def test_serial_gateway_raw_packet_buffer_and_api():
+    """Verify UART wire packet buffer and /api/gateway/raw_packets endpoint."""
+    from app import app
+    import serial_gateway
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["csrf_token"] = "valid_csrf"
+    headers = {"X-CSRF-Token": "valid_csrf"}
+
+    # Simulate wire packet log
+    serial_gateway.log_raw_wire_packet('{"device_id":"ESP32_001","temp":28.5,"pressure":4.2}', parsed=True, target_id="ESP32_001")
+    serial_gateway.log_raw_wire_packet('INVALID_GARBLED_UART_FRAME', parsed=False, target_id="UNKNOWN")
+
+    res = client.get("/api/gateway/raw_packets", headers=headers)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert len(data["packets"]) >= 2
+    assert any("ESP32_001" in p["line"] for p in data["packets"])
+    assert any("INVALID_GARBLED_UART_FRAME" in p["line"] for p in data["packets"])
+
+
+def test_hardware_model_calibration_and_status_api():
+    """Verify /api/model/status and /api/model/retrain hardware calibration endpoint."""
+    from app import app
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["csrf_token"] = "valid_csrf"
+    headers = {"X-CSRF-Token": "valid_csrf"}
+
+    # 1. Model status
+    res_status = client.get("/api/model/status", headers=headers)
+    assert res_status.status_code == 200
+    status_data = res_status.get_json()
+    assert status_data["success"] is True
+    assert "real_samples_count" in status_data
+    assert "enforcement_status" in status_data
+
+    # 2. Trigger model retrain / calibration
+    res_retrain = client.post("/api/model/retrain", headers=headers, json={})
+    assert res_retrain.status_code == 200
+    retrain_data = res_retrain.get_json()
+    assert retrain_data["success"] is True
+    assert "metrics" in retrain_data
+    assert retrain_data["metrics"]["accuracy"] > 0.80
+
+
 
 
 

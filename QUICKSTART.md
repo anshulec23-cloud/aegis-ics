@@ -41,13 +41,13 @@ Key environment variables:
 
 ## 3. Run the Automated Test Suite
 
-Execute the complete 46-module pytest test suite:
+Execute the complete 60-test pytest suite (50 core + 10 hardware integration):
 
 ```powershell
-python -m pytest tests/ -v
+python -m pytest tests/test_full_suite.py tests/test_production_hardware_integration.py -v
 ```
 
-This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, air-gapped asset availability, 5-feature ML anomaly inference, SSE streaming, and multi-threaded stress concurrency.
+This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, physical Master Concentrator bridge detection, 5-transducer dynamic profiling, and multi-threaded stress concurrency.
 
 ---
 
@@ -75,9 +75,23 @@ python src/main.py
 # Linux / MX Linux:
 python3 src/main.py
 
-# Or run the standalone compiled binary:
-./dist/AegisICS
+# Or launch the standalone compiled binaries:
+# Windows:
+.\dist\AegisICS.exe
+
+# Linux:
+./dist/linux/AegisICS
 ```
+
+---
+
+## 5. Physical Hardware Connection (ESP32 Master Concentrator)
+
+1. Connect the **ESP32 Master Concentrator** to your PC via USB.
+2. Launch Aegis ICS and navigate to **Station 06 (Gateway)**.
+3. In the **Hardware COM Port** dropdown, choose the port marked with `★ [ESP32 DETECTED]` (e.g. `COM3` or `/dev/ttyUSB0`).
+4. Select `115200` baud and click **CONNECT GATEWAY**.
+5. Switch to **Station 01 (Monitor)**: verify the **Cluster Topology Ribbon** shows detected nodes, total active transducers (`5/5`), and live telemetry waveforms.
 
 Launches the native PyWebView window with anti-debugging protections, ephemeral port allocation, system tray integration (`pystray`), and background GitHub update checking.
 

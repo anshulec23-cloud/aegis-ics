@@ -12,9 +12,9 @@ Welcome to the technical documentation repository for **Aegis ICS v2.5.2**. This
 | [`threat_model.md`](threat_model.md) | Markdown | Industrial threat taxonomy identifying threat actors (APT Tier 5, Insiders, Ransomware), attack scenarios (Stuxnet, HMAC replay, Thermal creep), and NIST defensive controls. |
 | [`trust_scoring.md`](trust_scoring.md) | Markdown | Mathematical formalism for the continuous 4-parameter trust scoring engine ($T_{\text{final}}$), historical deviation, signal stability variance, and low-confidence fallback logic. |
 | [`linux_deployment.md`](linux_deployment.md) | Markdown | Comprehensive operations and installation guide for **MX Linux (XFCE)** and Debian, covering `.deb` installation, SysVinit scripts, systemd units, and USB serial permissions. |
-| [`evaluation.md`](evaluation.md) | Markdown | Empirical evaluation results, cryptographic throughput benchmarks (>12,000 pkts/sec), Neural Safety Policy inference (0.025 ms), microsegmentation reaction latency (12.7 ms), and the full 46/46 test pass matrix. |
-| [`build_pipeline.md`](build_pipeline.md) | Markdown | Detailed compilation and packaging pipeline documentation for building standalone executables and packages on Windows (AegisICS.exe) and Linux (.deb / ELF / .tar.gz). |
-| [`paper_draft.md`](paper_draft.md) | Academic Draft | Publication-grade academic manuscript targeted for *IEEE TNNLS*, *IEEE Transactions on Cybernetics*, and *ACM TCPS*. |
+| [`evaluation.md`](evaluation.md) | Markdown | Empirical evaluation results, cryptographic throughput benchmarks (>12,000 pkts/sec), Neural Safety Policy inference (0.025 ms), microsegmentation reaction latency (12.7 ms), 6 publication-quality empirical figures, and the full 60/60 test pass matrix. |
+| [`build_pipeline.md`](build_pipeline.md) | Markdown | Detailed compilation and packaging pipeline documentation for building standalone executables and packages on Windows (`dist/AegisICS.exe`) and Linux (`dist/linux/` ELF, `.deb`, `.tar.gz`). |
+| [`paper_draft.md`](paper_draft.md) | Academic Draft | Publication-grade academic manuscript targeted for *IEEE TNNLS*, *IEEE Transactions on Cybernetics*, and *ACM TCPS*, incorporating 6 empirical evaluation figures and FAIR financial modeling. |
 
 ---
 

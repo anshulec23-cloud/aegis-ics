@@ -541,6 +541,107 @@ def train_neural_safety_policy(metrics_dict: dict):
     print("[+] All Neural Safety Policy sanity checks PASSED.")
 
 
+def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
+    """
+    Dynamically trains/calibrates the 5D Random Forest model using genuine hardware
+    telemetry frames ingested via the serial COM port gateway.
+    Blends live operational sensor baselines with adversarial anomaly bounds.
+    """
+    from database import TelemetryLog
+
+    if model_path is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, "model", "rf_model.pkl")
+
+    # Fetch genuine (non-simulated) telemetry records
+    real_logs = (
+        db_session.query(TelemetryLog)
+        .filter(TelemetryLog.is_simulated == False)
+        .order_by(TelemetryLog.timestamp.desc())
+        .limit(2500)
+        .all()
+    )
+
+    real_samples = []
+    real_labels = []
+    for log in real_logs:
+        if None not in (log.temperature, log.pressure, log.vibration, log.current):
+            hall = float(log.hall_effect) if log.hall_effect is not None else 0.0
+            vec = [float(log.temperature), float(log.pressure), float(log.vibration), hall, float(log.current)]
+            real_samples.append(vec)
+            real_labels.append(1 if log.is_anomaly else 0)
+
+    # Blend with synthetic boundary and attack profiles to preserve defense envelopes
+    X_synth, y_synth = generate_synthetic_dataset(n_samples=6000, random_state=int(time.time()) % 100000)
+
+    if real_samples:
+        X_real = np.array(real_samples, dtype=np.float64)
+        y_real = np.array(real_labels, dtype=np.int64)
+        # Duplicate real samples to give them sufficient weight if small count
+        repeat_factor = max(1, min(10, 1000 // len(real_samples)))
+        X_real_weighted = np.tile(X_real, (repeat_factor, 1))
+        y_real_weighted = np.tile(y_real, repeat_factor)
+        X_combined = np.vstack([X_synth, X_real_weighted])
+        y_combined = np.concatenate([y_synth, y_real_weighted])
+    else:
+        X_combined = X_synth
+        y_combined = y_synth
+
+    indices = np.arange(len(X_combined))
+    np.random.seed(42)
+    np.random.shuffle(indices)
+    X_final = X_combined[indices]
+    y_final = y_combined[indices]
+
+    X_train, X_test, y_train, y_test = train_test_split(X_final, y_final, test_size=0.20, random_state=42, stratify=y_final)
+
+    rf = RandomForestClassifier(
+        n_estimators=75,
+        max_depth=16,
+        min_samples_split=4,
+        min_samples_leaf=2,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1
+    )
+    rf.fit(X_train, y_train)
+
+    preds = rf.predict(X_test)
+    probs = rf.predict_proba(X_test)[:, 1]
+    acc = float(accuracy_score(y_test, preds))
+    auc = float(roc_auc_score(y_test, probs))
+
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    with open(model_path, "wb") as f:
+        pickle.dump(rf, f)
+
+    result = {
+        "success": True,
+        "hardware_samples_used": len(real_samples),
+        "total_training_samples": len(X_final),
+        "accuracy": round(acc, 4),
+        "roc_auc": round(auc, 4),
+        "timestamp": time.time(),
+        "status": "HARDWARE_CALIBRATED" if len(real_samples) > 0 else "SYNTHETIC_BASELINE"
+    }
+
+    # Update training_metrics.json
+    metrics_path = os.path.join(os.path.dirname(model_path), "training_metrics.json")
+    try:
+        metrics_dict = {}
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r") as mf:
+                metrics_dict = json.load(mf)
+        metrics_dict["hardware_calibration"] = result
+        with open(metrics_path, "w") as mf:
+            json.dump(metrics_dict, mf, indent=2)
+    except Exception as e:
+        print(f"[ModelRetrain] Could not update training_metrics.json: {e}")
+
+    print(f"[ModelRetrain] Successfully trained model on {len(real_samples)} hardware samples (Accuracy: {acc*100:.1f}%, AUC: {auc:.4f})")
+    return result
+
+
 if __name__ == "__main__":
     all_metrics = {}
     train_random_forest(all_metrics)

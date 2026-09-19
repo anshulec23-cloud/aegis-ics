@@ -52,6 +52,14 @@ Aegis ICS protects critical Operational Technology (OT) and Industrial Control S
   - 3D physical location tagging (`X, Y, Z`) cryptographically recorded for every login and configuration change.
   - Inverted boundary rejection (e.g., $T_{\text{max}} < T_{\text{min}}$ rejected with audit trail).
 
+### 3.5 Scenario E: False Data Injection (FDI) Spikes & Master Concentrator Bus Tampering
+- **Mechanism**: Adversary injects acoustic resonance spikes into rotor Hall effect pickups or bridges the RS-485 differential pair to transmit malformed frames.
+- **Impact**: False tripping of critical generation capacity or bypassing hardware interlocks.
+- **Aegis ICS Defense**:
+  - Master Concentrator validates bus integrity and reports link health via system announcement frames.
+  - 5-transducer rolling stability variance filter ($S_{\text{stability}}$) detects high-frequency jitter and sudden sensor flatlines.
+  - Neural Safety Policy Network (NSPN) evaluates joint 6D physical feasibility, rejecting non-physical state transitions.
+
 ---
 
 ## 4. Security Controls & Defensive Taxonomy (NIST SP 800-82 / SP 800-61)

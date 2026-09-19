@@ -10,7 +10,7 @@ echo "================================================================="
 echo " Aegis ICS v2.5.2 — Automated Linux Build Launcher"
 echo "================================================================="
 
-# Detect Python interpreter
+# Detect Python interprete
 if which python3 >/dev/null 2>&1; then
     PYTHON=python3
 elif which python >/dev/null 2>&1; then
@@ -22,7 +22,7 @@ fi
 
 echo "Using Python: $($PYTHON --version)"
 
-# Check for PyInstaller
+# Check for PyInstalle
 if ! $PYTHON -m PyInstaller --version >/dev/null 2>&1; then
     echo "PyInstaller not found. Attempting to install PyInstaller..."
     $PYTHON -m pip install pyinstaller || pip3 install pyinstaller || true

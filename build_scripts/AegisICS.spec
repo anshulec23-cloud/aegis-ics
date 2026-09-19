@@ -10,6 +10,10 @@ ReportLab PDF engine, Random Forest ML pipeline, and offline vendor assets.
 import os
 import sys
 
+spec_dir = os.path.dirname(os.path.abspath(SPEC))
+project_root = os.path.dirname(spec_dir)
+src_dir = os.path.join(project_root, "src")
+
 block_cipher = None
 
 # 1. Resolve Python runtime DLL dynamically across environments
@@ -25,10 +29,10 @@ binaries = [(python_dll, '.')] if python_dll else []
 
 # 2. Bundle UI templates, offline static vendor assets, ML model, and database
 datas = [
-    ('..\\src\\templates', 'templates'),
-    ('..\\src\\static', 'static'),
-    ('..\\src\\model', 'model'),
-    ('..\\aegis_v2.db', '.'),
+    (os.path.join(src_dir, 'templates'), 'templates'),
+    (os.path.join(src_dir, 'static'), 'static'),
+    (os.path.join(src_dir, 'model'), 'model'),
+    (os.path.join(project_root, 'aegis_v2.db'), '.'),
 ]
 
 # 3. Explicit hidden imports for dynamic imports and runtime dependencies
@@ -75,11 +79,12 @@ hiddenimports = [
     'updater',
     'tray',
     'trust_engine',
+    'train_model',
 ]
 
 a = Analysis(
-    ['..\\src\\main.py'],
-    pathex=['..\\src'],
+    [os.path.join(src_dir, 'main.py')],
+    pathex=[src_dir, project_root],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -103,7 +108,7 @@ exe = EXE(
     a.datas,
     [],
     name='AegisICS',
-    icon='..\\src\\static\\Achilles.ico',
+    icon=os.path.join(src_dir, 'static', 'Achilles.ico'),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

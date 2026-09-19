@@ -2,7 +2,7 @@
 
 [![Release Version](https://img.shields.io/badge/release-v2.5.2-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
-[![Tests Status](https://img.shields.io/badge/tests-46%2F46%20passing-brightgreen.svg)](#quality-assurance-and-testing)
+[![Tests Status](https://img.shields.io/badge/tests-60%2F60%20passing-brightgreen.svg)](#quality-assurance-and-testing)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -417,7 +417,9 @@ tests/test_full_suite.py::test_v2_safe_pickle_deserialization_flags PASSED [ 95%
 tests/test_full_suite.py::test_v4_new_device_trust_initialization PASSED [ 97%]
 tests/test_full_suite.py::test_v5_neural_policy_exception_fail_closed PASSED [100%]
 
-============================= 46 passed in 47.86s =============================
+tests/test_production_hardware_integration.py (10 tests) ..........                   [100%]
+
+============================= 60 passed in 12.47s =============================
 ```
 
 ---
@@ -426,17 +428,24 @@ tests/test_full_suite.py::test_v5_neural_policy_exception_fail_closed PASSED [10
 
 | Endpoint | Method | Description |
 |---|---|---|
-| /api/data | GET | Fetches real-time telemetry, financial risk analytics, and recent spatial audit logs. |
-| /api/stream | GET | Server-Sent Events (SSE) sub-second telemetry push stream. |
-| /api/telemetry | POST | Ingests sensor payload with HMAC-SHA256 signature verification. |
-| /api/setpoint | POST | Issues supervisory SCADA command subject to Safety Enforcer and NSPN validation. |
-| /api/rules/update | POST | Configures safety threshold boundaries (temperature and pressure limits). |
-| /api/simulate-attack | POST | Triggers simulated attacks (stuxnet, injection, privilege) for test drills. |
-| /api/device/isolate | POST | Manually puts active field device into quarantined isolation. |
-| /api/device/rejoin | POST | Clears quarantine and restores device to the active network. |
-| /api/report/download | GET | Generates and streams official NIST SP 800-53 incident audit PDF. |
-| /api/serial/ports | GET | Scans and lists host hardware COM serial ports. |
-| /api/serial/connect | POST | Initiates serial gateway data acquisition from specified COM port. |
+| `/api/data` | GET | Fetches real-time telemetry, financial risk analytics, and recent spatial audit logs. |
+| `/api/stream` | GET | Server-Sent Events (SSE) sub-second telemetry push stream. |
+| `/api/telemetry` | POST | Ingests sensor payload with HMAC-SHA256 signature verification. |
+| `/api/cluster/topology` | GET | Returns dynamic node enumeration, active transducer counts, and Master Concentrator status. |
+| `/api/devices` | GET | Lists all active and configured field nodes with per-node 5-transducer profiles. |
+| `/api/setpoint` | POST | Issues supervisory SCADA command subject to Safety Enforcer and NSPN validation. |
+| `/api/rules/update` | POST | Configures safety threshold boundaries (temperature and pressure limits). |
+| `/api/simulate-attack` | POST | Triggers simulated attacks (stuxnet, injection, privilege) for test drills. |
+| `/api/device/isolate` | POST | Manually trips field device into quarantined isolation. |
+| `/api/device/rejoin` | POST | Clears quarantine, restores nominal operation, and resets trust baseline. |
+| `/api/financial/analytics` | GET | Computes real-time FAIR risk metrics (unmitigated loss, incurred cost, prevented cost). |
+| `/api/financial/loss_distribution` | GET | Generates 12-point Monte Carlo loss exceedance distribution (P05 through P99). |
+| `/api/financial/subsystems` | GET | Returns subsystem capital valuations, downtime rates, and active outage liabilities. |
+| `/api/model/retrain` | POST | Performs continuous on-hardware calibration incorporating live UART frames into Random Forest. |
+| `/api/report/download` | GET | Generates and streams official NIST SP 800-53 incident audit PDF. |
+| `/api/com_ports` | GET | Scans host COM ports and flags candidate ESP32 USB-UART bridges. |
+| `/api/com_ports/connect` | POST | Initiates serial gateway data acquisition from specified COM port. |
+| `/api/com_ports/disconnect` | POST | Safely disconnects the active serial gateway driver. |
 
 ---
 

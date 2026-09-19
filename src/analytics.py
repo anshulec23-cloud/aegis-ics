@@ -66,6 +66,23 @@ SUBSYSTEM_PROFILES = {
 }
 
 
+def get_subsystem_profile(dev_id: str) -> Dict[str, Any]:
+    """Returns the financial profile for a device ID, generating a dynamic Tier-2 profile for new nodes."""
+    if dev_id in SUBSYSTEM_PROFILES:
+        return SUBSYSTEM_PROFILES[dev_id]
+    return {
+        "name": f"Industrial Node ({dev_id})",
+        "zone": "Auxiliary RS-485 Segment",
+        "equipment_value": 250000.0,
+        "cleanup_remediation": 50000.0,
+        "base_sle": 300000.0,
+        "downtime_rate_per_hour": 12500.0,
+        "criticality": "TIER-2 HIGH",
+        "epa_fines": 75000.0,
+        "nerc_cip_fines": 75000.0,
+    }
+
+
 def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     """
     Comprehensive Quantitative Risk & Financial Analytics Engine.
@@ -171,8 +188,8 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         threat_index = max(threat_index, 52.0)
 
     # Subsystem profiles and downtime rates
-    if device_id and device_id in SUBSYSTEM_PROFILES:
-        target_profile = SUBSYSTEM_PROFILES[device_id]
+    if device_id and device_id != "ALL":
+        target_profile = get_subsystem_profile(device_id)
         base_sle = target_profile["base_sle"]
         downtime_rate = target_profile["downtime_rate_per_hour"]
         max_epa = target_profile["epa_fines"]
@@ -184,10 +201,10 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         max_nerc = sum(p["nerc_cip_fines"] for p in SUBSYSTEM_PROFILES.values())
 
     # Active outage hourly rate for isolated nodes
-    if device_id and device_id in SUBSYSTEM_PROFILES:
+    if device_id and device_id != "ALL":
         active_hourly_outage = downtime_rate if is_target_isolated else 0.0
     else:
-        active_hourly_outage = sum(SUBSYSTEM_PROFILES[did]["downtime_rate_per_hour"] for did in isolated_ids if did in SUBSYSTEM_PROFILES)
+        active_hourly_outage = sum(get_subsystem_profile(did)["downtime_rate_per_hour"] for did in isolated_ids)
 
     # MTTR Projections (potential liability if 4h, 8h, or 24h outage occurs)
     proj_4h = round(downtime_rate * 4.0, 2)
@@ -221,9 +238,15 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     if is_target_isolated:
         active_incident_loss += max(active_hourly_outage * 0.5, 12500.0)
 
-    incurred_cost = round(violation_count * 2500.0 + (active_incident_loss if (target_attack or is_target_isolated) else 0.0), 2)
-    prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if (target_attack or is_target_isolated) else 0.0)), 2)
-    expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if (target_attack or is_target_isolated) else 5000.0), 2)
+    if len(telemetry) == 0 and violation_count == 0 and not target_attack:
+        incurred_cost = 0.0
+        prevented_cost = 0.0
+        expected_loss = 0.0
+        threat_index = 0.0
+    else:
+        incurred_cost = round(violation_count * 2500.0 + (active_incident_loss if (target_attack or is_target_isolated) else 0.0), 2)
+        prevented_cost = round(max(float(violation_count) * 400000.0, float(len(isolated_ids)) * 350000.0 if isolated_ids else (350000.0 if (target_attack or is_target_isolated) else 0.0)), 2)
+        expected_loss = round(active_incident_loss + (threat_index / 100.0) * (150000.0 if (target_attack or is_target_isolated) else 5000.0), 2)
 
     # FAIR Model
     has_active_incident = bool(target_attack) or is_target_isolated or (boundary_risk > 0) or (violation_count > 0)
@@ -339,8 +362,13 @@ def calculate_monte_carlo_distribution(db, device_id: str = None) -> List[Dict[s
 def get_subsystem_financial_breakdown(db) -> List[Dict[str, Any]]:
     """Returns per-subsystem capital valuation, downtime liability, and status."""
     states = {d.device_id: d.is_isolated for d in db.query(DeviceState).all()}
+    from sqlalchemy import distinct
+    t_devs = [r[0] for r in db.query(distinct(TelemetryLog.device_id)).all() if r[0]]
+    all_dev_ids = sorted(list(set(list(SUBSYSTEM_PROFILES.keys()) + list(states.keys()) + t_devs)))
+
     results = []
-    for did, profile in SUBSYSTEM_PROFILES.items():
+    for did in all_dev_ids:
+        profile = get_subsystem_profile(did)
         is_isolated = states.get(did, False)
         results.append({
             "device_id": did,

@@ -38,11 +38,20 @@ Measures the distance of the current temperature ($T_0$) and pressure ($P_0$) fr
 \[S_{\text{history}} = 1.0 - \text{min}\left(1.0, \frac{\text{Combined Deviation}}{2.0}\right)\]
 
 ### 4. Sensor Signal Stability ($S_{\text{stability}}$)
-Evaluates signal jitter using the population variance ($\sigma^2_T, \sigma^2_P$) of the last $15$ telemetry values to identify sensor tampering or hardware decay:
-\[\sigma^2_T = \text{Var}_{\text{pop}}(\{T_i\}_{i=1}^N)\]
-\[\sigma^2_P = \text{Var}_{\text{pop}}(\{P_i\}_{i=1}^N)\]
-\[\text{Combined Variance} = \frac{\sigma^2_T}{100.0} + \frac{\sigma^2_P}{10.0}\]
+Evaluates signal jitter across all active physical transducers (Temperature, Pressure, Vibration, Current, and Rotor Speed / RPM) using the population variance ($\sigma^2$) over a rolling 15-frame window:
+\[\sigma^2_T = \text{Var}_{\text{pop}}(\{T_i\}_{i=1}^N), \quad \sigma^2_P = \text{Var}_{\text{pop}}(\{P_i\}_{i=1}^N)\]
+\[\sigma^2_V = \text{Var}_{\text{pop}}(\{V_i\}_{i=1}^N), \quad \sigma^2_I = \text{Var}_{\text{pop}}(\{I_i\}_{i=1}^N), \quad \sigma^2_{\text{RPM}} = \text{Var}_{\text{pop}}(\{\text{RPM}_i\}_{i=1}^N)\]
+\[\text{Combined Variance} = \frac{\sigma^2_T}{100.0} + \frac{\sigma^2_P}{10.0} + \frac{\sigma^2_V}{5.0} + \frac{\sigma^2_I}{10.0} + \frac{\sigma^2_{\text{RPM}}}{50000.0}\]
 \[S_{\text{stability}} = 1.0 - \text{min}(1.0, \text{Combined Variance})\]
+
+---
+
+## Continuous Hardware Model Calibration
+
+Aegis ICS supports dynamic continuous calibration of the Random Forest anomaly detection model directly from live serial telemetry frames:
+* **Live Ingestion Buffer**: The serial gateway accumulates validated hardware UART frames in a rolling buffer.
+* **Online Retraining API** (`POST /api/model/retrain`): Incorporates empirical operational baselines into the 75-tree ensemble without restarting the supervisory application.
+* **Zero-Downtime Hot-Reload**: Replaces `rf_model.pkl` in memory atomically, updating anomaly classification boundaries in real time.
 
 ---
 

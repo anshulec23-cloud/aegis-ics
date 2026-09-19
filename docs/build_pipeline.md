@@ -22,9 +22,9 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
        │               │                         │
   [ dpkg-deb ]   [ tarfile ]                     │
        │               │                         │
-       ▼               ▼                         ▼
-   aegis-ics.deb    aegis-ics.tar.gz          AegisICS.exe
-   (85.32 MB)       (85.49 MB)                (348.97 MB)
+        ▼               ▼                         ▼
+    aegis-ics.deb    aegis-ics.tar.gz          AegisICS.exe
+    (91.37 MB)       (91.55 MB)                (349.07 MB)
 ```
 
 ---

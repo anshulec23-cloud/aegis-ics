@@ -102,9 +102,13 @@ def csrf_protect ():
 
     if request .method in ("POST","PUT","DELETE","PATCH"):
 
-        token =request .form .get ("csrf_token")or request .headers .get ("X-CSRF-Token")
+        token = (
+            request.form.get("csrf_token")
+            or request.headers.get("X-CSRF-Token")
+            or request.headers.get("X-CSRFToken")
+        )
 
-        if not token and request .is_json :
+        if not token and request.is_json :
             try :
                 token =request .json .get ("csrf_token")
             except Exception :
@@ -151,16 +155,23 @@ class LocalRFModel :
     def __init__ (self ,model_path =None):
         if model_path is None:
             model_path = _resource_path("model/rf_model.pkl")
+        self .model_path = model_path
         self .model =None 
         self .fast_trees = None
+        self.reload()
+
+    def reload(self) -> bool:
         try :
-            if os .path .exists (model_path ):
-                with open (model_path ,"rb")as f :
+            if os .path .exists (self.model_path):
+                with open (self.model_path ,"rb")as f :
                     self .model =pickle .load (f )
                 if hasattr(self.model, "estimators_"):
                     self.fast_trees = [t.tree_ for t in self.model.estimators_]
+                print(f"[Server] Loaded Random Forest model from {self.model_path} ({len(self.fast_trees) if self.fast_trees else 0} trees)")
+                return True
         except Exception as e :
             print (f"[Server] Failed to load Random Forest model: {e }")
+        return False
 
     def predict_anomaly(self, telemetry: dict, db_session=None) -> bool:
         if not telemetry or not isinstance(telemetry, dict):
@@ -279,7 +290,26 @@ def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
 
     state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
     if state and state .is_isolated :
-        db .close ()
+        # Record safe post-trip telemetry under quarantine in DB so SCADA can verify physical de-energization
+        try:
+            quarantine_log = TelemetryLog(
+                timestamp=payload.get("timestamp", time.time()),
+                device_id=device_id,
+                temperature=payload.get("temperature"),
+                pressure=payload.get("pressure"),
+                humidity=payload.get("humidity"),
+                vibration=payload.get("vibration"),
+                hall_effect=payload.get("hall_effect"),
+                current=payload.get("current"),
+                rssi=payload.get("rssi"),
+                is_anomaly=True
+            )
+            db.add(quarantine_log)
+            db.commit()
+        except Exception as e:
+            print(f"[Server] Quarantine log write note: {e}")
+        finally:
+            db.close()
         print (f"[Server] Telemetry REJECTED from isolated device: {device_id }")
         return False ,403 ,f"Access Denied: Device {device_id } is quarantined by Zero-Trust microsegmentation policy."
 
@@ -422,6 +452,7 @@ def login():
             else:
                 location_str = "Terminal GPS: Lat 37.77490, Lon -122.41940, Elev 18.5m [Grid H-01]"
 
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "127.0.0.1"
         db =SessionLocal ()
         user =db .query (User ).filter_by (username =username ).first ()
 
@@ -431,18 +462,26 @@ def login():
             session ["username"]=user .username 
             session ["location"]=location_str 
 
-
             audit =AuditLog (
-            user_id =user .id ,
-            action ="LOGIN",
-            location =location_str ,
-            details =f"User {username } successfully authenticated."
+                user_id =user .id ,
+                action ="LOGIN_SUCCESS",
+                location =location_str ,
+                details =f"Operator '{username}' successfully authenticated (Client IP: {client_ip})."
             )
             db .add (audit )
             db .commit ()
             db .close ()
             return redirect (url_for ("index"))
 
+        # Record failed login attempt in Security Audit Log (NIST AU-2 / IA-2 compliance)
+        audit_failed = AuditLog(
+            user_id = user.id if user else None,
+            action = "LOGIN_FAILED",
+            location = location_str,
+            details = f"Authentication rejected: invalid credentials for '{username}' (Client IP: {client_ip})."
+        )
+        db.add(audit_failed)
+        db.commit()
         db .close ()
         return render_template ("login.html",error ="Invalid credentials."),401 
 
@@ -453,14 +492,15 @@ def logout ():
     user_id =session .get ("user_id")
     location =session .get ("location","Unknown")
     username =session .get ("username","Unknown")
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "127.0.0.1"
 
     if user_id :
         db =SessionLocal ()
         audit =AuditLog (
-        user_id =user_id ,
-        action ="LOGOUT",
-        location =location ,
-        details =f"User {username } logged out."
+            user_id =user_id ,
+            action ="LOGOUT",
+            location =location ,
+            details =f"Operator '{username}' logged out (Client IP: {client_ip})."
         )
         db .add (audit )
         db .commit ()
@@ -580,26 +620,139 @@ def neural_policy_status ():
 
 
 @app .route ("/api/com_ports",methods =["GET"])
+@limiter.exempt
 @login_required 
 @require_webview_token 
 def list_com_ports ():
     try :
-        from serial .tools import list_ports 
-        ports =[p .device for p in list_ports .comports ()]
+        import serial_gateway
+        ports = serial_gateway.find_esp32_ports()
+        if not ports:
+            from serial .tools import list_ports 
+            ports = [{
+                "device": p.device,
+                "description": p.description or "Hardware Serial Interface",
+                "hwid": getattr(p, "hwid", "") or "UART",
+                "is_esp32_candidate": False
+            } for p in list_ports.comports()]
         return jsonify ({"success":True ,"ports":ports })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )})
+        return jsonify ({"success":False ,"error":str (e ), "ports": []})
+
+@app.route("/api/gateway/raw_packets", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def gateway_raw_packets():
+    try:
+        import serial_gateway
+        packets = serial_gateway.get_recent_raw_packets(limit=60)
+        return jsonify({"success": True, "packets": packets})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e), "packets": []})
 
 @app .route ("/api/com_ports/status",methods =["GET"])
 @login_required 
 @require_webview_token 
 def com_port_status ():
     try :
-        from serial_gateway import get_active_port 
-        port =get_active_port ()
-        return jsonify ({"success":True ,"port":port })
+        import serial_gateway 
+        port =serial_gateway.get_active_port ()
+        state =serial_gateway.get_gateway_state()
+        health =serial_gateway.get_gateway_health()
+        return jsonify ({"success":True ,"port":port, "state":state, "health":health })
     except Exception as e :
         return jsonify ({"success":False ,"error":str (e )})
+
+@app.route("/api/cluster/topology", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def cluster_topology():
+    """
+    Returns the real-time physical cluster topology:
+    - Master Concentrator Bridge connection status
+    - Total detected ESP32 slave nodes
+    - Total active sensor transducers across the cluster
+    - Per-node breakdown of all 5 physical sensors (Temp, Pres, Vib, RPM, Curr)
+    """
+    try:
+        import serial_gateway
+        health = serial_gateway.get_gateway_health()
+        active_nodes = serial_gateway.get_active_nodes()
+
+        db = SessionLocal()
+        try:
+            from sqlalchemy import distinct
+            t_devs = [r[0] for r in db.query(distinct(TelemetryLog.device_id)).all() if r[0]]
+            s_devs = [r.device_id for r in db.query(DeviceState).all() if r.device_id]
+            all_dev_ids = sorted(list(set(t_devs + s_devs + list(active_nodes.keys()) + ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"])))
+
+            nodes = []
+            now_ts = time.time()
+            total_sensors = 0
+
+            for dev_id in all_dev_ids:
+                state = db.query(DeviceState).filter_by(device_id=dev_id).first()
+                is_isolated = state.is_isolated if state else False
+                last_log = db.query(TelemetryLog).filter_by(device_id=dev_id).order_by(TelemetryLog.timestamp.desc()).first()
+                trust = compute_device_trust_score(dev_id, db)
+                profile = SUBSYSTEM_PROFILES.get(dev_id, {})
+
+                # Detect which of the 5 sensors are active on this node
+                gateway_node = active_nodes.get(dev_id, {})
+                sensors = gateway_node.get("sensors", [])
+                if not sensors and last_log:
+                    s_detected = []
+                    if last_log.temperature is not None: s_detected.append("temperature")
+                    if last_log.pressure is not None: s_detected.append("pressure")
+                    if last_log.vibration is not None: s_detected.append("vibration")
+                    if last_log.hall_effect is not None: s_detected.append("hall_effect")
+                    if last_log.current is not None: s_detected.append("current")
+                    sensors = s_detected
+
+                sensor_count = len(sensors)
+                total_sensors += sensor_count
+
+                last_ts = last_log.timestamp if last_log else gateway_node.get("last_seen")
+                is_active = bool(last_ts is not None and (now_ts - last_ts) <= 10.0 and not is_isolated)
+
+                nodes.append({
+                    "device_id": dev_id,
+                    "name": profile.get("name", f"Industrial Node {dev_id}"),
+                    "zone": profile.get("zone", "Fieldbus Segment"),
+                    "criticality": profile.get("criticality", "TIER-2 HIGH"),
+                    "is_isolated": is_isolated,
+                    "is_active": is_active,
+                    "trust_score": trust["trust_score"],
+                    "trust_percentage": trust["trust_percentage"],
+                    "status": trust["status"],
+                    "last_seen": last_ts,
+                    "sensors": sensors,
+                    "active_sensors_count": sensor_count,
+                    "latest_readings": {
+                        "temperature": last_log.temperature if last_log else None,
+                        "pressure": last_log.pressure if last_log else None,
+                        "vibration": last_log.vibration if last_log else None,
+                        "hall_effect": last_log.hall_effect if last_log else None,
+                        "current": last_log.current if last_log else None
+                    }
+                })
+
+            return jsonify({
+                "success": True,
+                "master_bridge": health.get("master_bridge", {}),
+                "gateway_state": health.get("state", "DISCONNECTED"),
+                "active_port": health.get("active_port"),
+                "total_nodes_count": len(nodes),
+                "online_nodes_count": sum(1 for n in nodes if n["is_active"]),
+                "total_active_sensors": total_sensors,
+                "nodes": nodes
+            })
+        finally:
+            db.close()
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app .route ("/api/com_ports/connect",methods =["POST"])
 @login_required 
@@ -688,9 +841,12 @@ def list_all_devices ():
     db =SessionLocal ()
     try :
         from sqlalchemy import distinct 
+        import serial_gateway
+        active_nodes = serial_gateway.get_active_nodes()
+
         t_devs =[r [0 ]for r in db .query (distinct (TelemetryLog .device_id )).all ()if r [0 ]]
         s_devs =[r .device_id for r in db .query (DeviceState ).all ()if r .device_id ]
-        all_dev_ids =sorted (list (set (t_devs +s_devs +["ESP32_001","ESP32_002","ESP32_003","ESP32_004"])))
+        all_dev_ids =sorted (list (set (t_devs +s_devs +list(active_nodes.keys()) +["ESP32_001","ESP32_002","ESP32_003","ESP32_004"])))
 
         now_ts = time.time()
         results =[]
@@ -701,7 +857,19 @@ def list_all_devices ():
             trust =compute_device_trust_score (dev_id ,db )
             profile =SUBSYSTEM_PROFILES .get (dev_id ,{})
 
-            last_ts = last_log.timestamp if last_log else None
+            # Detect sensors for this node
+            gateway_node = active_nodes.get(dev_id, {})
+            sensors = gateway_node.get("sensors", [])
+            if not sensors and last_log:
+                s_detected = []
+                if last_log.temperature is not None: s_detected.append("temperature")
+                if last_log.pressure is not None: s_detected.append("pressure")
+                if last_log.vibration is not None: s_detected.append("vibration")
+                if last_log.hall_effect is not None: s_detected.append("hall_effect")
+                if last_log.current is not None: s_detected.append("current")
+                sensors = s_detected
+
+            last_ts = last_log.timestamp if last_log else gateway_node.get("last_seen")
             # Hardware is actively communicating if telemetry was received within the last 10 seconds
             is_active = bool(last_ts is not None and (now_ts - last_ts) <= 10.0 and not is_isolated)
 
@@ -716,6 +884,8 @@ def list_all_devices ():
             "trust_percentage":trust ["trust_percentage"],
             "status":trust ["status"],
             "last_seen":last_ts ,
+            "sensors":sensors ,
+            "active_sensors_count":len(sensors),
             "latest_temp":last_log .temperature if last_log else None ,
             "latest_pres":last_log .pressure if last_log else None ,
             "latest_vib":last_log .vibration if last_log else None ,
@@ -948,10 +1118,23 @@ def simulate_reset_endpoint ():
 @login_required 
 @require_webview_token 
 def get_audit_logs ():
-    limit =min (int (request .args .get ("limit",30 )),100 )
+    limit =min (int (request .args .get ("limit",100 )),300 )
+    category =request .args .get ("category","ALL").upper ()
+    operator_filter =request .args .get ("operator","").strip ()
+    search_term =request .args .get ("search","").strip ().lower ()
+
     db =SessionLocal ()
     try :
-        logs =db .query (AuditLog ).order_by (AuditLog .timestamp .desc ()).limit (limit ).all ()
+        query =db .query (AuditLog ).options (joinedload (AuditLog .user ))
+
+        if operator_filter and operator_filter !="ALL":
+            if operator_filter .lower ()=="system":
+                query =query .filter (AuditLog .user_id ==None )
+            else :
+                query =query .join (User ).filter (User .username ==operator_filter )
+
+        logs =query .order_by (AuditLog .timestamp .desc ()).limit (limit * 2 ).all ()
+
         def map_nist_control (action :str )->str :
             act =(action or "").upper ()
             if "ISOLAT" in act or "QUARANTINE" in act :
@@ -960,18 +1143,118 @@ def get_audit_logs ():
                 return "NIST AC-4 (Information Flow Enforcement)"
             elif "ANOMALY" in act or "ATTACK" in act or "INJECT" in act :
                 return "NIST SI-4 (Information System Monitoring)"
+            elif "LOGIN" in act or "AUTH" in act :
+                return "NIST IA-2 (Identification & Authentication)"
+            elif "MODEL" in act or "CALIBRAT" in act :
+                return "NIST SI-7 (Software & Information Integrity)"
             else :
                 return "NIST AU-2 / AU-12 (Audit & Accountability)"
 
-        data =[{
-        "id":log .id ,
-        "timestamp":log .timestamp .strftime ("%Y-%m-%d %H:%M:%S")if hasattr (log .timestamp ,"strftime")else str (log .timestamp ),
-        "action":log .action ,
-        "details":log .details ,
-        "location":log .location ,
-        "nist_control":map_nist_control (log .action )
-        }for log in logs ]
+        def determine_severity (action :str )->str :
+            act =(action or "").upper ()
+            if any (w in act for w in ("VIOLATION","ATTACK","BLOCKED","FAILED","QUARANTINE")):
+                return "CRITICAL"
+            elif any (w in act for w in ("SETPOINT","ISOLAT","RECONNECT","DISCONNECT","WARNING")):
+                return "WARNING"
+            return "INFO"
+
+        data =[]
+        for log in logs :
+            act =(log .action or "").upper ()
+            if category =="AUTH"and not any (k in act for k in ("LOGIN","LOGOUT","AUTH")):
+                continue 
+            elif category =="SETPOINT"and "SETPOINT"not in act :
+                continue 
+            elif category =="QUARANTINE"and not any (k in act for k in ("ISOLAT","QUARANTINE")):
+                continue 
+            elif category =="VIOLATION"and "VIOLATION"not in act :
+                continue 
+            elif category =="GATEWAY"and not any (k in act for k in ("COM_PORT","GATEWAY")):
+                continue 
+            elif category =="MODEL"and not any (k in act for k in ("MODEL","BASELINE","CALIBRAT")):
+                continue 
+
+            op_name =log .user .username if log .user else ("System"if log .user_id is None else f"User#{log .user_id }")
+            det =log .details or ""
+            loc =log .location or "Local Terminal"
+
+            if search_term and (search_term not in act .lower ()and search_term not in det .lower ()and search_term not in op_name .lower ()and search_term not in loc .lower ()):
+                continue 
+
+            ts_epoch =log .timestamp .timestamp ()if hasattr (log .timestamp ,"timestamp")else time .time ()
+            ts_str =log .timestamp .strftime ("%Y-%m-%d %H:%M:%S")if hasattr (log .timestamp ,"strftime")else str (log .timestamp or "")
+
+            data .append ({
+            "id":log .id ,
+            "timestamp":ts_str ,
+            "timestamp_epoch":ts_epoch ,
+            "operator":op_name ,
+            "action":log .action ,
+            "location":loc ,
+            "details":det ,
+            "severity":determine_severity (log .action ),
+            "nist_control":map_nist_control (log .action )
+            })
+            if len (data )>=limit :
+                break 
+
         return jsonify ({"success":True ,"logs":data })
+    except Exception as e :
+        return jsonify ({"success":False ,"error":str (e )}),500 
+    finally :
+        db .close ()
+
+@app .route ("/api/model/retrain",methods =["POST"])
+@login_required 
+@require_webview_token 
+@limiter .limit ("10 per minute")
+def api_retrain_model ():
+    db =SessionLocal ()
+    try :
+        from train_model import retrain_from_hardware_telemetry 
+        res =retrain_from_hardware_telemetry (db )
+        rf_model .reload ()
+
+        user_id =session .get ("user_id")
+        location =session .get ("location","Local Terminal")
+        username =session .get ("username","System")
+        audit =AuditLog (
+        user_id =user_id ,
+        action ="MODEL_RETRAINED_FROM_HARDWARE",
+        location =location ,
+        details =f"Operator '{username}' calibrated Random Forest model with {res .get ('hardware_samples_used',0)} hardware COM frames (Accuracy: {res .get ('accuracy',0)*100:.1f}%)."
+        )
+        db .add (audit )
+        db .commit ()
+        return jsonify ({"success":True ,"metrics":res })
+    except Exception as e :
+        return jsonify ({"success":False ,"error":str (e )}),500 
+    finally :
+        db .close ()
+
+@app .route ("/api/model/status",methods =["GET"])
+@limiter .exempt 
+@login_required 
+@require_webview_token 
+def api_model_status ():
+    db =SessionLocal ()
+    try :
+        real_samples_count =db .query (TelemetryLog ).filter_by (is_simulated =False ).count ()
+        metrics_path =_resource_path (os .path .join ("model","training_metrics.json"))
+        metrics ={}
+        if os .path .exists (metrics_path ):
+            try :
+                with open (metrics_path ,"r")as mf :
+                    metrics =json .load (mf )
+            except Exception :
+                pass 
+        return jsonify ({
+        "success":True ,
+        "real_samples_count":real_samples_count ,
+        "trees_count":len (rf_model .fast_trees )if rf_model .fast_trees else 0 ,
+        "enforcement_status":"ACTIVE_ZERO_TRUST",
+        "metrics":metrics 
+        })
     except Exception as e :
         return jsonify ({"success":False ,"error":str (e )}),500 
     finally :
@@ -1385,13 +1668,40 @@ def get_data ():
     "is_anomaly":t .is_anomaly 
     }for t in reversed (telemetry )]
 
-    audit_data =[{
-    "timestamp":a .timestamp .strftime ("%Y-%m-%d %H:%M:%S")if hasattr (a .timestamp ,"strftime")else str (a .timestamp or ""),
-    "username":a .user .username if a .user else "System",
-    "action":a .action ,
-    "location":a .location ,
-    "details":a .details 
-    }for a in audit_logs ]
+    def _audit_sev(action: str) -> str:
+        act = (action or "").upper()
+        if any(w in act for w in ("VIOLATION", "ATTACK", "BLOCKED", "FAILED", "QUARANTINE")):
+            return "CRITICAL"
+        elif any(w in act for w in ("SETPOINT", "ISOLAT", "RECONNECT", "DISCONNECT", "WARNING")):
+            return "WARNING"
+        return "INFO"
+
+    def _audit_nist(action: str) -> str:
+        act = (action or "").upper()
+        if "ISOLAT" in act or "QUARANTINE" in act:
+            return "NIST SC-7"
+        elif "REJECT" in act or "SETPOINT" in act or "STUXNET" in act:
+            return "NIST AC-4"
+        elif "ANOMALY" in act or "ATTACK" in act or "INJECT" in act:
+            return "NIST SI-4"
+        elif "LOGIN" in act or "AUTH" in act:
+            return "NIST IA-2"
+        elif "MODEL" in act or "CALIBRAT" in act:
+            return "NIST SI-7"
+        return "NIST AU-2"
+
+    audit_data = [{
+        "id": a.id,
+        "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S") if hasattr(a.timestamp, "strftime") else str(a.timestamp or ""),
+        "timestamp_epoch": a.timestamp.timestamp() if hasattr(a.timestamp, "timestamp") else time.time(),
+        "operator": a.user.username if a.user else ("System" if a.user_id is None else f"User#{a.user_id}"),
+        "username": a.user.username if a.user else "System",
+        "action": a.action,
+        "location": a.location or "Local Terminal",
+        "severity": _audit_sev(a.action),
+        "nist_control": _audit_nist(a.action),
+        "details": a.details
+    } for a in audit_logs]
 
     target_dev = device_id if (device_id and device_id != "all") else None 
     financials =calculate_financial_analytics (db ,device_id =target_dev )

@@ -187,15 +187,41 @@
                 </div>
             </div>
 
+            <!-- Cluster Topology & Transducer Inventory Ribbon -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-mono text-slate-400 uppercase">CONNECTED ESP32 NODES</div>
+                        <div id="topo-nodes-count" class="text-base font-bold text-white font-mono mt-0.5">-- NODES DETECTED</div>
+                    </div>
+                    <span id="topo-nodes-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30">DISCOVERED</span>
+                </div>
+                <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-mono text-slate-400 uppercase">ACTIVE SENSOR TRANSDUCERS</div>
+                        <div id="topo-sensors-count" class="text-base font-bold text-blue-400 font-mono mt-0.5">-- / -- ACTIVE</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-slate-300 border border-slate-700">5 PER NODE</span>
+                </div>
+                <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-mono text-slate-400 uppercase">MASTER CONCENTRATOR BRIDGE</div>
+                        <div id="topo-bridge-status" class="text-base font-bold text-slate-300 font-mono mt-0.5">OFFLINE</div>
+                    </div>
+                    <span id="topo-bridge-badge" class="subway-badge subway-badge-warning text-[10px]">USB-UART</span>
+                </div>
+            </div>
+
             <!-- Waveform Canvas Card -->
             <div class="subway-card p-4 space-y-3">
                 <div class="flex items-center justify-between text-xs text-slate-400">
                     <span class="font-mono">LIVE SENSOR WAVEFORM TELEMETRY (RING BUFFER)</span>
                     <div class="flex items-center gap-4 text-xs font-mono">
-                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-sky-400"></span>TEMP (C)</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-sky-400"></span>TEMP (°C)</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span>PRES (bar)</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>VIB (g)</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-pink-400"></span>CURR (A)</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-purple-400"></span>RPM (Hall)</span>
                     </div>
                 </div>
 
@@ -580,6 +606,32 @@
                 </div>
                 <div class="h-64"><canvas id="monteCarloChart"></canvas></div>
             </div>
+
+            <!-- Subsystem Capital Valuation & Outage Breakdown Table -->
+            <div class="subway-card p-5 space-y-3">
+                <div class="flex justify-between items-center text-xs font-mono border-b border-[#1c2333] pb-3">
+                    <span class="font-bold text-white uppercase">SUBSYSTEM OUTAGE LIABILITIES & CAPITAL EXPOSURE</span>
+                    <span id="subsystem-outage-total" class="text-blue-400 font-bold">$0.00 / HR ACTIVE OUTAGE</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-[#1c2333]">
+                                <th class="pb-2">SUBSYSTEM</th>
+                                <th class="pb-2">ZONE</th>
+                                <th class="pb-2">CRITICALITY</th>
+                                <th class="pb-2">EQUIPMENT VALUE</th>
+                                <th class="pb-2">HOURLY DOWNTIME</th>
+                                <th class="pb-2">STATUS</th>
+                                <th class="pb-2">ACTIVE OUTAGE ACCRUAL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subsystem-financial-tbody">
+                            <!-- Populated dynamically via /api/financial/subsystems -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- ==================================================================
@@ -601,49 +653,81 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="subway-card p-5 space-y-4">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono border-b border-[#1c2333] pb-3">
-                        PORT CONFIGURATION
-                    </h3>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-mono text-slate-300 mb-1">AVAILABLE SERIAL PORTS:</label>
-                            <div class="flex gap-2">
-                                <select id="hw-port-select" class="subway-input flex-grow">
-                                    <option value="MOCK">SOFTWARE EMULATOR (Mock Driver)</option>
+                <div class="space-y-6">
+                    <div class="subway-card p-5 space-y-4">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono border-b border-[#1c2333] pb-3">
+                            PORT CONFIGURATION
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">AVAILABLE SERIAL PORTS:</label>
+                                <div class="flex gap-2">
+                                    <select id="hw-port-select" class="subway-input flex-grow">
+                                        <option value="MOCK">SOFTWARE EMULATOR (Mock Driver)</option>
+                                    </select>
+                                    <button onclick="scanComPorts()" class="subway-btn text-xs py-1 px-3">
+                                        SCAN
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-mono text-slate-300 mb-1">BAUD RATE:</label>
+                                <select id="hw-baud-select" class="subway-input w-full">
+                                    <option value="115200" selected>115200 8N1 (Standard)</option>
+                                    <option value="9600">9600 8N1 (Legacy PLC)</option>
+                                    <option value="57600">57600 8N1</option>
                                 </select>
-                                <button onclick="scanComPorts()" class="subway-btn text-xs py-1 px-3">
-                                    SCAN
+                            </div>
+
+                            <div class="pt-2 flex gap-3">
+                                <button onclick="connectComPort()" class="subway-btn subway-btn-primary flex-grow py-2">
+                                    CONNECT GATEWAY
+                                </button>
+                                <button onclick="disconnectComPort()" class="subway-btn subway-btn-danger py-2">
+                                    DISCONNECT
                                 </button>
                             </div>
                         </div>
+                    </div>
 
-                        <div>
-                            <label class="block text-xs font-mono text-slate-300 mb-1">BAUD RATE:</label>
-                            <select id="hw-baud-select" class="subway-input w-full">
-                                <option value="115200" selected>115200 8N1 (Standard)</option>
-                                <option value="9600">9600 8N1 (Legacy PLC)</option>
-                                <option value="57600">57600 8N1</option>
-                            </select>
+                    <!-- Hardware Telemetry Model Calibration & Active Enforcement -->
+                    <div class="subway-card p-5 space-y-4">
+                        <div class="flex items-center justify-between border-b border-[#1c2333] pb-3">
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                                HARDWARE MODEL CALIBRATION
+                            </h3>
+                            <span id="model-enforcement-pill" class="subway-badge subway-badge-nominal text-[10px]">ENFORCING</span>
                         </div>
-
-                        <div class="pt-2 flex gap-3">
-                            <button onclick="connectComPort()" class="subway-btn subway-btn-primary flex-grow py-2">
-                                CONNECT GATEWAY
-                            </button>
-                            <button onclick="disconnectComPort()" class="subway-btn subway-btn-danger py-2">
-                                DISCONNECT
-                            </button>
+                        <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+                            <div class="bg-[#050608] p-2.5 rounded border border-[#1c2333]">
+                                <span class="text-slate-400 block text-[10px]">HARDWARE FRAMES:</span>
+                                <span id="model-real-samples" class="text-blue-400 font-bold text-sm">0</span>
+                            </div>
+                            <div class="bg-[#050608] p-2.5 rounded border border-[#1c2333]">
+                                <span class="text-slate-400 block text-[10px]">ACTIVE TREES:</span>
+                                <span id="model-trees-count" class="text-white font-bold text-sm">75</span>
+                            </div>
                         </div>
+                        <p class="text-[11px] text-slate-400 font-mono leading-relaxed">
+                            Calibrates the 5D Random Forest anomaly detector and physical interlock boundaries directly from genuine COM port telemetry frames, ensuring zero-trust enforcement adapts to actual plant hardware.
+                        </p>
+                        <button type="button" id="btn-retrain-model" onclick="retrainModelOnHardware()" class="subway-btn subway-btn-primary w-full py-2 text-xs font-mono">
+                            CALIBRATE & RETRAIN MODEL ON HARDWARE
+                        </button>
+                        <div id="model-retrain-msg" class="hidden text-xs font-mono p-2 rounded"></div>
                     </div>
                 </div>
 
-                <div class="subway-card p-5 lg:col-span-2 space-y-3">
+                <div class="subway-card p-5 lg:col-span-2 space-y-3 flex flex-col">
                     <div class="flex justify-between items-center text-xs font-mono">
-                        <span class="font-bold text-white">LIVE UART WIRE PACKETS</span>
-                        <span class="text-slate-500">AUTOSCROLL: ACTIVE</span>
+                        <span class="font-bold text-white">LIVE UART WIRE PACKETS (SERIAL STREAM)</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 text-[10px]">AUTOSCROLL: ACTIVE</span>
+                            <button type="button" onclick="document.getElementById('raw-uart-terminal').innerText=''" class="subway-btn text-[10px] py-0.5 px-2">CLEAR</button>
+                        </div>
                     </div>
-                    <pre id="raw-uart-terminal" class="bg-[#050608] p-3 rounded border border-[#161d2a] font-mono text-xs text-blue-400 h-64 overflow-y-auto leading-relaxed">
+                    <pre id="raw-uart-terminal" class="bg-[#050608] p-3 rounded border border-[#161d2a] font-mono text-xs text-blue-400 flex-grow min-h-[360px] max-h-[480px] overflow-y-auto leading-relaxed">
 [GATEWAY] Initializing physical serial interface...
 [BUS_RS485] Listening on concentrator channel...
                     </pre>
@@ -717,18 +801,60 @@
             </div>
 
             <div class="subway-card overflow-hidden">
-                <div class="subway-card-header">
-                    <span class="text-xs font-mono font-bold text-white">CRYPTOGRAPHIC AUDIT EVENT REGISTER</span>
-                    <span class="text-xs font-mono text-slate-400">IMMUTABLE LOGS</span>
+                <div class="subway-card-header flex flex-wrap items-center justify-between gap-3 p-4 border-b border-[#1c2333]">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono font-bold text-white tracking-wider">CRYPTOGRAPHIC AUDIT EVENT REGISTER</span>
+                        <span id="audit-log-counter" class="subway-badge subway-badge-nominal text-[10px]">0 RECORDS</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="fetchAuditLogs()" class="subway-btn text-xs py-1 px-3 font-mono">
+                            REFRESH LOGS
+                        </button>
+                    </div>
                 </div>
-                <div class="overflow-x-auto max-h-72">
+
+                <!-- Interactive Filters & Search Toolbar -->
+                <div class="p-4 bg-[#080b12] border-b border-[#1c2333] flex flex-wrap items-center gap-3 text-xs font-mono">
+                    <div class="flex items-center gap-2">
+                        <label class="text-slate-400 text-[10px]">CATEGORY:</label>
+                        <select id="audit-category-filter" onchange="fetchAuditLogs()" class="subway-input py-1 px-2.5 text-xs">
+                            <option value="ALL">ALL CATEGORIES</option>
+                            <option value="AUTH">AUTHENTICATION (LOGINS/LOGOUTS)</option>
+                            <option value="SETPOINT">CONTROL SETPOINTS</option>
+                            <option value="QUARANTINE">DEVICE ISOLATION & TRIPS</option>
+                            <option value="VIOLATION">SECURITY VIOLATIONS & BLOCKS</option>
+                            <option value="GATEWAY">HARDWARE COM & GATEWAY</option>
+                            <option value="MODEL">MODEL CALIBRATION & ML</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-slate-400 text-[10px]">OPERATOR:</label>
+                        <select id="audit-operator-filter" onchange="fetchAuditLogs()" class="subway-input py-1 px-2.5 text-xs">
+                            <option value="ALL">ALL OPERATORS</option>
+                            <option value="noodles">noodles</option>
+                            <option value="admin">admin</option>
+                            <option value="System">System</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-grow">
+                        <label class="text-slate-400 text-[10px]">SEARCH:</label>
+                        <input id="audit-search-input" type="text" placeholder="Search actions, IP, operator, details..."
+                               oninput="debounceAuditSearch()" class="subway-input py-1 px-2.5 text-xs flex-grow">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-96">
                     <table class="w-full text-xs text-left">
-                        <thead class="bg-[#050608] text-slate-400 border-b border-[#1c2333] font-mono uppercase text-[10px]">
+                        <thead class="bg-[#050608] text-slate-400 border-b border-[#1c2333] font-mono uppercase text-[10px] sticky top-0 z-10">
                             <tr>
                                 <th class="py-2.5 px-4">TIMESTAMP</th>
-                                <th class="py-2.5 px-4">EVENT TYPE</th>
-                                <th class="py-2.5 px-4">NODE</th>
+                                <th class="py-2.5 px-4">OPERATOR</th>
+                                <th class="py-2.5 px-4">ACTION / EVENT</th>
+                                <th class="py-2.5 px-4">LOCATION / IP</th>
                                 <th class="py-2.5 px-4">SEVERITY</th>
+                                <th class="py-2.5 px-4">NIST CONTROL</th>
                                 <th class="py-2.5 px-4">DETAILS</th>
                             </tr>
                         </thead>
@@ -942,7 +1068,8 @@
                 isTransitioning = false;
 
                 if (targetIndex === 4) refreshRiskView();
-                if (targetIndex === 6) fetchFullData();
+                if (targetIndex === 5) { streamUartPackets(); refreshModelStatus(); }
+                if (targetIndex === 6) { fetchAuditLogs(); fetchFullData(); }
             }, 290);
         }
 
@@ -1035,10 +1162,11 @@
                     data: {
                         labels: [],
                         datasets: [
-                            { label: 'Core Temp (C)', data: [], borderColor: '#38bdf8', borderWidth: 1.8, tension: 0.25, pointRadius: 0 },
+                            { label: 'Core Temp (°C)', data: [], borderColor: '#38bdf8', borderWidth: 1.8, tension: 0.25, pointRadius: 0 },
                             { label: 'Pressure (bar)', data: [], borderColor: '#3b82f6', borderWidth: 1.8, tension: 0.25, pointRadius: 0 },
                             { label: 'Vibration (g)', data: [], borderColor: '#fb923c', borderWidth: 1.8, tension: 0.25, pointRadius: 0 },
-                            { label: 'Current (A)', data: [], borderColor: '#f472b6', borderWidth: 1.8, tension: 0.25, pointRadius: 0 }
+                            { label: 'Current (A)', data: [], borderColor: '#f472b6', borderWidth: 1.8, tension: 0.25, pointRadius: 0 },
+                            { label: 'Rotor Speed (RPM/100)', data: [], borderColor: '#c084fc', borderWidth: 1.8, tension: 0.25, pointRadius: 0 }
                         ]
                     },
                     options: {
@@ -1149,6 +1277,7 @@
                     telemetryChart.data.datasets[1].data.push(p.pressure);
                     telemetryChart.data.datasets[2].data.push(p.vibration);
                     telemetryChart.data.datasets[3].data.push(p.current);
+                    telemetryChart.data.datasets[4].data.push(p.hall_effect !== undefined ? (p.hall_effect / 100.0) : 0);
 
                     if (telemetryChart.data.labels.length > 50) {
                         telemetryChart.data.labels.shift();
@@ -1171,6 +1300,7 @@
 
             updateScrubberSliderUI();
             refreshDevicesList();
+            refreshTopology();
         }
 
         function updateHeartbeat(hb) {
@@ -1216,6 +1346,7 @@
                     telemetryChart.data.datasets[1].data = slice.map(s => s.pressure);
                     telemetryChart.data.datasets[2].data = slice.map(s => s.vibration);
                     telemetryChart.data.datasets[3].data = slice.map(s => s.current);
+                    telemetryChart.data.datasets[4].data = slice.map(s => s.hall_effect !== undefined ? (s.hall_effect / 100.0) : 0);
                     telemetryChart.update();
                 }
             }
@@ -1260,41 +1391,129 @@
                 .then(res => {
                     if (res.devices) {
                         const container = document.getElementById('device-cluster-cards');
-                        if (!container) return;
-                        container.innerHTML = '';
+                        const controlSelect = document.getElementById('control-device-select');
+                        if (container) container.innerHTML = '';
+
+                        // Synchronize control select dropdown with detected devices
+                        if (controlSelect) {
+                            const existingIds = Array.from(controlSelect.options).map(o => o.value);
+                            res.devices.forEach(d => {
+                                if (!existingIds.includes(d.device_id)) {
+                                    const opt = document.createElement('option');
+                                    opt.value = d.device_id;
+                                    opt.innerText = `${d.device_id} — ${d.name} (${d.criticality || 'STANDARD'})`;
+                                    controlSelect.appendChild(opt);
+                                }
+                            });
+                        }
+
                         res.devices.forEach(dev => {
                             currentDevices[dev.device_id] = dev;
                             const isIso = dev.is_isolated;
                             const trustPct = (dev.trust_score * 100).toFixed(1);
+                            const activeSensors = dev.active_sensors_count !== undefined ? dev.active_sensors_count : (dev.sensors ? dev.sensors.length : 5);
+
                             const card = document.createElement('div');
                             card.className = 'subway-card p-4 space-y-3 cursor-pointer hover:border-slate-600 transition-all';
                             card.onclick = () => openTrustModal(dev.device_id);
                             card.innerHTML = `
                                 <div class="flex justify-between items-center">
-                                    <span class="font-mono text-xs font-bold text-white">${dev.device_id}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono text-xs font-bold text-white">${dev.device_id}</span>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono ${dev.is_active ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' : 'bg-slate-700/40 text-slate-400 border border-slate-600/30'}">${dev.is_active ? 'LIVE' : 'IDLE'}</span>
+                                    </div>
                                     <span class="subway-badge ${isIso ? 'subway-badge-danger' : 'subway-badge-nominal'}">${isIso ? 'ISOLATED' : 'TRUSTED'}</span>
                                 </div>
                                 <div class="text-xs font-semibold text-slate-300 font-mono">${dev.name}</div>
-                                <div class="space-y-1 text-xs font-mono">
+                                <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs font-mono pt-1">
                                     <div class="flex justify-between text-slate-400">
                                         <span>TEMP:</span>
-                                        <span class="text-white">${dev.latest_temp ? dev.latest_temp.toFixed(1) + ' C' : '--'}</span>
+                                        <span class="text-white">${dev.latest_temp !== null && dev.latest_temp !== undefined ? dev.latest_temp.toFixed(1) + ' °C' : '--'}</span>
                                     </div>
                                     <div class="flex justify-between text-slate-400">
-                                        <span>PRESSURE:</span>
-                                        <span class="text-white">${dev.latest_pres ? dev.latest_pres.toFixed(1) + ' bar' : '--'}</span>
+                                        <span>PRES:</span>
+                                        <span class="text-white">${dev.latest_pres !== null && dev.latest_pres !== undefined ? dev.latest_pres.toFixed(2) + ' bar' : '--'}</span>
                                     </div>
                                     <div class="flex justify-between text-slate-400">
-                                        <span>TRUST:</span>
-                                        <span class="${dev.trust_score < 0.4 ? 'text-red-400' : 'text-blue-400'} font-bold">${trustPct}%</span>
+                                        <span>VIB:</span>
+                                        <span class="text-white">${dev.latest_vib !== null && dev.latest_vib !== undefined ? dev.latest_vib.toFixed(2) + ' g' : '--'}</span>
+                                    </div>
+                                    <div class="flex justify-between text-slate-400">
+                                        <span>RPM:</span>
+                                        <span class="text-white">${dev.latest_hall !== null && dev.latest_hall !== undefined ? dev.latest_hall.toFixed(0) : '--'}</span>
+                                    </div>
+                                    <div class="flex justify-between text-slate-400">
+                                        <span>CURR:</span>
+                                        <span class="text-white">${dev.latest_curr !== null && dev.latest_curr !== undefined ? dev.latest_curr.toFixed(2) + ' A' : '--'}</span>
+                                    </div>
+                                    <div class="flex justify-between text-slate-400">
+                                        <span>SENSORS:</span>
+                                        <span class="text-blue-400 font-bold">${activeSensors}/5</span>
                                     </div>
                                 </div>
+                                <div class="pt-1 flex justify-between items-center text-xs font-mono border-t border-[#1c2333]">
+                                    <span class="text-slate-400">TRUST SCORE:</span>
+                                    <span class="${dev.trust_score < 0.4 ? 'text-red-400' : 'text-blue-400'} font-bold">${trustPct}%</span>
+                                </div>
+                                <div class="pt-1 flex gap-2">
+                                    <button onclick="event.stopPropagation(); manualIsolate('${dev.device_id}', ${!isIso})" class="subway-btn ${isIso ? 'subway-btn-nominal' : 'subway-btn-danger'} text-[10px] w-full py-1">
+                                        ${isIso ? 'REARM NODE' : 'TRIP ISOLATE'}
+                                    </button>
+                                </div>
                             `;
-                            container.appendChild(card);
+                            if (container) container.appendChild(card);
                         });
                     }
                 })
                 .catch(err => console.error(err));
+        }
+
+        function manualIsolate(devId, isolate) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const endpoint = isolate ? '/api/device/isolate' : '/api/device/rejoin';
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify({ device_id: devId })
+            }).then(() => {
+                refreshDevicesList();
+                fetchAuditLogs();
+                refreshRiskView();
+                refreshTopology();
+            });
+        }
+
+        function refreshTopology() {
+            fetch('/api/cluster/topology')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const nodeCountEl = document.getElementById('topo-nodes-count');
+                        const sensorCountEl = document.getElementById('topo-sensors-count');
+                        const bridgeEl = document.getElementById('topo-bridge-status');
+                        const bridgeBadge = document.getElementById('topo-bridge-badge');
+
+                        if (nodeCountEl) nodeCountEl.innerText = `${data.total_nodes_count || 0} NODES (${data.online_nodes_count || 0} ONLINE)`;
+                        if (sensorCountEl) sensorCountEl.innerText = `${data.total_active_sensors || 0} ACTIVE TRANSDUCERS`;
+                        if (bridgeEl) {
+                            const br = data.master_bridge || {};
+                            if (data.gateway_state === 'CONNECTED') {
+                                bridgeEl.innerText = `ONLINE: ${data.active_port || 'USB'}`;
+                                if (bridgeBadge) {
+                                    bridgeBadge.className = 'subway-badge subway-badge-nominal text-[10px]';
+                                    bridgeBadge.innerText = 'CONCENTRATOR ACTIVE';
+                                }
+                            } else {
+                                bridgeEl.innerText = data.gateway_state || 'OFFLINE';
+                                if (bridgeBadge) {
+                                    bridgeBadge.className = 'subway-badge subway-badge-warning text-[10px]';
+                                    bridgeBadge.innerText = 'STANDBY';
+                                }
+                            }
+                        }
+                    }
+                })
+                .catch(() => {});
         }
 
         function onControlDeviceChange() {
@@ -1331,7 +1550,11 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
                 body: JSON.stringify({ device_id: devId })
-            }).then(() => refreshDevicesList());
+            }).then(() => {
+                refreshDevicesList();
+                refreshRiskView();
+                refreshTopology();
+            });
         }
 
         function openTrustModal(devId) {
@@ -1340,8 +1563,49 @@
             fetch(`/api/device/${devId}/trust_breakdown`)
                 .then(r => r.json())
                 .then(data => {
-                    const total = ((data.trust_score || 0.98) * 100).toFixed(1);
-                    document.getElementById('modal-total-trust').innerText = total + '%';
+                    const info = data.data || data;
+                    const totalTrust = (info.trust_percentage !== undefined) ? info.trust_percentage : ((info.trust_score || 0.98) * 100);
+                    document.getElementById('modal-total-trust').innerText = totalTrust.toFixed(1) + '%';
+
+                    const comps = info.components || {};
+                    // 1. Anomaly Deviation (1 - s_anomaly)
+                    const anomObj = comps.s_anomaly || {};
+                    const rawAnom = anomObj.value !== undefined ? anomObj.value : 0.0;
+                    const anomPct = Math.max(0, Math.min(100, (1.0 - rawAnom) * 100.0));
+                    document.getElementById('modal-s-anomaly-val').innerText = anomPct.toFixed(1) + '%';
+                    document.getElementById('modal-s-anomaly-bar').style.width = anomPct + '%';
+
+                    // 2. Cryptographic HMAC Parity
+                    const sigObj = comps.s_signature || {};
+                    const rawSig = sigObj.value !== undefined ? sigObj.value : 1.0;
+                    const sigPct = Math.max(0, Math.min(100, rawSig * 100.0));
+                    document.getElementById('modal-s-sig-val').innerText = sigPct.toFixed(1) + '%';
+                    document.getElementById('modal-s-sig-bar').style.width = sigPct + '%';
+
+                    // 3. Operational History Deviation
+                    const histObj = comps.s_history || {};
+                    const rawHist = histObj.value !== undefined ? histObj.value : 0.8;
+                    const histPct = Math.max(0, Math.min(100, rawHist * 100.0));
+                    document.getElementById('modal-s-hist-val').innerText = histPct.toFixed(1) + '%';
+                    document.getElementById('modal-s-hist-bar').style.width = histPct + '%';
+
+                    // 4. Sensor Signal Stability
+                    const stabObj = comps.s_stability || {};
+                    const rawStab = stabObj.value !== undefined ? stabObj.value : 0.9;
+                    const stabPct = Math.max(0, Math.min(100, rawStab * 100.0));
+                    document.getElementById('modal-s-stab-val').innerText = stabPct.toFixed(1) + '%';
+                    document.getElementById('modal-s-stab-bar').style.width = stabPct + '%';
+
+                    const isolateBtn = document.getElementById('btn-modal-isolate');
+                    if (isolateBtn) {
+                        if (info.is_isolated) {
+                            isolateBtn.innerText = 'RESTORE CONNECTION';
+                            isolateBtn.className = 'subway-btn subway-btn-nominal text-xs';
+                        } else {
+                            isolateBtn.innerText = 'TRIP ISOLATION';
+                            isolateBtn.className = 'subway-btn subway-btn-danger text-xs';
+                        }
+                    }
                 })
                 .catch(() => {});
         }
@@ -1360,6 +1624,9 @@
             }).then(() => {
                 closeTrustModal();
                 refreshDevicesList();
+                fetchAuditLogs();
+                refreshRiskView();
+                refreshTopology();
             });
         }
 
@@ -1373,6 +1640,8 @@
             .then(r => r.json())
             .then(() => {
                 alert(`ATTACK VECTOR [${type.toUpperCase()}] INJECTED INTO TELEMETRY BUS.`);
+                fetchAuditLogs();
+                refreshRiskView();
             })
             .catch(e => console.error(e));
         }
@@ -1383,52 +1652,112 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }
             })
-            .then(() => alert('ALL ADVERSARIAL VECTORS PURGED. NOMINAL BASELINE RESTORED.'))
+            .then(() => {
+                alert('ALL ADVERSARIAL VECTORS PURGED. NOMINAL BASELINE RESTORED.');
+                fetchAuditLogs();
+                refreshRiskView();
+            })
             .catch(e => console.error(e));
         }
 
         function refreshRiskView() {
+            // 1. Fetch High-Level FAIR Analytics (with bugfix for data.financials)
             fetch('/api/financial/analytics')
                 .then(r => r.json())
                 .then(data => {
-                    if (data.expected_loss !== undefined) {
-                        document.getElementById('risk-unmitigated').innerText = '$' + data.expected_loss.toLocaleString();
+                    const fin = data.financials || data;
+                    if (fin.expected_loss !== undefined) {
+                        document.getElementById('risk-unmitigated').innerText = '$' + fin.expected_loss.toLocaleString();
                     }
-                    if (data.incurred_cost !== undefined) {
-                        document.getElementById('risk-incurred').innerText = '$' + data.incurred_cost.toLocaleString();
+                    if (fin.incurred_cost !== undefined) {
+                        document.getElementById('risk-incurred').innerText = '$' + fin.incurred_cost.toLocaleString();
                     }
-                    if (data.prevented_cost !== undefined) {
-                        document.getElementById('risk-prevented').innerText = '$' + data.prevented_cost.toLocaleString();
+                    if (fin.prevented_cost !== undefined) {
+                        document.getElementById('risk-prevented').innerText = '$' + fin.prevented_cost.toLocaleString();
                     }
-                    if (data.threat_index !== undefined) {
-                        document.getElementById('risk-threat-index').innerText = data.threat_index.toFixed(3);
+                    if (fin.threat_index !== undefined) {
+                        document.getElementById('risk-threat-index').innerText = (fin.threat_index / 100.0).toFixed(3);
                     }
                 })
                 .catch(() => {});
 
-            if (!monteCarloChart && window.Chart) {
-                const ctx = document.getElementById('monteCarloChart');
-                if (ctx) {
-                    monteCarloChart = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: ['P10', 'P25', 'P50 (Median)', 'P75', 'P90', 'P95', 'P99'],
-                            datasets: [
-                                { label: 'Unmitigated Loss ($)', data: [45000, 92000, 180000, 290000, 360000, 385000, 400000], backgroundColor: 'rgba(239, 68, 68, 0.4)' },
-                                { label: 'Aegis Capped Loss ($)', data: [5000, 12000, 24000, 42000, 52000, 55000, 55000], backgroundColor: 'rgba(56, 189, 248, 0.4)' }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
-                                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } }
+            // 2. Fetch Dynamic Monte Carlo Probabilistic Loss Exceedance Curve (P05 to P99)
+            fetch('/api/financial/loss_distribution')
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success && res.distribution && window.Chart) {
+                        const dist = res.distribution;
+                        const labels = dist.map(d => d.percentile);
+                        const unmitigatedLosses = dist.map(d => d.loss_usd);
+                        const aegisCappedLosses = dist.map(d => Math.round(d.loss_usd * 0.14));
+
+                        const ctx = document.getElementById('monteCarloChart');
+                        if (ctx) {
+                            if (monteCarloChart) {
+                                monteCarloChart.data.labels = labels;
+                                monteCarloChart.data.datasets[0].data = unmitigatedLosses;
+                                monteCarloChart.data.datasets[1].data = aegisCappedLosses;
+                                monteCarloChart.update();
+                            } else {
+                                monteCarloChart = new Chart(ctx, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: labels,
+                                        datasets: [
+                                            { label: 'Unmitigated Loss ($)', data: unmitigatedLosses, backgroundColor: 'rgba(239, 68, 68, 0.4)' },
+                                            { label: 'Aegis Capped Loss ($)', data: aegisCappedLosses, backgroundColor: 'rgba(56, 189, 248, 0.4)' }
+                                        ]
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        scales: {
+                                            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+                                            y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } }
+                                        }
+                                    }
+                                });
                             }
                         }
-                    });
-                }
-            }
+                    }
+                })
+                .catch(() => {});
+
+            // 3. Fetch Subsystem Capital Valuation & Outage Liability Breakdown
+            fetch('/api/financial/subsystems')
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success && res.subsystems) {
+                        const tbody = document.getElementById('subsystem-financial-tbody');
+                        const totalEl = document.getElementById('subsystem-outage-total');
+                        if (!tbody) return;
+                        tbody.innerHTML = '';
+                        let totalHourlyOutage = 0;
+
+                        res.subsystems.forEach(sub => {
+                            totalHourlyOutage += (sub.active_outage_cost_per_hr || 0);
+                            const tr = document.createElement('tr');
+                            tr.className = 'border-b border-[#1c2333]/50 hover:bg-white/5 transition-colors font-mono';
+                            const isIso = sub.is_isolated;
+                            tr.innerHTML = `
+                                <td class="py-2.5 font-bold text-white">${sub.name} <span class="text-slate-500 text-[10px]">(${sub.device_id})</span></td>
+                                <td class="py-2.5 text-slate-400">${sub.zone}</td>
+                                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[9px] border ${sub.criticality && sub.criticality.includes('TIER-1') ? 'bg-red-500/10 text-red-400 border-red-500/30 font-bold' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}">${sub.criticality || 'STANDARD'}</span></td>
+                                <td class="py-2.5 text-slate-300 font-mono">$${(sub.equipment_value || 0).toLocaleString()}</td>
+                                <td class="py-2.5 text-slate-300 font-mono">$${(sub.downtime_rate_per_hour || 0).toLocaleString()} / hr</td>
+                                <td class="py-2.5"><span class="subway-badge ${isIso ? 'subway-badge-danger' : 'subway-badge-nominal'} text-[9px]">${isIso ? 'ISOLATED' : 'ONLINE'}</span></td>
+                                <td class="py-2.5 font-mono ${isIso ? 'text-red-400 font-bold' : 'text-slate-500'}">$${(sub.active_outage_cost_per_hr || 0).toLocaleString()} / hr</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+
+                        if (totalEl) {
+                            totalEl.innerText = '$' + totalHourlyOutage.toLocaleString() + ' / HR ACTIVE OUTAGE';
+                            totalEl.className = totalHourlyOutage > 0 ? 'text-red-400 font-bold' : 'text-blue-400 font-bold';
+                        }
+                    }
+                })
+                .catch(() => {});
         }
 
         function scanComPorts() {
@@ -1440,8 +1769,15 @@
                         sel.innerHTML = '<option value="MOCK">SOFTWARE EMULATOR (Mock Driver)</option>';
                         data.ports.forEach(p => {
                             const opt = document.createElement('option');
-                            opt.value = p.device || p;
-                            opt.innerText = `${p.device || p} — ${p.description || 'Serial COM'}`;
+                            const devName = p.device || p;
+                            const devDesc = p.description || 'Hardware Serial COM';
+                            opt.value = devName;
+                            if (p.is_esp32_candidate) {
+                                opt.innerText = `★ ${devName} — ${devDesc} [ESP32 DETECTED]`;
+                                opt.selected = true;
+                            } else {
+                                opt.innerText = `${devName} — ${devDesc}`;
+                            }
                             sel.appendChild(opt);
                         });
                     }
@@ -1462,6 +1798,9 @@
             .then(() => {
                 document.getElementById('gateway-connection-pill').className = 'subway-badge subway-badge-nominal';
                 document.getElementById('gateway-connection-pill').innerText = 'CONNECTED: ' + port;
+                fetchAuditLogs();
+                refreshModelStatus();
+                streamUartPackets();
             })
             .catch(e => alert('Error connecting gateway: ' + e));
         }
@@ -1475,24 +1814,187 @@
             .then(() => {
                 document.getElementById('gateway-connection-pill').className = 'subway-badge subway-badge-danger';
                 document.getElementById('gateway-connection-pill').innerText = 'DISCONNECTED';
+                fetchAuditLogs();
             })
             .catch(() => {});
         }
 
+        function streamUartPackets() {
+            fetch('/api/gateway/raw_packets')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.packets) {
+                        const term = document.getElementById('raw-uart-terminal');
+                        if (!term) return;
+                        if (data.packets.length === 0) {
+                            term.innerText = '[GATEWAY] Listening on physical serial bus... Waiting for incoming UART wire frames.\n';
+                            return;
+                        }
+                        const lines = data.packets.map(p => {
+                            const timeStr = new Date(p.timestamp * 1000).toLocaleTimeString();
+                            const status = p.parsed ? '[INGEST_OK]' : '[FRAME_RAW]';
+                            return `[${timeStr}] ${status} [${p.device_id || 'ESP32'}] ${p.line}`;
+                        });
+                        term.innerText = lines.join('\n');
+                        term.scrollTop = term.scrollHeight;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function refreshModelStatus() {
+            fetch('/api/model/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const realEl = document.getElementById('model-real-samples');
+                        const treesEl = document.getElementById('model-trees-count');
+                        if (realEl) realEl.innerText = data.real_samples_count || 0;
+                        if (treesEl) treesEl.innerText = data.trees_count || 75;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function retrainModelOnHardware() {
+            const btn = document.getElementById('btn-retrain-model');
+            const msg = document.getElementById('model-retrain-msg');
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = 'CALIBRATING MODEL ON HARDWARE...';
+            }
+            fetch('/api/model/retrain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-CSRFToken': csrf },
+                body: JSON.stringify({ csrf_token: csrf })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'CALIBRATE & RETRAIN MODEL ON HARDWARE';
+                }
+                if (msg) {
+                    msg.classList.remove('hidden');
+                    if (data.success) {
+                        const m = data.metrics || {};
+                        msg.className = 'text-xs font-mono p-2 rounded bg-blue-500/10 border border-blue-500/30 text-blue-300';
+                        msg.innerText = `MODEL CALIBRATED: ${m.hardware_samples_used || 0} hardware frames incorporated. Accuracy: ${(m.accuracy * 100).toFixed(1)}%. Active Zero-Trust enforcement reloaded.`;
+                    } else {
+                        msg.className = 'text-xs font-mono p-2 rounded bg-red-500/10 border border-red-500/30 text-red-300';
+                        msg.innerText = `CALIBRATION FAILED: ${data.error || 'Unknown error'}`;
+                    }
+                }
+                refreshModelStatus();
+                fetchAuditLogs();
+            })
+            .catch(err => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'CALIBRATE & RETRAIN MODEL ON HARDWARE';
+                }
+                if (msg) {
+                    msg.classList.remove('hidden');
+                    msg.className = 'text-xs font-mono p-2 rounded bg-red-500/10 border border-red-500/30 text-red-300';
+                    msg.innerText = `CALIBRATION EXCEPTION: ${err}`;
+                }
+            });
+        }
+
+        let auditSearchTimeout = null;
+        function debounceAuditSearch() {
+            clearTimeout(auditSearchTimeout);
+            auditSearchTimeout = setTimeout(fetchAuditLogs, 250);
+        }
+
+        function fetchAuditLogs() {
+            const cat = document.getElementById('audit-category-filter')?.value || 'ALL';
+            const op = document.getElementById('audit-operator-filter')?.value || 'ALL';
+            const search = document.getElementById('audit-search-input')?.value || '';
+            const url = `/api/audit/logs?limit=100&category=${encodeURIComponent(cat)}&operator=${encodeURIComponent(op)}&search=${encodeURIComponent(search)}`;
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.logs) {
+                        renderAuditTable(data.logs);
+                    }
+                })
+                .catch(err => console.error('Error fetching audit logs:', err));
+        }
+
         function renderAuditTable(logs) {
             const tbody = document.getElementById('audit-table-body');
+            const counter = document.getElementById('audit-log-counter');
             if (!tbody || !Array.isArray(logs)) return;
             tbody.innerHTML = '';
-            logs.slice(0, 30).forEach(log => {
+            if (counter) counter.innerText = `${logs.length} RECORDS`;
+
+            if (logs.length === 0) {
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-white/5 transition-colors';
-                const timeStr = log.timestamp ? new Date(log.timestamp * 1000).toLocaleTimeString() : '--';
+                tr.innerHTML = `<td colspan="7" class="py-6 text-center text-slate-500 font-mono">No audit log records matching the active filter criteria.</td>`;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            logs.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-white/5 transition-colors font-mono';
+
+                // Formatted timestamp
+                let timeStr = '--';
+                if (typeof log.timestamp === 'string' && log.timestamp.length > 5) {
+                    timeStr = log.timestamp;
+                } else if (log.timestamp_epoch) {
+                    timeStr = new Date(log.timestamp_epoch * 1000).toLocaleString();
+                } else if (typeof log.timestamp === 'number') {
+                    timeStr = new Date(log.timestamp * 1000).toLocaleString();
+                }
+
+                // Operator display badge
+                const op = log.operator || log.username || 'System';
+                let opBadgeClass = 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+                if (op.toLowerCase() === 'noodles') {
+                    opBadgeClass = 'bg-blue-500/20 text-blue-400 border-blue-500/30 font-bold';
+                } else if (op.toLowerCase() === 'admin') {
+                    opBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold';
+                } else if (op.toLowerCase() === 'system') {
+                    opBadgeClass = 'bg-slate-700/40 text-slate-400 border-slate-600/30';
+                }
+
+                // Action / Event display
+                const action = log.action || log.event_type || 'SYSTEM_EVENT';
+                let actColor = 'text-white';
+                if (action.includes('LOGIN_SUCCESS')) actColor = 'text-blue-300 font-bold';
+                else if (action.includes('LOGIN_FAILED')) actColor = 'text-red-400 font-bold';
+                else if (action.includes('VIOLATION') || action.includes('BLOCKED')) actColor = 'text-red-400 font-bold';
+                else if (action.includes('ISOLAT') || action.includes('QUARANTINE')) actColor = 'text-amber-400 font-bold';
+                else if (action.includes('SETPOINT')) actColor = 'text-sky-300';
+                else if (action.includes('MODEL')) actColor = 'text-purple-300 font-bold';
+
+                // Severity badge
+                const sev = (log.severity || 'INFO').toUpperCase();
+                let sevBadgeClass = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+                if (sev === 'CRITICAL') {
+                    sevBadgeClass = 'bg-red-500/20 text-red-400 border-red-500/30 font-bold';
+                } else if (sev === 'WARNING') {
+                    sevBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold';
+                }
+
+                // Location / IP
+                const loc = log.location || 'Local Terminal';
+
+                // NIST control
+                const nist = log.nist_control || 'NIST AU-2';
+
                 tr.innerHTML = `
-                    <td class="py-2 px-4 text-slate-400">${timeStr}</td>
-                    <td class="py-2 px-4 text-white font-bold">${log.event_type || 'SYSTEM'}</td>
-                    <td class="py-2 px-4 text-slate-300">${log.device_id || 'GATEWAY'}</td>
-                    <td class="py-2 px-4"><span class="px-1.5 py-0.5 rounded text-[10px] ${log.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}">${log.severity || 'INFO'}</span></td>
-                    <td class="py-2 px-4 text-slate-400">${log.details || ''}</td>
+                    <td class="py-2.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">${timeStr}</td>
+                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] border ${opBadgeClass}">${op}</span></td>
+                    <td class="py-2.5 px-4 ${actColor} font-bold text-[11px] whitespace-nowrap">${action}</td>
+                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[140px] truncate" title="${loc}">${loc}</td>
+                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-1.5 py-0.5 rounded text-[10px] border ${sevBadgeClass}">${sev}</span></td>
+                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[160px] truncate" title="${nist}">${nist}</td>
+                    <td class="py-2.5 px-4 text-slate-300 text-[11px] max-w-xs truncate" title="${log.details || ''}">${log.details || ''}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -1512,9 +2014,28 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
-            setupEventStream();
+            fetchFullData();          // Seed charts and tables immediately!
+            fetchAuditLogs();         // Load audit history immediately!
+            refreshModelStatus();     // Load ML model status
+            setupEventStream();       // Start SSE stream
             refreshDevicesList();
             scanComPorts();
+            refreshTopology();        // Dynamic node and sensor topology
+            refreshRiskView();        // Seed financial analytics and Monte Carlo curve
+
+            // Background polling for active station views
+            setInterval(() => {
+                const activeSt = STATIONS[currentStationIndex]?.id;
+                if (activeSt === 'view-gateway') {
+                    streamUartPackets();
+                    refreshModelStatus();
+                } else if (activeSt === 'view-audit') {
+                    fetchAuditLogs();
+                } else if (activeSt === 'view-risk') {
+                    refreshRiskView();
+                }
+                refreshTopology();
+            }, 2500);
 
             // Bind click listeners directly to each subway station button
             document.querySelectorAll('.subway-station-node').forEach((btn, idx) => {

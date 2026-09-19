@@ -1110,5 +1110,14 @@
     },
     "n_train": 9600,
     "n_test": 2400
+  },
+  "hardware_calibration": {
+    "success": true,
+    "hardware_samples_used": 252,
+    "total_training_samples": 6756,
+    "accuracy": 0.943,
+    "roc_auc": 0.9739,
+    "timestamp": 1789839690.1985598,
+    "status": "HARDWARE_CALIBRATED"
   }
 }

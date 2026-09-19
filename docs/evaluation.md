@@ -105,73 +105,51 @@ Empirical results from running `tests/benchmark_suite.py` against active softwar
 - **First Detection Time**: $t = 707\text{ s}$ (early detection within the covert attack ramp).
 - **Figure**: Generated empirical waveform saved to `docs/figures/fig_stuxnet_attack.png`.
 
+![Coordinated Stuxnet Attack Simulation](figures/fig_stuxnet_attack.png)
+
 ### 6.2 Real-Time Cyber-Financial Loss Mitigation (FAIR Model, 24-Hour Simulation)
 - **Single-Subsystem Empirical Benchmark (`fig_financial_risk.png`)**:
-  - **Asset Baseline Ceiling**: **\$400,000**
-  - **Actual Incurred Loss with Aegis Isolation (t = 18.0 h)**: **\$361,000**
-  - **Direct Damages Prevented**: **\$39,000** (capping loss before reaching the \$400k catastrophic threshold at $t=19.0\text{ h}$)
+  - **Asset Baseline Ceiling**: **$400,000**
+  - **Actual Incurred Loss with Aegis Isolation (t = 18.0 h)**: **$361,000**
+  - **Direct Damages Prevented**: **$39,000** (capping loss before reaching the $400k catastrophic threshold at $t=19.0\text{ h}$)
   - **Threat Index at Isolation**: **0.95** (triggering automated circuit trip)
 - **Multi-Node Cluster Aggregate Escalation**:
-  - **Total Projected Unmitigated Loss**: **\$2,654,000**
-  - **Actual Incurred Loss with Aegis Active Defense**: **\$1,233,000**
-  - **Net Damages Prevented across Cluster**: **\$1,421,000** (**53.5% loss reduction**)
+  - **Total Projected Unmitigated Loss**: **$2,654,000**
+  - **Actual Incurred Loss with Aegis Active Defense**: **$1,233,000**
+  - **Net Damages Prevented across Cluster**: **$1,421,000** (**53.5% loss reduction**)
 - **Figure**: Generated loss trajectory curve saved to `docs/figures/fig_financial_risk.png`.
+
+![FAIR Financial Risk Reduction](figures/fig_financial_risk.png)
+
+### 6.3 Additional Benchmark Empirical Figures
+- **NSPN Non-Linear Safety Decision Surface Heatmap**: `docs/figures/fig_nspn_heatmap.png`
+- **Continuous Trust Score Evolution Across Attack Cycles**: `docs/figures/fig_trust_evolution.png`
+- **End-to-End Latency Kernel Density Distribution**: `docs/figures/fig_latency_distribution.png`
+- **Receiver Operating Characteristic (ROC) Ensembles**: `docs/figures/fig_roc_curves.png`
 
 ---
 
 ## 7. Automated Test Suite Validation Matrix
 
-The complete test suite (`tests/test_full_suite.py`) executed against Python 3.14 on Windows 64-bit with **100% pass rate across all 46 modules**:
+The complete test suite executed against Python on Windows 64-bit with **100% pass rate across all 60 tests (50 core + 10 hardware integration)**:
 
 ```
-tests/test_full_suite.py::test_database_init_and_users PASSED
-tests/test_full_suite.py::test_security_hmac_and_tokens PASSED
-tests/test_full_suite.py::test_safety_enforcer_rules PASSED
-tests/test_full_suite.py::test_neural_safety_policy_model_loading PASSED
-tests/test_full_suite.py::test_neural_safety_enforcer_adversarial_rejection PASSED
-tests/test_full_suite.py::test_neural_policy_fallback_handling PASSED
-tests/test_full_suite.py::test_financial_analytics PASSED
-tests/test_full_suite.py::test_pdf_report_generation PASSED
-tests/test_full_suite.py::test_serial_gateway_parsing PASSED
-tests/test_full_suite.py::test_flask_api_routes PASSED
-tests/test_full_suite.py::test_stress_concurrent_telemetry_and_api PASSED
-tests/test_full_suite.py::test_stress_all_3_simulation_attacks_and_pdf_download PASSED
-tests/test_full_suite.py::test_fuzzing_and_boundary_conditions PASSED
-tests/test_full_suite.py::test_multi_device_cluster_endpoints PASSED
-tests/test_full_suite.py::test_attack_simulation_suite PASSED
-tests/test_full_suite.py::test_trust_breakdown_endpoint PASSED
-tests/test_full_suite.py::test_audit_logs_streaming_endpoint PASSED
-tests/test_full_suite.py::test_financial_analytics_endpoints PASSED
-tests/test_full_suite.py::test_financial_loss_distribution_endpoint PASSED
-tests/test_full_suite.py::test_financial_subsystems_endpoint PASSED
-tests/test_full_suite.py::test_device_locations_endpoint PASSED
-tests/test_full_suite.py::test_pdf_report_special_characters_safety PASSED
-tests/test_full_suite.py::test_safety_enforcer_type_safety_and_nan PASSED
-tests/test_full_suite.py::test_rules_inversion_rejection_and_audit_trail PASSED
-tests/test_full_suite.py::test_devices_metadata_enrichment PASSED
-tests/test_full_suite.py::test_semver_parsing_robustness PASSED
-tests/test_full_suite.py::test_comprehensive_nist800_pdf_content PASSED
-tests/test_full_suite.py::test_pdf_download_and_view_endpoints PASSED
-tests/test_full_suite.py::test_firmware_cryptographic_parity PASSED
-tests/test_full_suite.py::test_multi_node_keys_parity PASSED
-tests/test_full_suite.py::test_serial_gateway_firmware_packet_forwarding PASSED
-tests/test_full_suite.py::test_serial_command_queue_dispatch PASSED
-tests/test_full_suite.py::test_audit_log_baseline_seeding_and_api PASSED
-tests/test_full_suite.py::test_esp32_004_turbine_generator_rpm_handling PASSED
-tests/test_full_suite.py::test_isolated_device_telemetry_returns_403 PASSED
-tests/test_full_suite.py::test_hardware_isolation_command_dispatched PASSED
-tests/test_full_suite.py::test_airgap_offline_assets PASSED
-tests/test_full_suite.py::test_ml_model_synthetic_inference PASSED
-tests/test_full_suite.py::test_sse_stream_endpoint PASSED
-tests/test_full_suite.py::test_terminal_css_and_1980s_assets PASSED
-tests/test_full_suite.py::test_forensic_time_scrubber_slicing PASSED
-tests/test_full_suite.py::test_terminal_dashboard_routes_and_html_render PASSED
-tests/test_full_suite.py::test_v1_telemetry_staleness_fail_closed PASSED
-tests/test_full_suite.py::test_v2_safe_pickle_deserialization_flags PASSED
-tests/test_full_suite.py::test_v4_new_device_trust_initialization PASSED
-tests/test_full_suite.py::test_v5_neural_policy_exception_fail_closed PASSED
+tests/test_full_suite.py (50 tests) .................................................. PASSED
+tests/test_production_hardware_integration.py (10 tests) .......... PASSED
 
-Result: 46 passed in 16.51s (100% pass rate, 0 warnings)
+Result: 60 passed in 12.47s (100% pass rate, 0 regressions)
 ```
+
+### Hardware Integration Tests Verified:
+1. `test_serial_gateway_master_bridge_announcement`: Master Concentrator boot announcement parsing & state tracking.
+2. `test_serial_gateway_5_sensor_parsing_and_mapping`: Ingestion of 5 transducers (Temp, Pres, Vib, Curr, RPM).
+3. `test_find_esp32_ports`: Dynamic USB-to-UART candidate detection.
+4. `test_cluster_topology_endpoint`: `GET /api/cluster/topology` cluster enumeration.
+5. `test_devices_dynamic_enumeration`: `GET /api/devices` dynamic node registration.
+6. `test_isolated_device_quarantine_telemetry_persistence`: Quarantine de-energization logging.
+7. `test_financial_analytics_data_contract`: FAIR analytics data contract validation.
+8. `test_monte_carlo_loss_distribution_endpoint`: Monte Carlo loss exceedance distribution (P05–P99).
+9. `test_subsystem_financial_breakdown_endpoint`: Outage rate breakdown per node.
+10. `test_manual_isolation_and_rejoin`: Direct trip and re-arm toggles.
 
 

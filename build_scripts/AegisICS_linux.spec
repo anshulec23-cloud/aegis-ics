@@ -69,6 +69,7 @@ hiddenimports = [
     'updater',
     'tray',
     'trust_engine',
+    'train_model',
 ]
 
 a = Analysis(
