@@ -3,80 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis ICS — DEC VT-220 Operator Terminal</title>
+    <title>Aegis ICS — Central Transit Terminal [OPERATOR ACCESS]</title>
     <!-- Offline Air-Gapped Vendor Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='subway.css') }}">
     <style>
-        .login-box {
-            max-width: 540px;
+        .login-card {
+            max-width: 480px;
             width: 100%;
-            background-color: var(--crt-panel);
-            border: 2px solid var(--crt-border);
-            box-shadow: 0 0 25px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 10px var(--crt-glow);
+            background-color: #0e121a;
+            border: 1px solid #1c2333;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }
     </style>
 </head>
-<body class="theme-green crt-active flex items-center justify-center min-h-screen p-4 select-none">
+<body class="theme-green bg-[#090a0f] text-white flex items-center justify-center min-h-screen p-4 select-none">
 
-    <div class="login-box p-6 md:p-8 space-y-6">
-        <!-- Terminal ASCII Header -->
-        <div class="border-b border-[var(--crt-border-mid)] pb-5 text-center space-y-2">
-            <div class="text-[11px] phosphor-dim tracking-widest uppercase">
-                *** CLASSIFIED INDUSTRIAL FACILITY // PURDUE MODEL LEVEL 1/2 ***
+    <div class="login-card p-6 md:p-8 space-y-6">
+        <!-- Station Transit Header -->
+        <div class="border-b border-[#1c2333] pb-5 text-center space-y-2">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[11px] tracking-wider uppercase">
+                <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                CLASSIFIED INDUSTRIAL FACILITY // TRANSIT ROUTE L1
             </div>
-            <pre class="font-mono text-[10px] md:text-xs leading-tight phosphor-bright hidden sm:block">
-╔══════════════════════════════════════════════════════════════════╗
-║  AEGIS-ICS // VT-220 SUPERVISORY SECURITY GATEWAY // v2.5.2      ║
-║  ZERO-TRUST PHYSICAL ENFORCER // CONTINUOUS TRUST ENGINE         ║
-╚══════════════════════════════════════════════════════════════════╝</pre>
-            <div class="sm:hidden font-mono text-sm font-bold phosphor-bright">
-                [ AEGIS-ICS // VT-220 CONSOLE ]
-            </div>
-            <div class="flex items-center justify-between text-[11px] phosphor-text px-1">
+            <h1 class="text-lg font-bold tracking-tight text-white font-mono">
+                AEGIS ICS // CENTRAL OPERATING STATION
+            </h1>
+            <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 px-1 pt-1">
                 <span>TERMINAL: TTY-01 (115200 8N1)</span>
-                <span id="loc-status-pill" class="terminal-badge terminal-badge-success">[ HARDWARE GPS OK ]</span>
+                <span class="text-blue-400 font-semibold">[ HARDWARE GPS LOCK ]</span>
             </div>
         </div>
 
         {% if error %}
-        <div class="p-3 bg-[var(--crt-alert-dim)] border border-[var(--crt-alert)] text-[var(--crt-alert)] text-xs font-mono text-center">
-            [!] ACCESS DENIED: {{ error }}
+        <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono text-center rounded">
+            [ACCESS DENIED] {{ error }}
         </div>
         {% endif %}
 
-        <form action="/login" method="POST" class="space-y-5">
+        <form action="/login" method="POST" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono phosphor-text uppercase tracking-wider" for="username">
-                    &gt; OPERATOR IDENTIFICATION (LOGIN):
+                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="username">
+                    OPERATOR IDENTIFICATION (LOGIN):
                 </label>
                 <div class="flex items-center">
-                    <span class="px-3 py-2 bg-[var(--crt-bg-deep)] border border-r-0 border-[var(--crt-border-mid)] font-mono text-xs phosphor-text">UID:</span>
-                    <input class="w-full terminal-input" type="text" id="username" name="username" placeholder="noodles" required autocomplete="username" autofocus>
+                    <span class="px-3 py-2 bg-[#050608] border border-r-0 border-[#1c2333] font-mono text-xs text-slate-400 rounded-l">UID:</span>
+                    <input class="subway-input w-full rounded-l-none" type="text" id="username" name="username" placeholder="noodles" required autocomplete="username" autofocus>
                 </div>
             </div>
 
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono phosphor-text uppercase tracking-wider" for="password">
-                    &gt; SECURITY ACCESS KEY (TOKEN):
+                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="password">
+                    SECURITY ACCESS KEY (TOKEN):
                 </label>
                 <div class="flex items-center">
-                    <span class="px-3 py-2 bg-[var(--crt-bg-deep)] border border-r-0 border-[var(--crt-border-mid)] font-mono text-xs phosphor-text">KEY:</span>
-                    <input class="w-full terminal-input" type="password" id="password" name="password" placeholder="••••••••••••" required autocomplete="current-password">
+                    <span class="px-3 py-2 bg-[#050608] border border-r-0 border-[#1c2333] font-mono text-xs text-slate-400 rounded-l">KEY:</span>
+                    <input class="subway-input w-full rounded-l-none" type="password" id="password" name="password" placeholder="noodles" required autocomplete="current-password">
                 </div>
             </div>
 
-            <!-- Terminal Spatial Location Box -->
-            <div class="p-3 bg-[var(--crt-bg-deep)] border border-[var(--crt-border-dim)] space-y-1 font-mono text-[11px]">
-                <div class="flex justify-between phosphor-dim">
-                    <span>TERMINAL SPATIAL COORD:</span>
-                    <span id="disp-coords" class="phosphor-bright">Lat 37.77490, Lon -122.41940</span>
+            <!-- Terminal Spatial Coordinates Box -->
+            <div class="p-3 bg-[#050608] border border-[#1c2333] rounded space-y-1 font-mono text-[11px]">
+                <div class="flex justify-between text-slate-400">
+                    <span>STATION COORDINATES:</span>
+                    <span class="text-white font-bold">Lat 37.77490, Lon -122.41940</span>
                 </div>
-                <div class="flex justify-between phosphor-dim">
-                    <span>SECURITY ZONE / SECTOR:</span>
-                    <span id="disp-sector" class="phosphor-text">Control Room Alpha (Elev: 18.5m)</span>
+                <div class="flex justify-between text-slate-400">
+                    <span>CONTROL SECTOR:</span>
+                    <span class="text-slate-300">Central Station Alpha (18.5m)</span>
                 </div>
                 <input type="hidden" id="location_coords" name="location_coords" value="Lat: 37.77490, Lon: -122.41940, Elev: 18.5m [Grid H-01]">
                 <input type="hidden" id="latitude" name="latitude" value="37.77490">
@@ -84,50 +82,17 @@
                 <input type="hidden" id="elevation" name="elevation" value="18.5">
             </div>
 
-            <button class="w-full terminal-btn py-3 text-sm tracking-wider font-bold" type="submit">
-                [ F1: INITIATE SECURE SESSION ]<span class="terminal-cursor"></span>
+            <button class="w-full subway-btn subway-btn-primary py-3 text-xs tracking-wider font-bold" type="submit">
+                INITIATE SUPERVISORY SESSION &rarr;
             </button>
         </form>
 
-        <!-- Terminal Status Footer -->
-        <div class="pt-3 border-t border-[var(--crt-border-dim)] flex items-center justify-between text-[10px] font-mono phosphor-dim">
-            <span>[ SYSTEM: ONLINE // MONOCHROME CRT ]</span>
-            <button type="button" onclick="toggleScanlines()" class="hover:underline cursor-pointer">[SCANLINES: <span id="scanlines-status">ON</span>]</button>
+        <!-- Status Footer -->
+        <div class="pt-3 border-t border-[#1c2333] flex items-center justify-between text-[11px] font-mono text-slate-500">
+            <span>[ SYSTEM: ONLINE // TRANSIT ROUTE L1 ]</span>
+            <span class="text-slate-400">DEC VT-220 COMPLIANT</span>
         </div>
     </div>
 
-    <script>
-        function toggleScanlines() {
-            document.body.classList.toggle('crt-active');
-            const isActive = document.body.classList.contains('crt-active');
-            document.getElementById('scanlines-status').textContent = isActive ? 'ON' : 'OFF';
-            localStorage.setItem('aegis_crt_scanlines', isActive ? '1' : '0');
-        }
-
-        // Restore scanlines state
-        const savedScanlines = localStorage.getItem('aegis_crt_scanlines') !== '0';
-        if (!savedScanlines && document.body.classList.contains('crt-active')) toggleScanlines();
-
-        // Browser Hardware GPS Integration
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const lat = pos.coords.latitude.toFixed(5);
-                    const lon = pos.coords.longitude.toFixed(5);
-                    const alt = pos.coords.altitude ? pos.coords.altitude.toFixed(1) + 'm' : '18.5m';
-                    document.getElementById('latitude').value = lat;
-                    document.getElementById('longitude').value = lon;
-                    document.getElementById('location_coords').value = `Lat: ${lat}, Lon: ${lon}, Elev: ${alt} [Terminal GPS]`;
-                    document.getElementById('disp-coords').innerText = `Lat ${lat}, Lon ${lon}`;
-                    document.getElementById('disp-sector').innerText = `Field Console Alpha (Elev: ${alt})`;
-                    document.getElementById('loc-status-pill').innerText = '[ BROWSER GPS SYNCED ]';
-                },
-                (err) => {
-                    console.log('Using default industrial control center fallback coordinates:', err.message);
-                },
-                { timeout: 3000 }
-            );
-        }
-    </script>
 </body>
 </html>

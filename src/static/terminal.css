@@ -4,28 +4,28 @@
    ========================================================================== */
 
 :root, body.theme-green {
-    --crt-bg: #020603;
-    --crt-bg-deep: #000000;
-    --crt-panel: #040d06;
-    --crt-panel-hover: #08170b;
-    --crt-border: #22c55e;
-    --crt-border-dim: rgba(34, 197, 94, 0.20);
-    --crt-border-mid: rgba(34, 197, 94, 0.38);
-    --crt-text: #22c55e;
-    --crt-text-dim: #15803d;
-    --crt-text-muted: #14532d;
-    --crt-bright: #4ade80;
+    --crt-bg: #090a0f;
+    --crt-bg-deep: #050608;
+    --crt-panel: #0e121a;
+    --crt-panel-hover: #131824;
+    --crt-border: #1c2333;
+    --crt-border-dim: rgba(255, 255, 255, 0.08);
+    --crt-border-mid: rgba(255, 255, 255, 0.18);
+    --crt-text: #ffffff;
+    --crt-text-dim: #94a3b8;
+    --crt-text-muted: #64748b;
+    --crt-bright: #ffffff;
     --crt-alert: #ef4444;
     --crt-alert-dim: rgba(239, 68, 68, 0.2);
     --crt-alert-glow: rgba(239, 68, 68, 0.5);
-    --crt-glow: rgba(34, 197, 94, 0.25);
-    --crt-glow-strong: rgba(34, 197, 94, 0.50);
-    --crt-trace-temp: #22c55e;
-    --crt-trace-press: #38bdf8;
+    --crt-glow: rgba(59, 130, 246, 0.25);
+    --crt-glow-strong: rgba(59, 130, 246, 0.50);
+    --crt-trace-temp: #38bdf8;
+    --crt-trace-press: #60a5fa;
     --crt-trace-vib: #fb923c;
-    --crt-trace-hall: #34d399;
+    --crt-trace-hall: #818cf8;
     --crt-trace-curr: #f472b6;
-    --crt-grid-color: rgba(34, 197, 94, 0.10);
+    --crt-grid-color: rgba(255, 255, 255, 0.05);
 }
 
 body.theme-amber {
@@ -91,35 +91,9 @@ body {
     transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* CRT Scanlines Overlay */
-body.crt-active::before {
-    content: " ";
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
-                linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
-    z-index: 99999;
-    background-size: 100% 3px, 6px 100%;
-    pointer-events: none;
-    opacity: 0.75;
-}
-
-/* CRT Glass Screen Vignette */
-body.crt-active::after {
-    content: " ";
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.88), 0 0 25px var(--crt-glow);
-    z-index: 99998;
-    pointer-events: none;
+/* Clean Modern Display (CRT scanlines purged) */
+body.crt-active {
+    /* Scanlines removed per user direction */
 }
 
 /* Phosphor Glow Effects */
