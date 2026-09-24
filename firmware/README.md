@@ -194,3 +194,50 @@ pio run -d firmware/esp32_slave_sensor -t upload
    - If packets have framing errors: check that `RS485_BAUD_RATE` is `115200` on both Master and Slaves.
    - If signatures fail: verify the `DEVICE_KEY_<ID>` in the host `.env` matches `PRE_SHARED_HMAC_KEY` in the firmware.
 
+---
+
+## 8. Dynamic Multi-Slave Auto-Discovery & Topology Protocol
+
+Aegis ICS v2.5.2 introduces autonomous, decentralized multi-slave discovery over RS-485. The Master Concentrator Bridge dynamically discovers and reports attached slaves and their sensor inventories without manual configuration.
+
+### 8.1. Slave Node Dynamic Announcement (`NODE_ANNOUNCE`)
+When a Slave ESP32 powers on or receives a `DISCOVER` probe, it emits a `NODE_ANNOUNCE` frame:
+```json
+{
+  "type": "NODE_ANNOUNCE",
+  "device_id": "ESP32_001",
+  "hardware": "ESP32-WROOM-32",
+  "version": "2.5.2",
+  "is_isolated": false,
+  "sensors": ["temperature", "pressure", "vibration", "current"],
+  "sensor_count": 4
+}
+```
+
+### 8.2. Master Concentrator Bus Topology Report (`BUS_TOPOLOGY`)
+The Master ESP32 aggregates all active slave nodes in an internal RAM registry. Every 3,000 ms (or upon receiving `{"command":"DISCOVER"}` over USB-CDC Serial), the Master bridge transmits a comprehensive bus topology report:
+```json
+{
+  "system": "Aegis Master Concentrator",
+  "type": "BUS_TOPOLOGY",
+  "status": "ONLINE",
+  "version": "2.5.2",
+  "slave_count": 4,
+  "slaves": ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"],
+  "sensors": {
+    "ESP32_001": ["temperature", "pressure", "vibration", "current"],
+    "ESP32_002": ["temperature", "pressure", "vibration", "hall_effect", "current"],
+    "ESP32_003": ["temperature", "pressure", "current"],
+    "ESP32_004": ["temperature", "pressure", "vibration", "hall_effect", "current"]
+  }
+}
+```
+
+### 8.3. Bidirectional Supervisory Actuator Commands
+The host SCADA interface can dispatch targeted or broadcast commands through the Master bridge down to the slave nodes:
+- `DISCOVER` / `SCAN`: Prompts all connected slaves to transmit `NODE_ANNOUNCE` and triggers an immediate `BUS_TOPOLOGY` response.
+- `ISOLATE` / `MICROSEGMENT`: Trips relay (GPIO 25 LOW), illuminates isolation LED, and forces telemetry to a safe de-energized profile.
+- `REARM` / `REJOIN`: Re-energizes relay (GPIO 25 HIGH) and extinguishes alarm LED.
+- `SHUTDOWN`: Executes safe emergency de-energization across an addressed node or the entire bus (`"target_device": "ALL"`).
+- `SETPOINT`: Validates new supervisory process parameters against the hard safety envelope (`[0, 60]°C`, `[0, 8.0] bar`).
+

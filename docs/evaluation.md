@@ -7,7 +7,7 @@ This document establishes the empirical validation and quantitative performance 
 3. **Cryptographic Throughput & Signature Verification Latency** (FIPS 198-1 HMAC-SHA256).
 4. **Autonomous Micro-Segmentation Response Time** (Hardware relay trip speed).
 5. **Real-Time Cyber-Financial Loss Mitigation** (FAIR quantitative model and Monte Carlo simulation under active attack).
-6. **Automated Test Suite Validation** (46 passing test modules covering crypto, safety, auth, and stress).
+6. **Automated Test Suite Validation** (65 passing test modules covering crypto, safety, auth, multi-slave discovery, and hardware stress).
 
 ---
 
@@ -131,14 +131,22 @@ Empirical results from running `tests/benchmark_suite.py` against active softwar
 
 ## 7. Automated Test Suite Validation Matrix
 
-The complete test suite executed against Python on Windows 64-bit with **100% pass rate across all 60 tests (50 core + 10 hardware integration)**:
+The complete test suite executed against Python on Windows 64-bit with **100% pass rate across all 65 tests (50 core + 5 multi-slave discovery + 10 hardware integration)**:
 
 ```
 tests/test_full_suite.py (50 tests) .................................................. PASSED
-tests/test_production_hardware_integration.py (10 tests) .......... PASSED
+tests/test_multi_slave_discovery.py (5 tests) .....                                    PASSED
+tests/test_production_hardware_integration.py (10 tests) ..........                  PASSED
 
-Result: 60 passed in 12.47s (100% pass rate, 0 regressions)
+Result: 65 passed in 25.41s (100% pass rate, 0 regressions)
 ```
+
+### Multi-Slave Auto-Discovery Tests Verified:
+1. `test_bus_topology_frame_parsing_and_registration`: Master Concentrator `BUS_TOPOLOGY` broadcast parsing, active slave table tracking, and transducer capability extraction (17 sensors across 4 nodes).
+2. `test_node_announce_frame_parsing`: Dynamic slave boot `NODE_ANNOUNCE` frame parsing, automatic registration, and non-telemetry HMAC bypass isolation.
+3. `test_api_cluster_topology_endpoint`: Dynamic `/api/cluster/topology` cluster enumeration and live connection state reporting.
+4. `test_api_cluster_discover_trigger`: Supervisory `/api/cluster/discover` probe dispatching `{"command": "DISCOVER"}` down RS-485.
+5. `test_emergency_shutdown_endpoint`: Supervisory `/api/device/shutdown` dispatching immediate hardware trip relay cutoff.
 
 ### Hardware Integration Tests Verified:
 1. `test_serial_gateway_master_bridge_announcement`: Master Concentrator boot announcement parsing & state tracking.

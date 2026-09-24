@@ -2,7 +2,7 @@
 
 [![Release Version](https://img.shields.io/badge/release-v2.5.2-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
-[![Tests Status](https://img.shields.io/badge/tests-60%2F60%20passing-brightgreen.svg)](#quality-assurance-and-testing)
+[![Tests Status](https://img.shields.io/badge/tests-65%2F65%20passing-brightgreen.svg)](#quality-assurance-and-testing)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -348,15 +348,23 @@ After starting app.py, navigate to http://127.0.0.1:5000 in your browser.
 
 Aegis ICS interfaces directly with physical edge hardware over RS-485 serial fieldbuses:
 
-1. Connect your ESP32 Master Concentrator or field sensor to the host via USB.
-2. In the SCADA Dashboard, navigate to Hardware Connection.
-3. Click Scan Ports to list available COM ports (e.g., COM3, /dev/ttyUSB0).
-4. Select the baud rate (default: 115200) and click Connect.
-5. The gateway establishes a non-resetting serial stream (disabling DTR/RTS) and ingests signed telemetry packets live.
+1. **Physical Setup**: Connect your ESP32 Master Concentrator Bridge to the host PC via USB. Slave ESP32 nodes (`ESP32_001` through `ESP32_004` or custom IDs) communicate over an RS-485 differential pair.
+2. **Dynamic Multi-Slave Discovery**:
+   - The Master Concentrator automatically maintains an active slave table and broadcasts `BUS_TOPOLOGY` frames every 3 seconds or on demand.
+   - Slaves broadcast `NODE_ANNOUNCE` frames declaring their hardware model and attached transducer inventory (LM35, industrial pressure transducer, piezo accelerometer, Hall effect sensor, ACS712 current sensor).
+   - Upon connection, the gateway immediately dispatches an active `DISCOVER` probe.
+3. **Real-Time 4-Node SCADA Waveform Grid**:
+   - The dashboard Station 01 features a high-density, multi-channel waveform view with **Split Mode (Default)**, **Combined Waveform**, and **4-Node Dedicated Grid**.
+   - Each sub-node graph plots 5 dedicated sensor channels in real-time with responsive layout resizing and live telemetry indicators.
+4. **Bidirectional Actuator & Enforcer Controls**:
+   - **Trip Emergency Isolation**: Dispatches `ISOLATE` / `MICROSEGMENT` commands, tripping optocoupler relays on GPIO 25 within 12.74 ms.
+   - **Emergency Shutdown**: Dispatches `SHUTDOWN` commands down to the addressed node or the entire bus (`ALL`).
+   - **Rearm Node**: Re-energizes relays and returns nodes to closed-loop supervisory control.
+   - **Setpoint Dispatch**: Tests supervisory commands against physical safety invariants before dispatch.
 
 Firmware source code:
-- Master Concentrator Bridge: firmware/esp32_master_bridge/esp32_master_bridge.ino
-- Slave Sensor Node: firmware/esp32_slave_sensor/esp32_slave_sensor.ino
+- Master Concentrator Bridge: `firmware/esp32_master_bridge/esp32_master_bridge.ino`
+- Slave Sensor Node: `firmware/esp32_slave_sensor/esp32_slave_sensor.ino`
 
 ---
 

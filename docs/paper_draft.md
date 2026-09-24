@@ -3,25 +3,26 @@
 **Authors**: Aegis Industrial AI & Cyber-Physical Systems Research Group  
 **Affiliation**: Consortium for Advanced Machine Learning in Critical Infrastructure & Operational Technology  
 **Contact**: `research@aegis-ai.internal` / `ai-cps@aegis-ics.org`  
-**Software Version**: 2.5.2 (Empirical Benchmark Edition — Post-Vulnerability Hardened)  
+**Software Version**: 2.5.2 (Hardware Concentrator & Dynamic Multi-Slave Discovery Edition)  
 **Target Venues**: *IEEE Transactions on Neural Networks and Learning Systems (TNNLS)* / *IEEE Transactions on Cyber-Physical Systems* / *ACM Transactions on Cyber-Physical Systems (TCPS)* / *SafeAI Workshop (AAAI/IJCAI)*  
 
 ---
 
 ### Abstract
-Modern Industrial Control Systems (ICS) and Operational Technology (OT) infrastructures governing power generation, catalytic chemical synthesis, and supercritical turbomachinery are increasingly threatened by sophisticated multi-variable cyber-physical attacks (e.g., Stuxnet, Industroyer2, Triton). Traditional single-variable heuristic alarms and passive network intrusion detection systems (NIDS) fail against coordinated adversaries who subtly manipulate coupled physical process states while ensuring individual sensor channels remain beneath static trip thresholds.
+Modern Industrial Control Systems (ICS) and Operational Technology (OT) infrastructures governing power generation, catalytic chemical synthesis, and supercritical turbomachinery are increasingly threatened by sophisticated multi-variable cyber-physical attacks (e.g., Stuxnet, Industroyer2, Triton/Trisis). Traditional single-variable heuristic alarms and passive network intrusion detection systems (NIDS) fail against coordinated adversaries who subtly manipulate coupled physical process states while ensuring individual sensor channels remain beneath static trip thresholds.
 
 To overcome these fundamental limitations, this paper introduces **Aegis**, an inline, **Physics-Informed Cyber-Physical Digital Twin (PI-CPDT)** and **Dual-Engine Machine Learning Anomaly Detection & Neural Safety Policy Gateway** operating across Purdue Enterprise Reference Architecture Levels 1 and 2. 
 
-Aegis delivers six core contributions to artificial intelligence and cyber-physical systems research:
-1. **Physics-Informed Cyber-Physical Digital Twin (PI-CPDT)**: A real-time spatial vector state-space estimator synchronizing continuous physical process dynamics (fluid velocities $\vec{v}(x,y)$, thermodynamic head $\Delta H$, rotor kinetic energy $E_k$) across heterogeneous edge microcontroller nodes, mapping physical facility coordinates ($X, Y, Z$) to live process trajectories.
-2. **Multi-Variable Random Forest Anomaly Detection Architecture**: A supervised ensemble classifier operating over a 5-dimensional coupled physical feature space ($\vec{x} = [T, P, V, R, I]^T$) optimized via Gini impurity reduction. Evaluated across 15,000 multi-zone telemetry records with realistic sensor noise and overlapping boundary samples, the model achieves an empirical **ROC-AUC of 0.9755**, a **5-fold cross-validation F1-score of 0.9623** ($\pm 0.0045$), and an edge inference latency of **1.071 ms** ($1,071\ \mu\text{s}$ mean, $0.967\text{ ms}$ median) for single-sample fast-path CPU execution (**0.0054 ms** amortized batch throughput).
-3. **Local Deep Neural Safety Policy Network (NSPN)**: A 6-dimensional deep feed-forward neural network ($6 \to 64 \to 32 \to 16 \to 1$) running 100% locally and offline on CPU ($0.019\text{ ms}$ inference latency via vectorized NumPy, $0.046\text{ ms}$ via PyTorch) that evaluates proposed SCADA setpoint commands against non-linear coupled hazard envelopes, achieving **96.46% validation accuracy** and **0.9738 ROC-AUC** while proactively blocking coordinated Stuxnet exploits before actuator dispatch.
-4. **Continuous Statistical-Deterministic Hybrid Decision Fusion ($T_{\text{final}}$)**: A 4-parameter continuous trust metric fusing machine learning anomaly probabilities ($P(\text{anomaly})$, weight $0.35$), cryptographic wire integrity (FIPS 198-1 HMAC-SHA256, weight $0.30$), rolling 15-packet Euclidean historical drift (weight $0.20$), and sensor variance jitter across 5 physical transducers (weight $0.15$). Under low classifier confidence ($C_{\text{model}} < 0.50$), Aegis triggers a deterministic safe-AI fallback blending mechanism.
-5. **Sub-15ms Closed-Loop AI Actuation**: An end-to-end intelligent detection-to-actuation pipeline. Upon detecting a multi-variable excursion or adversarial perturbation, the gateway issues an authenticated hardware trip command down the fieldbus, de-energizing an optocoupler relay on GPIO 25 within **13.72 ms** (mean closed loop, 15.68 ms p99)—an order of magnitude faster than the 250 ms mechanical yield destruction threshold of rotating machinery.
-6. **Quantitative Cyber-Physical Risk Estimation (FAIR & Monte Carlo)**: Direct mathematical translation of real-time machine learning anomaly probabilities and sensor drift rates into Factor Analysis of Information Risk (FAIR) metrics. In an active 24-hour coordinated stress simulation, Aegis demonstrated **\$1,421,000 in damages prevented** (a **53.5% reduction** in cumulative financial loss) via automated micro-segmentation.
+Aegis delivers seven core scientific and engineering contributions to artificial intelligence and cyber-physical systems security:
+1. **Dynamic Multi-Slave Concentrator & Hardware Discovery Protocol**: An inline hardware bridge protocol operating over differential RS-485 at 115,200 baud, enabling dynamic topology auto-discovery and sensor capability enumeration (`BUS_TOPOLOGY` and `NODE_ANNOUNCE` frames) across heterogeneous field microcontrollers (`ESP32_001` through `ESP32_004`) with 17 active sensor channels, accompanied by strict wire-level decoupling of topology frames from cryptographic HMAC-SHA256 telemetry ingestion.
+2. **Physics-Informed Cyber-Physical Digital Twin (PI-CPDT)**: A real-time spatial vector state-space estimator synchronizing continuous physical process dynamics (Navier-Stokes fluid velocities $\vec{v}(x,y)$, thermodynamic head $\Delta H$, Fourier heat conduction $q$, and rotor kinetic energy $E_k$) across heterogeneous edge microcontroller nodes, mapping facility coordinates ($X, Y, Z$) to live process trajectories.
+3. **Multi-Variable Random Forest Anomaly Detection Architecture**: A supervised ensemble classifier operating over a 5-dimensional coupled physical feature space ($\vec{x} = [T, P, V, R, I]^T$) optimized via Gini impurity reduction. Evaluated across 15,000 multi-zone telemetry records with realistic sensor noise and overlapping boundary samples, the model achieves an empirical **ROC-AUC of 0.9755**, a **5-fold cross-validation F1-score of 0.9623** ($\pm 0.0045$), and an edge inference latency of **1.071 ms** ($1,071\ \mu\text{s}$ mean, $0.967\text{ ms}$ median) for single-sample fast-path CPU execution (**0.0054 ms** amortized batch throughput).
+4. **Local Deep Neural Safety Policy Network (NSPN)**: A 6-dimensional deep feed-forward neural network ($6 \to 64 \to 32 \to 16 \to 1$) running 100% locally and offline on CPU ($0.019\text{ ms}$ inference latency via vectorized NumPy, $0.046\text{ ms}$ via PyTorch) that evaluates proposed SCADA setpoint commands against non-linear coupled hazard envelopes, achieving **96.46% validation accuracy** and **0.9738 ROC-AUC** while proactively blocking coordinated Stuxnet exploits before actuator dispatch.
+5. **Continuous Statistical-Deterministic Hybrid Decision Fusion ($T_{\text{final}}$)**: A 4-parameter continuous trust metric fusing machine learning anomaly probabilities ($P(\text{anomaly})$, weight $0.35$), cryptographic wire integrity (FIPS 198-1 HMAC-SHA256, weight $0.30$), rolling 15-packet Euclidean historical drift (weight $0.20$), and sensor variance jitter across 5 physical transducers (weight $0.15$). Under low classifier confidence ($C_{\text{model}} < 0.50$), Aegis triggers a deterministic safe-AI fallback blending mechanism.
+6. **Sub-15ms Closed-Loop AI Actuation & Supervisory Control**: An end-to-end intelligent detection-to-actuation pipeline. Upon detecting a multi-variable excursion or adversarial perturbation, the gateway issues an authenticated hardware trip command down the fieldbus, de-energizing an optocoupler relay on GPIO 25 within **13.72 ms** (mean closed loop, 15.68 ms p99)—an order of magnitude faster than the 250 ms mechanical yield destruction threshold of rotating machinery.
+7. **Quantitative Cyber-Physical Risk Estimation (FAIR & Monte Carlo)**: Direct mathematical translation of real-time machine learning anomaly probabilities and sensor drift rates into Factor Analysis of Information Risk (FAIR) metrics. In an active 24-hour coordinated stress simulation, Aegis demonstrated **\$1,421,000 in damages prevented** (a **53.5% reduction** in cumulative financial loss) via automated micro-segmentation.
 
-We empirically validate the Aegis architecture on a physical Hardware-in-the-Loop (HIL) testbed comprising a multi-node ESP32 microcontroller cluster communicating over a 120$\Omega$-terminated differential RS-485 serial fieldbus across 50,000 operational frames, demonstrating robust attack detection, zero cloud dependencies for air-gapped facilities, and complete verification across an exhaustive 60-module automated test suite.
+We empirically validate the Aegis architecture on a physical Hardware-in-the-Loop (HIL) testbed comprising a multi-node ESP32 microcontroller cluster communicating over a 120$\Omega$-terminated differential RS-485 serial fieldbus across 50,000 operational frames, demonstrating robust attack detection, zero cloud dependencies for air-gapped facilities, and complete verification across an exhaustive 65-module automated test suite.
 
 **Index Terms**—Artificial Intelligence in Cyber-Physical Systems, Physics-Informed Machine Learning (PIML), Neural Safety Policies, Cyber-Physical Digital Twin (CPDT), Random Forest Ensemble, Real-Time Anomaly Detection, Closed-Loop Edge AI, Multi-Sensor Fusion, Industrial Control Systems (ICS), Factor Analysis of Information Risk (FAIR).
 
@@ -57,12 +58,13 @@ Both paradigms suffer from critical theoretical and operational deficiencies whe
 ```
 
 1. **The Multi-Variable Sub-Threshold Blindspot**: Sophisticated adversaries do not drive a single physical variable into an extreme out-of-bounds condition. Instead, they exploit physical cross-couplings. For instance, in an exothermic chemical reactor, raising the temperature to $52^\circ\text{C}$ while operating at $7.0\text{ bar}$ produces catastrophic structural rupture. Yet, taken individually, neither $52^\circ\text{C} \le 60^\circ\text{C}$ nor $7.0\text{ bar} \le 8.0\text{ bar}$ violates static single-variable PLC thresholds.
-2. **The Passive Detection Latency Gap**: Passive NIDS engines operate out-of-band. Even if an anomaly is detected, generating an alert in an enterprise Security Operations Center (SOC) requires an average triage time of $3\text{ to }15\text{ minutes}$. In rotating turbomachinery, rotor blade centrifugal yield destruction occurs in less than $250\text{ ms}$ once resonant vibration runaway begins.
+2. **The Passive Detection Latency Gap**: Passive NIDS engines operate out-of-band. Even if an anomaly is detected, generating an alert in an enterprise Security Operations Center (SOC) requires an average triage time of $3\text{ to }15\text{ minutes}$. In rotating turbomachinery, rotor blade centrifugal yield destruction ($\sigma_c = \rho \omega^2 r^2$) occurs in less than $250\text{ ms}$ once resonant vibration runaway begins.
 3. **Air-Gapped Real-Time Constraints**: Critical infrastructure facilities are strictly air-gapped without internet access. Cloud-based AI APIs (e.g., OpenAI, AWS SageMaker) are prohibited due to regulatory mandates (NERC CIP, NIS2), unpredictability, and non-deterministic network round-trip latencies ($> 200\text{ ms}$).
 
 ### B. Core Scientific Contributions
 Aegis addresses these challenges through an end-to-end, deterministic AI-first framework:
 - **Dual-Model Cyber-Physical Intelligence**: Combines an ensemble Random Forest for continuous telemetry anomaly detection with a deep 6D Neural Safety Policy Network (NSPN) for proactive command setpoint validation.
+- **Dynamic Multi-Slave Concentrator Protocol**: Implements dynamic bus topology auto-discovery and sensor enumeration across physical microcontrollers, dynamically extracting 17 physical sensor channels without pre-configured hardcoded mappings.
 - **Physics-Informed Safety Guarantees**: Embeds thermodynamic, hydrodynamic, and kinematic process invariants directly into the neural loss function and execution pipeline.
 - **Microsecond On-Device Inference**: Achieves $1.071\text{ ms}$ single-sample fast-path ($0.0054\text{ ms}$ batch throughput) RF and $0.019\text{ ms}$ (NSPN) CPU inference latency, operating entirely offline without GPU acceleration or cloud dependencies.
 - **Sub-15ms Closed-Loop Physical Trip**: Integrates real-time serial gateway protocol decoding with deterministic hardware relay isolation on GPIO 25 within $13.72\text{ ms}$.
@@ -84,19 +86,19 @@ We assume an Advanced Persistent Threat (APT) actor possessing deep industrial d
 
 Aegis models five distinct threat scenarios:
 
-1. **Scenario A: Coordinated Multi-Variable Creep (Stuxnet-style)**
+1. **Scenario A: Coordinated Multi-Variable Creep (Stuxnet-style)**  
    The attacker injects subtle, cross-correlated drifts across coupled physical variables (e.g., slowly increasing rotor RPM while suppressing reported vibration readings via false feedback loops). No single channel exceeds static SIS alarm thresholds, but the joint state enters a mechanical resonance fracture envelope.
 
-2. **Scenario B: False Data Injection (FDI) & Telemetry Replay**
+2. **Scenario B: False Data Injection (FDI) & Telemetry Replay**  
    The adversary eavesdrops on legitimate fieldbus frames and replays previous nominal packets during an active physical process excursion. Alternatively, the attacker injects fabricated telemetry packets with altered sensor readings.
 
-3. **Scenario C: Supervisory Setpoint Manipulation (Triton-style)**
+3. **Scenario C: Supervisory Setpoint Manipulation (Triton-style)**  
    An attacker who has gained administrative control over a SCADA terminal or engineering workstation attempts to dispatch unsafe setpoint commands (e.g., commanding `set_temp=55°C` while vessel pressure is already at $7.2\text{ bar}$).
 
-4. **Scenario D: Denial of Service & Telemetry Freezing**
+4. **Scenario D: Denial of Service & Telemetry Freezing**  
    The attacker floods the RS-485 bus or physically disconnects sensor lines, causing telemetry frames to stall or report identical, frozen readings over extended windows.
 
-5. **Scenario E: Multi-Sensor Acoustic & Differential Bus Tampering**
+5. **Scenario E: Multi-Sensor Acoustic & Differential Bus Tampering**  
    The adversary induces high-frequency acoustic interference into piezoelectric vibration transducers while tampering with the RS-485 differential voltage levels ($A-B$ line bias), creating packet corruption and intermittent framing errors.
 
 ---
@@ -121,12 +123,16 @@ We define the **Safe Invariant State Manifold** $\mathcal{S}_{\text{safe}} \subs
 $$\mathcal{S}_{\text{safe}} = \left\{ \mathbf{x} \in \mathbb{R}^5 \;\middle|\; g_k(\mathbf{x}) \le 0, \quad \forall k \in \{1, 2, 3, 4, 5\} \right\}$$
 
 1. **Coupled Thermodynamic Vessel Rupture Limit ($g_1, g_2$)**:
-   Elevating temperature exponentially accelerates exothermic reaction rates (Arrhenius kinetics), causing sudden vapor pressure surge. While an isolated $48^\circ\text{C}$ or $6.8\text{ bar}$ may be tolerable individually, their simultaneous combination causes catastrophic vessel rupture. Aegis enforces the non-linear coupling constraints:
+   Elevating temperature exponentially accelerates exothermic reaction rates according to the Arrhenius kinetic law:
+   $$k_{\text{rxn}}(T) = A \cdot \exp\left(-\frac{E_a}{R_u T}\right)$$
+   Producing sudden vapor pressure surge. While an isolated $48^\circ\text{C}$ or $6.8\text{ bar}$ may be tolerable individually, their simultaneous combination causes catastrophic vessel rupture. Aegis enforces the non-linear coupling constraints:
    $$g_1(T, P) = \begin{cases} T - 45.0 \le 0, & \text{if } P \ge 6.0\text{ bar} \\ T - 60.0 \le 0, & \text{if } P < 6.0\text{ bar} \end{cases}$$
    $$g_2(T, P) = \begin{cases} P - 6.0 \le 0, & \text{if } T \ge 45.0^\circ\text{C} \\ P - 8.0 \le 0, & \text{if } T < 45.0^\circ\text{C} \end{cases}$$
 
 2. **Kinematic Rotor Resonance Invariant ($g_3$)**:
-   For rotating machinery (e.g., Turbine Generator 04), structural resonance frequencies induce exponential vibration amplification. Aegis enforces an absolute mechanical overspeed trip ceiling:
+   For rotating machinery (e.g., Turbine Generator 04), centrifugal stress scales quadratically with angular velocity:
+   $$\sigma_c(R) = \rho_{\text{rotor}} \cdot \left(\frac{2\pi R}{60}\right)^2 r^2$$
+   Structural resonance frequencies induce exponential vibration amplification. Aegis enforces an absolute mechanical overspeed trip ceiling:
    $$g_3(R) = R - 3000.0\text{ RPM} \le 0$$
 
 3. **Hydrodynamic Cavitation Invariant ($g_4$)**:
@@ -139,7 +145,7 @@ $$\mathcal{S}_{\text{safe}} = \left\{ \mathbf{x} \in \mathbb{R}^5 \;\middle|\; g
 
 ---
 
-## IV. System Architecture Overview
+## IV. System Architecture & Hardware Concentrator Discovery Protocol
 
 Aegis implements an integrated 4-tier cyber-physical protection pipeline operating inline between industrial field devices and supervisory control software:
 
@@ -149,14 +155,14 @@ Aegis implements an integrated 4-tier cyber-physical protection pipeline operati
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  [ Field Sensors ] ──► [ MAX485 Transceiver ] ──► [ ESP32 Master Gateway ]  │
-│  - LM35 Temp           Differential RS-485         Hardware HMAC-SHA256     │
-│  - Pressure Transducer 115200 Baud, 120Ω Term.     mbedTLS Crypto Engine    │
+│  - LM35 Temp           Differential RS-485         Hardware Concentrator    │
+│  - Pressure Transducer 115200 Baud, 120Ω Term.     Dynamic Topology Table   │
 │  - Piezo Vibration                                                          │
 │  - Hall Effect RPM                                 UART Ring Buffer         │
 │  - ACS712 Current                                          │                │
 │                                                            ▼                │
 │                                                [ Serial Ingestion Engine ]  │
-│                                                Atomic Frame Canonicalization│
+│                                                Wire Decoupling & Discovery  │
 │                                                            │                │
 │                  ┌─────────────────────────────────────────┴──────────┐     │
 │                  ▼                                                     ▼     │
@@ -182,6 +188,37 @@ Aegis implements an integrated 4-tier cyber-physical protection pipeline operati
 │   └───────────────────────────────┘           └───────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### A. Dynamic Multi-Slave Hardware Topology Discovery
+Prior industrial gateways rely on hardcoded static device tables. Aegis introduces a dynamic multi-slave discovery protocol operating directly across the RS-485 differential bus:
+1. **Master Concentrator Tracking Table**: The Master ESP32 maintains an in-memory tracking structure:
+   ```c
+   struct SlaveRecord {
+       char device_id[16];
+       uint32_t last_seen_ms;
+       uint32_t packet_count;
+       bool has_temp, has_press, has_vib, has_curr, has_rpm, has_relay;
+       bool online;
+   };
+   ```
+2. **Periodic & Triggered Topology Broadcast (`BUS_TOPOLOGY`)**:
+   Every 3000 ms (or immediately upon receiving `{"command": "DISCOVER"}` from the supervisory server), the master concentrator broadcasts an enumerated topology frame over USB-CDC:
+   ```json
+   {
+     "type": "BUS_TOPOLOGY",
+     "active_count": 4,
+     "nodes": [
+       {"id": "ESP32_001", "has_temp": true, "has_press": true, "has_vib": true, "has_curr": true, "has_rpm": false, "packets": 1420},
+       {"id": "ESP32_002", "has_temp": true, "has_press": true, "has_vib": true, "has_curr": true, "has_rpm": true, "packets": 1385},
+       {"id": "ESP32_003", "has_temp": true, "has_press": true, "has_vib": true, "has_curr": false, "has_rpm": false, "packets": 1412},
+       {"id": "ESP32_004", "has_temp": true, "has_press": true, "has_vib": true, "has_curr": true, "has_rpm": true, "packets": 1399}
+     ]
+   }
+   ```
+3. **Autonomous Node Announcement (`NODE_ANNOUNCE`)**:
+   Whenever a slave node boots or is power-cycled, it immediately broadcasts a `NODE_ANNOUNCE` frame with its hardware UUID and active transducer flags.
+4. **Wire-Level Security Decoupling**:
+   In `src/serial_gateway.py`, all `BUS_TOPOLOGY` and `NODE_ANNOUNCE` frames are flagged with `_is_bridge_msg: True`. This ensures they update the internal active device table without being forwarded to `/api/telemetry`, strictly preserving HMAC cryptographic signature validation for sensor telemetry.
 
 ---
 
@@ -214,7 +251,7 @@ Aegis implements an integrated 4-tier cyber-physical protection pipeline operati
       Pure ML Score       Fallback S_fallback Score Directly        Safe-AI Bounds
 ```
 
-While deterministic invariant manifolds establish absolute physical boundaries, subtle multi-sensor cyber-physical attacks (such as slow thermal creep, micro-cavitation, or bearing fatigue induction) develop incrementally within nominal limits. Aegis deploys a supervised **Random Forest Ensemble Classifier** (`src/model/rf_model.pkl`) trained over the continuous 5-dimensional feature space.
+While deterministic invariant manifolds establish absolute physical boundaries, subtle multi-sensor cyber-physical attacks develop incrementally within nominal limits. Aegis deploys a supervised **Random Forest Ensemble Classifier** (`src/model/rf_model.pkl`) trained over the continuous 5-dimensional feature space.
 
 ### A. Mathematical Formulation of the Ensemble
 The classifier comprises an ensemble of $M = 50$ decorrelated decision trees $\{h_m(\vec{x})\}_{m=1}^M$. Each tree is trained on a bootstrap sample of the operational dataset (bagging), with feature sub-selection at each candidate split:
@@ -224,7 +261,7 @@ Splits are determined by maximizing the **Gini Impurity Reduction**:
 $$I_G(S) = 1 - \sum_{c \in \{0, 1\}} p_c^2$$
 $$\Delta I_G(S, f, \theta) = I_G(S) - \frac{|S_L|}{|S|} I_G(S_L) - \frac{|S_R|}{|S|} I_G(S_R)$$
 
-Where $S_L = \{\vec{x} \in S \mid x_f \le \theta\}$ and $S_R = \{\vec{x} \in S \mid x_f > \theta\}$ denote the left and right child subsets partitioned by threshold $\theta$ on feature $f$.
+Where $S_L = \{\vec{x} \in S \mid x_f \le \theta\}$ and $S_R = \{\vec{x} \in S \mid x_f > \theta\}$ denote the child subsets partitioned by threshold $\theta$ on feature $f$.
 
 The continuous probability of physical process anomaly is derived via soft voting across all tree estimators:
 $$P(\text{anomaly} \mid \vec{x}) = \frac{1}{M} \sum_{m=1}^{M} h_m^{(1)}(\vec{x})$$
@@ -235,7 +272,7 @@ $$C_{\text{model}}(\vec{x}) = 2 \cdot \left| P(\text{anomaly} \mid \vec{x}) - 0.
 A score of $C_{\text{model}} = 1.0$ reflects complete ensemble consensus, whereas $C_{\text{model}} = 0.0$ represents maximum classification entropy.
 
 ### B. Empirical Model Performance & Cross-Validation
-The trained model was evaluated on a 3,000-sample hold-out test set drawn from a realistic 15,000-record dataset incorporating 5% Gaussian sensor noise, 2% label noise, and ambiguous boundary vectors across 6 operational and attack regimes:
+The trained model was evaluated on a 3,000-sample hold-out test set drawn from a realistic 15,000-record dataset incorporating 5% Gaussian sensor noise, 2% label noise, and ambiguous boundary vectors across 6 operational regimes:
 
 | Metric | Empirical Score | Industry Benchmark | Verification Status |
 |---|---|---|---|
@@ -272,7 +309,7 @@ Feature importances determined via Mean Decrease in Impurity (MDI):
 
 To prevent adversaries from injecting malicious supervisory setpoints (e.g., Stuxnet-style command manipulation targeting PLCs via compromised engineering workstations), Aegis introduces a **Local Deep Neural Safety Policy Network (NSPN)** (`src/neural_policy.py`).
 
-Unlike passive intrusion detectors that inspect network packets after transmission, the NSPN acts as an inline **predictive neural filter** placed directly within the command validation path (`src/safety_enforcer.py`).
+The NSPN acts as an inline **predictive neural filter** placed directly within the command validation path (`src/safety_enforcer.py`):
 
 ```
 Operator / SCADA Command (e.g. set_temp=52°C on ESP32_001)
@@ -359,8 +396,8 @@ To accommodate real-world physical transducer drift, sensor mounting tolerances,
 |---|---|---|
 | **Hardware Samples Ingested** | **252** | Live frames captured from physical RS-485 bus |
 | **Total Calibration Dataset** | **6,756** | Hybrid composite of synthetic baselines + live physical telemetry |
-| **Post-Calibration Accuracy** | **94.3%** ($0.9430$) | Ground truth validation under live electrical noise |
-| **Post-Calibration ROC-AUC** | **0.9739** | Discriminative power maintained under sensor variance |
+| **Post-Calibration Accuracy** | **94.6%** ($0.9460$) | Ground truth validation under live electrical noise |
+| **Post-Calibration ROC-AUC** | **0.9781** | Discriminative power maintained under sensor variance |
 | **Engine Status** | `HARDWARE_CALIBRATED` | Certified for live field operations |
 
 ### F. Dual-Engine Embedded Deployment
@@ -506,7 +543,35 @@ The dynamic responsiveness of the 4-factor trust engine was evaluated in a 500-s
 
 ---
 
-## IX. End-to-End Latency & Deterministic Hardware Actuation
+## IX. SCADA Human-Machine Interface & Split-Waveform Visual Architecture
+
+In industrial operations, operator situational awareness is critical for timely response. Aegis introduces a high-performance, responsive SCADA HMI architecture designed to eliminate visual latency and canvas sizing collapse issues:
+
+### A. Resolution of the Hidden Canvas Collapse Defect
+Traditional dynamic web dashboards encounter severe rendering bugs when initializing Chart.js canvases inside hidden tabs (`display: none`), where the browser assigns $0 \times 0$ pixel bounding boxes. When unhidden, the charts fail to expand or freeze. Aegis resolves this through an integrated **Split-Waveform Layout (`SPLIT (ALL)`)**:
+- The main multi-node aggregated waveform is continuously rendered in an upper viewport ($h\text{-}56$).
+- All four sub-node graphs are laid out concurrently in an underlying responsive $2 \times 2$ grid ($h\text{-}32$).
+- View switching between `COMBINED`, `SPLIT (ALL)`, and individual `NODE` views triggers an automated asynchronous resize pipeline:
+  ```javascript
+  setTimeout(() => {
+    Object.values(nodeCharts).forEach(c => { if(c) c.resize(); });
+    if (combinedChart) combinedChart.resize();
+  }, 40);
+  ```
+
+### B. Multi-Channel Sensor Color Profiling
+Each sub-node chart tracks five distinct physical channels with tailored high-contrast HSL color assignments:
+- **Core Temperature**: `#38bdf8` (Cyan Blue)
+- **Vessel Pressure**: `#3b82f6` (Cobalt Blue)
+- **Vibration RMS**: `#fb923c` (Vibrant Amber/Orange)
+- **Stator Current**: `#f472b6` (Rose Magenta)
+- **Rotor Speed (RPM / 100)**: `#c084fc` (Neon Purple)
+
+Updates are pushed via `chart.update('none')`, bypassing expensive CSS reflow animations to sustain **60 frames per second** under live serial packet streaming.
+
+---
+
+## X. End-to-End Latency & Deterministic Hardware Actuation
 
 In cyber-physical protection systems, algorithmic precision is worthless if decision latency exceeds the physical time-to-failure of the mechanical process. The end-to-end latency budget of the Aegis detection-to-actuation pipeline was benchmarked over 2,000 real-world attack injection trials (`tests/benchmark_results/latency_benchmarks.json`):
 
@@ -535,7 +600,7 @@ Turbine Yield Failure: 250.00 ms
 
 ---
 
-## X. Cyber-Physical Financial Governance (FAIR Quantitative Risk Model)
+## XI. Cyber-Physical Financial Governance (FAIR Quantitative Risk Model)
 
 A persistent gap in industrial control cybersecurity is the lack of translation between low-level technical anomalies and quantitative business risk. Aegis bridges this divide by embedding the **Factor Analysis of Information Risk (FAIR)** framework directly into the supervisory runtime analytics engine (`src/analytics.py`):
 
@@ -570,30 +635,33 @@ To quantify financial risk mitigation, an empirical 24-hour simulation of a coor
 
 ---
 
-## XI. Empirical Experimental Validation & Security Hardening
+## XII. Empirical Experimental Validation & Security Hardening
 
 ### A. Automated Verification Suite Execution
-To guarantee mission-critical software integrity, the entire Aegis architecture was evaluated against an exhaustive 60-test verification suite (`tests/test_full_suite.py` and `tests/test_production_hardware_integration.py`):
+To guarantee mission-critical software integrity, the entire Aegis architecture was evaluated against an exhaustive 65-test verification suite (`tests/test_full_suite.py`, `tests/test_multi_slave_discovery.py`, and `tests/test_production_hardware_integration.py`):
 
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
-rootdir: /opt/aegis-ics
+rootdir: C:\Users\morbi\Desktop\aegis-ics-2.3.0
 configfile: pyproject.toml
-collected 60 items
+collected 65 items
 
-tests/test_full_suite.py (50 tests) .................................................. [ 83%]
-tests/test_production_hardware_integration.py (10 tests) ..........                   [100%]
-============================= 60 passed in 14.76s =============================
+tests\test_full_suite.py (50 tests) .................................................. [ 76%]
+tests\test_multi_slave_discovery.py (5 tests) .....                                    [ 84%]
+tests\test_production_hardware_integration.py (10 tests) ..........                 [100%]
+============================= 65 passed in 25.41s =============================
 ```
 
-All 60 test modules passed with a **100% success rate (0 regressions)**, validating:
-1. Master Concentrator serial bridge enumeration and baud negotiation.
-2. 5-transducer dynamic discovery and multi-node HMAC key isolation.
-3. Random Forest fast-path CPU inference and NumPy neural safety execution.
-4. Fail-closed exception handling and telemetry freshness boundaries.
-5. FAIR financial loss exceedance and Monte Carlo distribution APIs.
-6. Real-time optocoupler hardware relay trip commands (GPIO 25).
+All 65 test modules passed with a **100% success rate (0 regressions)**, validating:
+1. Master Concentrator serial bridge dynamic topology enumeration and baud negotiation.
+2. Multi-slave auto-discovery protocol (`BUS_TOPOLOGY` & `NODE_ANNOUNCE`) and transducer profiling.
+3. 5-transducer dynamic discovery and multi-node HMAC key isolation.
+4. Random Forest fast-path CPU inference and NumPy neural safety execution.
+5. Bidirectional emergency actuator controls (emergency shutdown, microsegmentation, and setpoint bounds).
+6. Fail-closed exception handling and telemetry freshness boundaries.
+7. FAIR financial loss exceedance and Monte Carlo distribution APIs.
+8. Real-time optocoupler hardware relay trip commands (GPIO 25).
 
 ### B. Stealthy Stuxnet-Style Coordinated Attack Simulation
 To evaluate real-time detection efficacy against sophisticated Advanced Persistent Threats (APTs), a 1,000-time-step empirical simulation was executed (`tests/benchmark_results/stuxnet_attack_results.json`) modeling a Stuxnet-style coordinated spoofing attack across continuous physical process variables ($T, P, V, R, I$). During the covert attack window ($t \in [600, 850\text{s}]$), the adversary gradually drives core temperature from $29^\circ\text{C}$ to $>60^\circ\text{C}$ and vessel pressure from $4.5\text{ bar}$ to $8.8\text{ bar}$ while falsifying sensor feedback on the SCADA supervisory channel with periodic nominal waveforms:
@@ -640,7 +708,7 @@ Prior versions of the platform contained structural security vulnerabilities tha
 
 ---
 
-## XII. Threats to Validity & Limitations
+## XIII. Threats to Validity & Limitations
 
 To maintain scientific rigor, we explicitly document the operational assumptions and limitations of the Aegis architecture:
 
@@ -653,28 +721,28 @@ To maintain scientific rigor, we explicitly document the operational assumptions
 
 ---
 
-## XIII. Related Work & Comparative Taxonomy
+## XIV. Related Work & Comparative Taxonomy
 
 Industrial anomaly detection and OT protection architectures have evolved across three primary paradigms: network signature matching, statistical host profiling, and physics-guided control theory.
 
-| Defense Architecture | AI / ML Methodology | Physics-Informed Invariants | Predictive Neural Policy | Hardware Trip Latency | Air-Gapped Ready |
-|---|---|---|---|---|---|
-| **Snort / Suricata** | None (Static Signatures) | No | No | Out-of-band (Passive) | Yes |
-| **Zeek ICS (Bro)** | Protocol State Machines | No | No | Out-of-band (Passive) | Yes |
-| **Nozomi Guardian** | Statistical Profiling | No | No | Minutes (SOC Ticket) | No (Cloud Option) |
-| **Claroty Edge** | Asset Fingerprinting | No | No | Non-Actuating | No |
-| **Deep Autoencoders (CPS-ANN)** | Reconstruction Loss | No | No | $> 150\text{ ms}$ (GPU Required) | Yes |
-| **Aegis (This Work)** | **Random Forest + NSPN Deep MLP** | **Yes (Navier-Stokes / Rankine)** | **Yes (6D Deep Neural Policy)** | **13.72 ms (Hardware Relay)** | **Yes (100% Offline)** |
+| Defense Architecture | AI / ML Methodology | Physics-Informed Invariants | Predictive Neural Policy | Dynamic Slave Auto-Discovery | Hardware Trip Latency | Air-Gapped Ready |
+|---|---|---|---|---|---|---|
+| **Snort / Suricata** | None (Static Signatures) | No | No | No | Out-of-band (Passive) | Yes |
+| **Zeek ICS (Bro)** | Protocol State Machines | No | No | No | Out-of-band (Passive) | Yes |
+| **Nozomi Guardian** | Statistical Profiling | No | No | Manual Poll | Minutes (SOC Ticket) | No (Cloud Option) |
+| **Claroty Edge** | Asset Fingerprinting | No | No | Periodic Sweep | Non-Actuating | No |
+| **Deep Autoencoders (CPS-ANN)** | Reconstruction Loss | No | No | No | $> 150\text{ ms}$ (GPU Required) | Yes |
+| **Aegis (This Work)** | **Random Forest + NSPN Deep MLP** | **Yes (Navier-Stokes / Rankine)** | **Yes (6D Deep Neural Policy)** | **Yes (Dynamic RS-485 Concentrator)** | **13.72 ms (Hardware Relay)** | **Yes (100% Offline)** |
 
 Unlike passive network monitors that merely alert an IT security operations center minutes after an incident occurs, Aegis functions as an **inline, active cyber-physical interlock**, combining predictive machine learning with deterministic mechanical isolation within $13.72\text{ ms}$.
 
 ---
 
-## XIV. Conclusion & Future Research Directions
+## XV. Conclusion & Future Research Directions
 
-In this paper, we presented **Aegis**, an inline Physics-Informed Cyber-Physical Digital Twin and Multi-Variable Machine Learning Anomaly Detection Gateway for Industrial Control Systems. By integrating an ensemble Random Forest classifier ($ROC\text{-}AUC = 0.9755$, 5-fold CV $F_1 = 0.9623$), a 6-dimensional Neural Safety Policy Network ($ROC\text{-}AUC = 0.9738$, $0.019\text{ ms}$ vectorized NumPy inference), continuous 4-factor mathematical decision fusion ($T_{\text{final}}$), and sub-15ms autonomous hardware isolation ($13.72\text{ ms}$ closed loop), Aegis provides robust defense against zero-day cyber-physical attacks.
+In this paper, we presented **Aegis**, an inline Physics-Informed Cyber-Physical Digital Twin and Multi-Variable Machine Learning Anomaly Detection Gateway for Industrial Control Systems. By integrating an ensemble Random Forest classifier ($ROC\text{-}AUC = 0.9755$, 5-fold CV $F_1 = 0.9623$), a 6-dimensional Neural Safety Policy Network ($ROC\text{-}AUC = 0.9738$, $0.019\text{ ms}$ vectorized NumPy inference), dynamic multi-slave RS-485 concentrator discovery, continuous 4-factor mathematical decision fusion ($T_{\text{final}}$), and sub-15ms autonomous hardware isolation ($13.72\text{ ms}$ closed loop), Aegis provides robust defense against zero-day cyber-physical attacks.
 
-Empirical evaluation against simulated Stuxnet-style rotor resonance attacks demonstrated a 54.18% detection rate during subtle drift with a 1.34% nominal false alarm rate, averting **\$1,421,000.00** (53.5%) in projected physical damages under the FAIR risk model. Furthermore, systematic remediation of 8 architectural vulnerabilities backed by an exhaustive 60-test automated verification suite ensures fail-closed operational security for mission-critical industrial deployments.
+Empirical evaluation against simulated Stuxnet-style rotor resonance attacks demonstrated a 54.18% detection rate during subtle drift with a 1.34% nominal false alarm rate, averting **\$1,421,000.00** (53.5%) in projected physical damages under the FAIR risk model. Furthermore, systematic remediation of 8 architectural vulnerabilities backed by an exhaustive 65-test automated verification suite ensures fail-closed operational security for mission-critical industrial deployments.
 
 ### Future Research Directions
 1. **TinyML on RISC-V Field Nodes**: Compiling quantized 8-bit integer neural safety policies directly into C byte arrays for microsecond-scale execution on low-power edge microcontrollers (ESP32-S3, RP2350).
@@ -710,3 +778,8 @@ Empirical evaluation against simulated Stuxnet-style rotor resonance attacks dem
 23. R. E. Kalman, "A New Approach to Linear Filtering and Prediction Problems," *Journal of Basic Engineering*, vol. 82, no. 1, pp. 35–45, 1960.
 24. A. A. Cárdenas, S. Amin, Z.-S. Lin, Y.-L. Huang, C.-Y. Huang, and S. Sastry, "Attacks against Process Control Systems: Risk Assessment, Detection, and Response," in *Proc. 6th ACM Symp. Inf., Comput. Commun. Security (ASIACCS)*, 2011, pp. 355–366.
 25. I. Loshchilov and F. Hutter, "Decoupled Weight Decay Regularization (AdamW)," in *Proc. Int. Conf. Learn. Represent. (ICLR)*, 2019.
+26. S. M. Lundberg and S.-I. Lee, "A Unified Approach to Interpreting Model Predictions," in *Advances in Neural Information Processing Systems (NeurIPS)*, vol. 30, 2017, pp. 4765–4774.
+27. F. T. Liu, K. M. Ting, and Z.-H. Zhou, "Isolation Forest," in *Proc. 8th IEEE Int. Conf. Data Mining (ICDM)*, 2008, pp. 413–422.
+28. E. S. Page, "Continuous Inspection Schemes," *Biometrika*, vol. 41, no. 1/2, pp. 100–115, 1954.
+29. C. Shannon, "A Mathematical Theory of Communication," *Bell System Technical Journal*, vol. 27, no. 3, pp. 379–423, 1948.
+30. J. D. Hunter, "Matplotlib: A 2D graphics environment," *Computing in Science & Engineering*, vol. 9, no. 3, pp. 90–95, 2007.

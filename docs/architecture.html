@@ -384,12 +384,12 @@ const D = {
   'dashboard': {
     title: '7-Station Subway Mission-Control UI',
     layer: 'Presentation',
-    desc: 'Unified industrial operator console styled after a high-contrast subway transit line. Features 7 dedicated stations: Station 01 (Live Telemetry Monitor & Topology Ribbon), Station 02 (Digital Twin & Spatial Geometry), Station 03 (Safety Enforcer & Boundary Rules), Station 04 (Adversarial Stress Drills), Station 05 (FAIR Financial Analytics & Subsystem Outage Table), Station 06 (Hardware Serial Gateway & Terminal), and Station 07 (NIST AU-2 Audit Ledger).',
+    desc: 'Unified industrial operator console styled after a high-contrast subway transit line. Features 7 dedicated stations: Station 01 (Split-Waveform Telemetry Monitor & Topology Ribbon with 60fps Chart.js rendering), Station 02 (Digital Twin & Spatial Geometry), Station 03 (Safety Enforcer & Boundary Rules), Station 04 (Adversarial Stress Drills), Station 05 (FAIR Financial Analytics & Subsystem Outage Table), Station 06 (Hardware Serial Gateway & Terminal), and Station 07 (NIST AU-2 Audit Ledger).',
     items: [
-      ['Data Feeds', 'SSE (/api/stream) with automatic REST polling fallback'],
-      ['Visual Design', 'Tailored dark palette, zero generic greens, pure neon subway line'],
-      ['Node Status', 'Live cards showing 5 transducers, LIVE/IDLE badge, trust %'],
-      ['Control Actions', 'One-click manual TRIP ISOLATION and REARM NODE buttons']
+      ['Data Feeds', 'SSE (/api/stream) with dynamic event: topology & REST fallback'],
+      ['Split Waveform', 'Combined multi-node overview + 4-node concurrent sub-graphs'],
+      ['Sensor Channels', '5 multi-color transducers per node (Temp, Pres, Vib, Curr, RPM)'],
+      ['Control Actions', 'Emergency Cluster Shutdown, Manual Trip Isolation, and Re-arm']
     ]
   },
   'scrubber': {
@@ -494,12 +494,12 @@ const D = {
   'master-bridge': {
     title: 'ESP32 Master Concentrator Bridge',
     layer: 'Communication',
-    desc: 'Physical ESP32 microcontroller that bridges the host PC via USB Serial to an industrial RS-485 multidrop bus. Intercepts slave sensor packets, issues boot announcements, and acts as the electrical isolation barrier between IT and OT networks.',
+    desc: 'Physical ESP32 microcontroller that bridges the host PC via USB Serial to an industrial RS-485 multidrop bus. Intercepts slave sensor packets, maintains an in-memory slave discovery table (`slave_table[MAX_SLAVES]`), broadcasts periodic `BUS_TOPOLOGY` frames, and forwards bidirectional supervisory commands (`SHUTDOWN`, `ISOLATE`, `REARM`, `SETPOINT`).',
     items: [
-      ['Firmware', 'Aegis Master Concentrator v2.3.0-hw (firmware/esp32_master_bridge)'],
-      ['Physical Bus', 'RS-485 half-duplex differential pair with termination resistors'],
-      ['Boot Frame', 'Broadcasts system announcement frame upon USB initialization'],
-      ['Throughput', 'Sub-millisecond packet forwarding with zero frame drop']
+      ['Firmware', 'Aegis Master Concentrator v2.5.2 (firmware/esp32_master_bridge)'],
+      ['Physical Bus', 'RS-485 half-duplex differential pair with 120Ω termination resistors'],
+      ['Discovery Protocol', 'Broadcasts BUS_TOPOLOGY frames every 3000ms and responds to DISCOVER'],
+      ['Supervisory Control', 'Forwards emergency trip, micro-segmentation, and setpoint bounds to slaves']
     ]
   },
   'hmac-validator': {
@@ -516,12 +516,12 @@ const D = {
   'esp32-nodes': {
     title: 'Dynamic ESP32 Slave Sensor Nodes',
     layer: 'Field',
-    desc: 'Physical or simulated slave microcontrollers deployed across plant zones. The gateway dynamically detects nodes as they announce on the bus without requiring hardcoded configuration, auto-provisioning Tier-2 financial profiles and telemetry channels.',
+    desc: 'Physical or simulated slave microcontrollers deployed across plant zones. The gateway dynamically detects nodes via `NODE_ANNOUNCE` frames on boot and upon discovery probes without requiring hardcoded configuration, auto-registering active transducers and auto-provisioning Tier-2 financial profiles.',
     items: [
-      ['Default Nodes', 'ESP32_001 (Reactor), ESP32_002 (Pump), ESP32_003 (Cryo), ESP32_004 (Turbine)'],
-      ['Dynamic Discovery', 'Supports unlimited new nodes (e.g. ESP32_005+) automatically'],
-      ['Firmware', 'Modular C++ firmware with selectable node configs (firmware/esp32_slave_sensor)'],
-      ['Fail-Safe', 'Local hardware watchdog and GPIO de-energization relays']
+      ['Cluster Nodes', 'ESP32_001 (Reactor), ESP32_002 (Pump), ESP32_003 (Cryo), ESP32_004 (Turbine)'],
+      ['Transducer Channels', '17 active sensor channels enumerated dynamically across the cluster'],
+      ['Firmware', 'Modular C++ firmware with announcement broadcast (firmware/esp32_slave_sensor)'],
+      ['Fail-Safe', 'Local hardware watchdog and optocoupler GPIO 25 de-energization relays']
     ]
   },
   'transducer-array': {

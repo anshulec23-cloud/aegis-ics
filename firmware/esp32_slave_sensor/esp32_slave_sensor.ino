@@ -86,6 +86,7 @@ HardwareSerial rs485(2);
 // Volatile counters & state tracking
 volatile unsigned long hall_pulse_count = 0;
 unsigned long last_transmit_time = 0;
+unsigned long last_announce_time = 0;
 unsigned long last_rpm_time = 0;
 float current_rpm = 0.0;
 bool is_actuator_isolated = false;
@@ -93,6 +94,36 @@ bool is_actuator_isolated = false;
 // Interrupt Service Routine for Hall Effect RPM Sensor
 void IRAM_ATTR onHallPulse() {
     hall_pulse_count++;
+}
+
+void send_node_announcement() {
+    StaticJsonDocument<384> doc;
+    doc["type"] = "NODE_ANNOUNCE";
+    doc["device_id"] = DEVICE_ID;
+    doc["hardware"] = "ESP32-WROOM-32";
+    doc["version"] = "2.5.2";
+    doc["is_isolated"] = is_actuator_isolated;
+    JsonArray s_arr = doc.createNestedArray("sensors");
+    s_arr.add("temperature");
+    s_arr.add("pressure");
+    s_arr.add("vibration");
+    s_arr.add("current");
+    #if defined(NODE_CONFIG_ESP32_002) || defined(NODE_CONFIG_ESP32_004)
+    s_arr.add("hall_effect");
+    #endif
+    doc["sensor_count"] = s_arr.size();
+
+    char out_buf[384];
+    serializeJson(doc, out_buf, sizeof(out_buf));
+
+    digitalWrite(PIN_RS485_DE_RE, HIGH);
+    delayMicroseconds(50);
+    rs485.println(out_buf);
+    rs485.flush();
+    delayMicroseconds(100);
+    digitalWrite(PIN_RS485_DE_RE, LOW);
+
+    Serial.println(out_buf);
 }
 
 /**
@@ -150,6 +181,8 @@ void setup() {
     Serial.print(F("  Baud Rate     : ")); Serial.println(RS485_BAUD_RATE);
     Serial.println(F("  Cryptographic : FIPS 198-1 mbedTLS HMAC-SHA256"));
     Serial.println(F("=================================================="));
+
+    send_node_announcement();
 }
 
 // Non-blocking stream buffers
@@ -189,17 +222,31 @@ void process_incoming_command(const char* cmd_line) {
     if (err) return;
 
     const char* target = cmd_doc["target_device"] | cmd_doc["device_id"];
-    if (!target || strcmp(target, DEVICE_ID) != 0) return;
-
     const char* action = cmd_doc["command"] | cmd_doc["action"];
     if (!action) return;
 
-    if (strcmp(action, "ISOLATE") == 0 || strcmp(action, "DISARM") == 0) {
+    bool is_addressed_to_me = (!target || strcmp(target, "ALL") == 0 || strcmp(target, DEVICE_ID) == 0);
+    if (!is_addressed_to_me) return;
+
+    if (strcmp(action, "DISCOVER") == 0 || strcmp(action, "SCAN") == 0) {
+        send_node_announcement();
+        return;
+    }
+
+    if (strcmp(action, "SHUTDOWN") == 0) {
+        is_actuator_isolated = true;
+        digitalWrite(PIN_ACTUATOR_RELAY, LOW); // Trip actuator relay
+        digitalWrite(PIN_STATUS_LED, HIGH);    // Visual shutdown alarm
+        Serial.println(F("[ACTUATOR] Node SHUTDOWN executed safely!"));
+        return;
+    }
+
+    if (strcmp(action, "ISOLATE") == 0 || strcmp(action, "MICROSEGMENT") == 0 || strcmp(action, "DISARM") == 0) {
         is_actuator_isolated = true;
         digitalWrite(PIN_ACTUATOR_RELAY, LOW); // Trip actuator relay
         digitalWrite(PIN_STATUS_LED, HIGH);    // Visual isolation alarm
         Serial.println(F("[ACTUATOR] Node ISOLATED by Supervisory Interlock!"));
-    } else if (strcmp(action, "REARM") == 0) {
+    } else if (strcmp(action, "REARM") == 0 || strcmp(action, "REJOIN") == 0) {
         is_actuator_isolated = false;
         digitalWrite(PIN_ACTUATOR_RELAY, HIGH); // Re-energize actuator
         digitalWrite(PIN_STATUS_LED, LOW);
@@ -305,4 +352,11 @@ void loop() {
         Serial.println(wire_packet);
         Serial.flush();
     }
+
+    // --- 4. PERIODIC NODE TOPOLOGY ANNOUNCEMENT (EVERY 10 SECONDS) ---
+    if (now - last_announce_time >= 10000) {
+        last_announce_time = now;
+        send_node_announcement();
+    }
 }
+

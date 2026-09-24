@@ -27,11 +27,12 @@ possible_dll_paths = [
 python_dll = next((p for p in possible_dll_paths if os.path.exists(p)), None)
 binaries = [(python_dll, '.')] if python_dll else []
 
-# 2. Bundle UI templates, offline static vendor assets, ML model, and database
+# 2. Bundle UI templates, offline static vendor assets, ML model, database, and reference firmware
 datas = [
     (os.path.join(src_dir, 'templates'), 'templates'),
     (os.path.join(src_dir, 'static'), 'static'),
     (os.path.join(src_dir, 'model'), 'model'),
+    (os.path.join(project_root, 'firmware'), 'firmware'),
     (os.path.join(project_root, 'aegis_v2.db'), '.'),
 ]
 

@@ -22,6 +22,7 @@ datas = [
     (os.path.join(src_dir, 'templates'), 'templates'),
     (os.path.join(src_dir, 'static'), 'static'),
     (os.path.join(src_dir, 'model'), 'model'),
+    (os.path.join(project_root, 'firmware'), 'firmware'),
     (os.path.join(project_root, 'aegis_v2.db'), '.'),
 ]
 

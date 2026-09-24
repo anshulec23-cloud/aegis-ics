@@ -984,6 +984,75 @@ def rejoin_device_v2 ():
 
     return jsonify ({"success":True ,"details":f"Device {device_id } successfully rejoined to control loop."})
 
+@app.route("/api/device/shutdown", methods=["POST"])
+@login_required
+@require_webview_token
+def shutdown_device():
+    payload = request.json or {}
+    device_id = bleach.clean(str(payload.get("device_id", "ALL")))
+    db = SessionLocal()
+    try:
+        now_utc = datetime.now(timezone.utc)
+        if device_id == "ALL":
+            for d in db.query(DeviceState).all():
+                d.is_isolated = True
+                d.updated_at = now_utc
+        else:
+            state = db.query(DeviceState).filter_by(device_id=device_id).first()
+            if not state:
+                state = DeviceState(device_id=device_id, is_isolated=True, updated_at=now_utc)
+                db.add(state)
+            else:
+                state.is_isolated = True
+                state.updated_at = now_utc
+
+        audit = AuditLog(
+            user_id=session.get("user_id"),
+            action="EMERGENCY_SHUTDOWN",
+            location=session.get("location", "SYSTEM"),
+            details=f"Operator executed emergency shutdown instruction on target: {device_id}."
+        )
+        db.add(audit)
+        db.commit()
+
+        import serial_gateway
+        serial_gateway.send_command({
+            "command": "SHUTDOWN",
+            "action": "SHUTDOWN",
+            "device_id": device_id,
+            "target_device": device_id,
+            "timestamp": time.time()
+        })
+        return jsonify({"success": True, "details": f"Emergency shutdown instruction dispatched to {device_id}."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/api/cluster/discover", methods=["POST", "GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def discover_cluster():
+    try:
+        import serial_gateway
+        serial_gateway.send_command({
+            "command": "DISCOVER",
+            "action": "DISCOVER",
+            "target_device": "ALL",
+            "timestamp": time.time()
+        })
+        health = serial_gateway.get_gateway_health()
+        active_nodes = serial_gateway.get_active_nodes()
+        return jsonify({
+            "success": True,
+            "message": "Discovery probe dispatched to Master Concentrator",
+            "health": health,
+            "active_nodes": active_nodes
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app .route ("/api/device/ping",methods =["POST"])
 @login_required 
 @require_webview_token 
@@ -1749,6 +1818,22 @@ def api_stream():
 
                 isolated_devs = [d.device_id for d in db.query(DeviceState).filter_by(is_isolated=True).all()]
                 yield f"event: heartbeat\ndata: {json.dumps({'time': time.time(), 'isolated': isolated_devs})}\n\n"
+
+                try:
+                    import serial_gateway
+                    health = serial_gateway.get_gateway_health()
+                    active_nodes = serial_gateway.get_active_nodes()
+                    topology_payload = {
+                        "total_nodes_count": max(len(active_nodes), 4),
+                        "online_nodes_count": health.get("online_nodes_count", 0),
+                        "total_active_sensors": health.get("total_active_sensors", 0),
+                        "gateway_state": health.get("state", "DISCONNECTED"),
+                        "active_port": health.get("active_port"),
+                        "master_bridge": health.get("master_bridge", {})
+                    }
+                    yield f"event: topology\ndata: {json.dumps(topology_payload)}\n\n"
+                except Exception:
+                    pass
             except Exception as e:
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
             finally:

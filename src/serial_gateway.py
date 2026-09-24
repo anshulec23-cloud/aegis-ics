@@ -162,15 +162,46 @@ def parse_serial_line (line :str ,mode :str = "production" ):
     if json_match :
         try :
             data =json .loads (json_match .group (1 ))
-            # Intercept and register Master Concentrator Bridge status frames
-            if "system" in data and ("Concentrator" in str(data.get("system", "")) or "Master" in str(data.get("system", ""))):
+            # Intercept and register Master Concentrator Bridge status and topology frames
+            if ("system" in data and ("Concentrator" in str(data.get("system", "")) or "Master" in str(data.get("system", "")))) or data.get("type") == "BUS_TOPOLOGY":
                 with _buffer_lock:
                     _master_bridge_info["status"] = data.get("status", "ONLINE")
                     _master_bridge_info["last_seen"] = time.time()
                     _master_bridge_info["details"] = data
                     _master_bridge_info["bridge_id"] = data.get("bridge_id", "MASTER_CONCENTRATOR")
-                    _master_bridge_info["firmware"] = data.get("firmware", "2.3.0")
-                return {"_is_bridge_msg": True, "bridge_data": data, "type": "MASTER_ANNOUNCEMENT", "bridge_id": data.get("bridge_id", "MASTER_CONCENTRATOR")}
+                    _master_bridge_info["firmware"] = data.get("firmware", "2.5.2")
+                    if "slave_count" in data:
+                        _master_bridge_info["slave_count"] = int(data.get("slave_count"))
+                    if "slaves" in data and isinstance(data["slaves"], list):
+                        now_ts = time.time()
+                        for slave_id in data["slaves"]:
+                            if slave_id not in _active_nodes:
+                                _active_nodes[slave_id] = {
+                                    "first_seen": now_ts,
+                                    "packet_count": 1,
+                                    "sensors": set()
+                                }
+                            _active_nodes[slave_id]["last_seen"] = now_ts
+                            sensors_for_slave = data.get("sensors", {}).get(slave_id, [])
+                            if sensors_for_slave:
+                                _active_nodes[slave_id]["sensors"].update(sensors_for_slave)
+                return {"_is_bridge_msg": True, "bridge_data": data, "type": data.get("type", "MASTER_ANNOUNCEMENT"), "bridge_id": data.get("bridge_id", "MASTER_CONCENTRATOR")}
+
+            # Intercept Slave Node dynamic announcement frame
+            if data.get("type") == "NODE_ANNOUNCE" and ("device_id" in data or "id" in data):
+                dev_id = str(data.get("device_id", data.get("id")))
+                now_ts = time.time()
+                with _buffer_lock:
+                    if dev_id not in _active_nodes:
+                        _active_nodes[dev_id] = {
+                            "first_seen": now_ts,
+                            "packet_count": 1,
+                            "sensors": set()
+                        }
+                    _active_nodes[dev_id]["last_seen"] = now_ts
+                    if "sensors" in data and isinstance(data["sensors"], list):
+                        _active_nodes[dev_id]["sensors"].update(data["sensors"])
+                return {"_is_bridge_msg": True, "bridge_data": data, "type": "NODE_ANNOUNCE", "device_id": dev_id}
 
             res = {}
             if "device_id" in data or "id" in data or "slave_id" in data:
@@ -447,6 +478,22 @@ def mock_serial_stream(mode):
         if "curr" in active_sensors or random.random() < 0.2:
             packet["curr"] = round(dev["curr_base"] + random.uniform(-0.25, 0.25), 2)
 
+    # Periodically emit Master Concentrator BUS_TOPOLOGY frame every 7 iterations
+    if _sim_device_index % 7 == 0:
+        topo_frame = {
+            "system": "Aegis Master Concentrator",
+            "type": "BUS_TOPOLOGY",
+            "status": "ONLINE",
+            "version": "2.5.2",
+            "slave_count": len(_sim_devices),
+            "slaves": [d["id"] for d in _sim_devices],
+            "sensors": {
+                d["id"]: ["temperature", "pressure", "vibration", "current"] + (["hall_effect"] if d["hall_base"] > 0 else [])
+                for d in _sim_devices
+            }
+        }
+        return json.dumps(topo_frame) + "\n"
+
     return json.dumps(packet) + "\n"
 
 def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_key =None ,url =DEFAULT_GATEWAY_URL ,mock =False ):
@@ -494,6 +541,10 @@ def start_gateway (port ="COM3",baud =115200 ,mode ="plc",device_id =None ,hmac_
         connected = _try_connect()
         if not connected:
             print(f"[Gateway] Initial connection to {port} failed. Gateway will attempt auto-recovery in background.")
+        else:
+            send_command({"command": "DISCOVER", "action": "DISCOVER", "target_device": "ALL", "timestamp": time.time()})
+    else:
+        send_command({"command": "DISCOVER", "action": "DISCOVER", "target_device": "ALL", "timestamp": time.time()})
 
     while not _gateway_stop_event.is_set():
         try:

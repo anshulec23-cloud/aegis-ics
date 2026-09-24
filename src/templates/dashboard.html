@@ -172,7 +172,10 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="inline-flex rounded bg-[#050608] p-0.5 border border-[#1c2333]">
-                        <button id="btn-mode-combined" onclick="setChartDisplayMode('combined')" class="px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white">
+                        <button id="btn-mode-split" onclick="setChartDisplayMode('split')" class="px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white">
+                            SPLIT (ALL)
+                        </button>
+                        <button id="btn-mode-combined" onclick="setChartDisplayMode('combined')" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white">
                             COMBINED
                         </button>
                         <button id="btn-mode-grid" onclick="setChartDisplayMode('grid')" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white">
@@ -192,21 +195,21 @@
                 <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-mono text-slate-400 uppercase">CONNECTED ESP32 NODES</div>
-                        <div id="topo-nodes-count" class="text-base font-bold text-white font-mono mt-0.5">-- NODES DETECTED</div>
+                        <div id="topo-nodes-count" class="text-base font-bold text-white font-mono mt-0.5">4 NODES (4 ONLINE)</div>
                     </div>
                     <span id="topo-nodes-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30">DISCOVERED</span>
                 </div>
                 <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-mono text-slate-400 uppercase">ACTIVE SENSOR TRANSDUCERS</div>
-                        <div id="topo-sensors-count" class="text-base font-bold text-blue-400 font-mono mt-0.5">-- / -- ACTIVE</div>
+                        <div id="topo-sensors-count" class="text-base font-bold text-blue-400 font-mono mt-0.5">18 ACTIVE TRANSDUCERS</div>
                     </div>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-slate-300 border border-slate-700">5 PER NODE</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-slate-300 border border-slate-700">MULTI-BUS</span>
                 </div>
                 <div class="bg-[#050608] px-4 py-3 rounded border border-[#1c2333] flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-mono text-slate-400 uppercase">MASTER CONCENTRATOR BRIDGE</div>
-                        <div id="topo-bridge-status" class="text-base font-bold text-slate-300 font-mono mt-0.5">OFFLINE</div>
+                        <div id="topo-bridge-status" class="text-base font-bold text-slate-300 font-mono mt-0.5">STANDBY</div>
                     </div>
                     <span id="topo-bridge-badge" class="subway-badge subway-badge-warning text-[10px]">USB-UART</span>
                 </div>
@@ -221,42 +224,54 @@
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span>PRES (bar)</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>VIB (g)</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-pink-400"></span>CURR (A)</span>
-                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-purple-400"></span>RPM (Hall)</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-purple-400"></span>RPM (Hall/100)</span>
                     </div>
                 </div>
 
-                <div id="chart-view-combined" class="relative w-full h-72">
+                <div id="chart-view-combined" class="relative w-full h-56">
                     <canvas id="telemetryChart"></canvas>
                 </div>
 
-                <div id="chart-view-grid" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333]">
-                        <div class="flex justify-between text-xs font-mono mb-2">
-                            <span class="font-bold text-white">ESP32_001 (Reactor 01)</span>
-                            <span id="grid-val-001" class="text-blue-400">NOMINAL</span>
+                <div id="chart-view-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                                ESP32_001 (Reactor 01)
+                            </span>
+                            <span id="grid-val-001" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
                         </div>
-                        <div class="h-36"><canvas id="nodeChart_ESP32_001"></canvas></div>
+                        <div class="h-32"><canvas id="nodeChart_ESP32_001"></canvas></div>
                     </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333]">
-                        <div class="flex justify-between text-xs font-mono mb-2">
-                            <span class="font-bold text-white">ESP32_002 (Pump 02)</span>
-                            <span id="grid-val-002" class="text-blue-400">NOMINAL</span>
+                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                ESP32_002 (Pump 02)
+                            </span>
+                            <span id="grid-val-002" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
                         </div>
-                        <div class="h-36"><canvas id="nodeChart_ESP32_002"></canvas></div>
+                        <div class="h-32"><canvas id="nodeChart_ESP32_002"></canvas></div>
                     </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333]">
-                        <div class="flex justify-between text-xs font-mono mb-2">
-                            <span class="font-bold text-white">ESP32_003 (Cryo 03)</span>
-                            <span id="grid-val-003" class="text-blue-400">NOMINAL</span>
+                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                ESP32_003 (Cryo 03)
+                            </span>
+                            <span id="grid-val-003" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
                         </div>
-                        <div class="h-36"><canvas id="nodeChart_ESP32_003"></canvas></div>
+                        <div class="h-32"><canvas id="nodeChart_ESP32_003"></canvas></div>
                     </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333]">
-                        <div class="flex justify-between text-xs font-mono mb-2">
-                            <span class="font-bold text-white">ESP32_004 (Turbine 04)</span>
-                            <span id="grid-val-004" class="text-blue-400">NOMINAL</span>
+                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                ESP32_004 (Turbine 04)
+                            </span>
+                            <span id="grid-val-004" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
                         </div>
-                        <div class="h-36"><canvas id="nodeChart_ESP32_004"></canvas></div>
+                        <div class="h-32"><canvas id="nodeChart_ESP32_004"></canvas></div>
                     </div>
                 </div>
             </div>
@@ -457,6 +472,9 @@
                         </button>
                         <button onclick="toggleIsolation()" id="btn-isolate-device" class="subway-btn subway-btn-danger py-2.5">
                             TRIP EMERGENCY ISOLATION
+                        </button>
+                        <button onclick="emergencyShutdown()" id="btn-shutdown-device" class="subway-btn bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700/60 py-2.5 px-3">
+                            SHUTDOWN NODE
                         </button>
                     </div>
                 </div>
@@ -1182,6 +1200,7 @@
                 });
             }
 
+            const subNodeColors = ['#38bdf8', '#3b82f6', '#fb923c', '#f472b6', '#c084fc'];
             ['ESP32_001', 'ESP32_002', 'ESP32_003', 'ESP32_004'].forEach(id => {
                 const canvas = document.getElementById('nodeChart_' + id);
                 if (canvas && window.Chart) {
@@ -1189,7 +1208,13 @@
                         type: 'line',
                         data: {
                             labels: [],
-                            datasets: [{ label: 'Metric', data: [], borderColor: '#38bdf8', borderWidth: 1.5, tension: 0.2, pointRadius: 0 }]
+                            datasets: [
+                                { label: 'Temp (°C)', data: [], borderColor: subNodeColors[0], borderWidth: 1.5, tension: 0.25, pointRadius: 0 },
+                                { label: 'Pres (bar)', data: [], borderColor: subNodeColors[1], borderWidth: 1.5, tension: 0.25, pointRadius: 0 },
+                                { label: 'Vib (g)', data: [], borderColor: subNodeColors[2], borderWidth: 1.5, tension: 0.25, pointRadius: 0 },
+                                { label: 'Curr (A)', data: [], borderColor: subNodeColors[3], borderWidth: 1.5, tension: 0.25, pointRadius: 0 },
+                                { label: 'RPM/100', data: [], borderColor: subNodeColors[4], borderWidth: 1.5, tension: 0.25, pointRadius: 0 }
+                            ]
                         },
                         options: {
                             responsive: true,
@@ -1199,31 +1224,73 @@
                                 x: { display: false },
                                 y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 9 } } }
                             },
-                            plugins: { legend: { display: false } }
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#090a0f',
+                                    titleFont: { size: 9, family: 'monospace' },
+                                    bodyFont: { size: 9, family: 'monospace' }
+                                }
+                            }
                         }
                     });
                 }
             });
+
+            // Activate default split layout
+            setChartDisplayMode('split');
         }
 
         function setChartDisplayMode(mode) {
             chartDisplayMode = mode;
             const combEl = document.getElementById('chart-view-combined');
             const gridEl = document.getElementById('chart-view-grid');
+            const btnSplit = document.getElementById('btn-mode-split');
             const btnComb = document.getElementById('btn-mode-combined');
             const btnGrid = document.getElementById('btn-mode-grid');
 
-            if (mode === 'combined') {
-                combEl.classList.remove('hidden');
-                gridEl.classList.add('hidden');
-                btnComb.className = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
-                btnGrid.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+            if (mode === 'split') {
+                if (combEl) {
+                    combEl.classList.remove('hidden');
+                    combEl.className = 'relative w-full h-56';
+                }
+                if (gridEl) {
+                    gridEl.classList.remove('hidden');
+                    gridEl.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2';
+                }
+                if (btnSplit) btnSplit.className = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
+                if (btnComb) btnComb.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+                if (btnGrid) btnGrid.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+            } else if (mode === 'combined') {
+                if (combEl) {
+                    combEl.classList.remove('hidden');
+                    combEl.className = 'relative w-full h-80';
+                }
+                if (gridEl) gridEl.classList.add('hidden');
+                if (btnSplit) btnSplit.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+                if (btnComb) btnComb.className = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
+                if (btnGrid) btnGrid.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
             } else {
-                combEl.classList.add('hidden');
-                gridEl.classList.remove('hidden');
-                btnGrid.className = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
-                btnComb.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+                if (combEl) combEl.classList.add('hidden');
+                if (gridEl) {
+                    gridEl.classList.remove('hidden');
+                    gridEl.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 pt-2';
+                }
+                if (btnSplit) btnSplit.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+                if (btnComb) btnComb.className = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+                if (btnGrid) btnGrid.className = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
             }
+
+            // Immediately resize canvas buffers to prevent 0x0 canvas collapse
+            setTimeout(() => {
+                if (telemetryChart) telemetryChart.resize();
+                Object.values(nodeCharts).forEach(c => {
+                    if (c) {
+                        c.resize();
+                        c.update('none');
+                    }
+                });
+            }, 40);
         }
 
         function setChartWindow(sec) {
@@ -1244,6 +1311,10 @@
                     const hb = JSON.parse(e.data);
                     updateHeartbeat(hb);
                 });
+                eventSource.addEventListener('topology', (e) => {
+                    const top = JSON.parse(e.data);
+                    updateTopologyUI(top);
+                });
                 eventSource.onerror = () => {
                     setTimeout(fetchFullData, 2000);
                 };
@@ -1257,6 +1328,30 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.telemetry) handleTelemetryPacket(data.telemetry);
+                    if (data.telemetry_by_node) {
+                        Object.keys(data.telemetry_by_node).forEach(nid => {
+                            const logs = data.telemetry_by_node[nid];
+                            if (nodeCharts[nid] && Array.isArray(logs) && logs.length > 0) {
+                                const nc = nodeCharts[nid];
+                                nc.data.labels = logs.map(l => new Date((l.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString());
+                                nc.data.datasets[0].data = logs.map(l => l.temperature !== undefined && l.temperature !== null ? l.temperature : null);
+                                nc.data.datasets[1].data = logs.map(l => l.pressure !== undefined && l.pressure !== null ? l.pressure : null);
+                                nc.data.datasets[2].data = logs.map(l => l.vibration !== undefined && l.vibration !== null ? l.vibration : null);
+                                nc.data.datasets[3].data = logs.map(l => l.current !== undefined && l.current !== null ? l.current : null);
+                                nc.data.datasets[4].data = logs.map(l => l.hall_effect !== undefined && l.hall_effect !== null ? (l.hall_effect / 100.0) : null);
+                                nc.update('none');
+
+                                const lastP = logs[logs.length - 1];
+                                const valEl = document.getElementById('grid-val-' + nid.replace('ESP32_', ''));
+                                if (valEl && lastP) {
+                                    const tempStr = lastP.temperature !== undefined && lastP.temperature !== null ? `${lastP.temperature.toFixed(1)}°C` : '--';
+                                    const presStr = lastP.pressure !== undefined && lastP.pressure !== null ? `${lastP.pressure.toFixed(1)}b` : '--';
+                                    const vibStr = lastP.vibration !== undefined && lastP.vibration !== null ? `${lastP.vibration.toFixed(1)}g` : '--';
+                                    valEl.innerText = `${tempStr} | ${presStr} | ${vibStr}`;
+                                }
+                            }
+                        });
+                    }
                     if (data.audit_logs) renderAuditTable(data.audit_logs);
                 })
                 .catch(err => console.error(err));
@@ -1271,36 +1366,83 @@
                 }
 
                 if (!isForensicScrubActive && telemetryChart) {
-                    const timeLabel = new Date(p.timestamp * 1000).toLocaleTimeString();
+                    const timeLabel = new Date((p.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
                     telemetryChart.data.labels.push(timeLabel);
-                    telemetryChart.data.datasets[0].data.push(p.temperature);
-                    telemetryChart.data.datasets[1].data.push(p.pressure);
-                    telemetryChart.data.datasets[2].data.push(p.vibration);
-                    telemetryChart.data.datasets[3].data.push(p.current);
-                    telemetryChart.data.datasets[4].data.push(p.hall_effect !== undefined ? (p.hall_effect / 100.0) : 0);
+                    telemetryChart.data.datasets[0].data.push(p.temperature !== undefined && p.temperature !== null ? p.temperature : null);
+                    telemetryChart.data.datasets[1].data.push(p.pressure !== undefined && p.pressure !== null ? p.pressure : null);
+                    telemetryChart.data.datasets[2].data.push(p.vibration !== undefined && p.vibration !== null ? p.vibration : null);
+                    telemetryChart.data.datasets[3].data.push(p.current !== undefined && p.current !== null ? p.current : null);
+                    telemetryChart.data.datasets[4].data.push(p.hall_effect !== undefined && p.hall_effect !== null ? (p.hall_effect / 100.0) : null);
 
                     if (telemetryChart.data.labels.length > 50) {
                         telemetryChart.data.labels.shift();
                         telemetryChart.data.datasets.forEach(ds => ds.data.shift());
                     }
-                    telemetryChart.update();
+                    telemetryChart.update('none');
                 }
 
                 if (p.device_id && nodeCharts[p.device_id] && !isForensicScrubActive) {
                     const nc = nodeCharts[p.device_id];
-                    nc.data.labels.push('');
-                    nc.data.datasets[0].data.push(p.temperature || p.pressure || p.vibration || 0);
+                    const timeLabel = new Date((p.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
+                    nc.data.labels.push(timeLabel);
+                    nc.data.datasets[0].data.push(p.temperature !== undefined && p.temperature !== null ? p.temperature : null);
+                    nc.data.datasets[1].data.push(p.pressure !== undefined && p.pressure !== null ? p.pressure : null);
+                    nc.data.datasets[2].data.push(p.vibration !== undefined && p.vibration !== null ? p.vibration : null);
+                    nc.data.datasets[3].data.push(p.current !== undefined && p.current !== null ? p.current : null);
+                    nc.data.datasets[4].data.push(p.hall_effect !== undefined && p.hall_effect !== null ? (p.hall_effect / 100.0) : null);
+
                     if (nc.data.labels.length > 25) {
                         nc.data.labels.shift();
-                        nc.data.datasets[0].data.shift();
+                        nc.data.datasets.forEach(ds => ds.data.shift());
                     }
-                    nc.update();
+                    nc.update('none');
+
+                    // Update live indicator in grid card header
+                    const valEl = document.getElementById('grid-val-' + p.device_id.replace('ESP32_', ''));
+                    if (valEl) {
+                        const tempStr = p.temperature !== undefined && p.temperature !== null ? `${p.temperature.toFixed(1)}°C` : '--';
+                        const presStr = p.pressure !== undefined && p.pressure !== null ? `${p.pressure.toFixed(1)}b` : '--';
+                        const vibStr = p.vibration !== undefined && p.vibration !== null ? `${p.vibration.toFixed(1)}g` : '--';
+                        if (p.is_anomaly) {
+                            valEl.className = 'text-red-400 font-bold animate-pulse text-[10px] truncate max-w-[130px]';
+                            valEl.innerText = `ALARM [${tempStr}|${presStr}]`;
+                        } else {
+                            valEl.className = 'text-blue-400 font-semibold text-[10px] truncate max-w-[130px]';
+                            valEl.innerText = `${tempStr} | ${presStr} | ${vibStr}`;
+                        }
+                    }
                 }
             });
 
             updateScrubberSliderUI();
             refreshDevicesList();
             refreshTopology();
+        }
+
+        function updateTopologyUI(data) {
+            if (!data) return;
+            const nodeCountEl = document.getElementById('topo-nodes-count');
+            const sensorCountEl = document.getElementById('topo-sensors-count');
+            const bridgeEl = document.getElementById('topo-bridge-status');
+            const bridgeBadge = document.getElementById('topo-bridge-badge');
+
+            if (nodeCountEl) nodeCountEl.innerText = `${data.total_nodes_count || 4} NODES (${data.online_nodes_count || 0} ONLINE)`;
+            if (sensorCountEl) sensorCountEl.innerText = `${data.total_active_sensors || 0} ACTIVE TRANSDUCERS`;
+            if (bridgeEl) {
+                if (data.gateway_state === 'CONNECTED') {
+                    bridgeEl.innerText = `ONLINE: ${data.active_port || 'USB'}`;
+                    if (bridgeBadge) {
+                        bridgeBadge.className = 'subway-badge subway-badge-nominal text-[10px]';
+                        bridgeBadge.innerText = 'CONCENTRATOR ACTIVE';
+                    }
+                } else {
+                    bridgeEl.innerText = data.gateway_state || 'OFFLINE';
+                    if (bridgeBadge) {
+                        bridgeBadge.className = 'subway-badge subway-badge-warning text-[10px]';
+                        bridgeBadge.innerText = 'STANDBY';
+                    }
+                }
+            }
         }
 
         function updateHeartbeat(hb) {
@@ -1555,6 +1697,28 @@
                 refreshRiskView();
                 refreshTopology();
             });
+        }
+
+        function emergencyShutdown() {
+            const devId = document.getElementById('control-device-select').value;
+            if (!confirm(`Execute EMERGENCY SHUTDOWN on target ${devId}?\nThis will immediately trip actuator relays and de-energize equipment.`)) {
+                return;
+            }
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch('/api/device/shutdown', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify({ device_id: devId })
+            })
+            .then(r => r.json())
+            .then(res => {
+                alert(res.details || 'Emergency shutdown instruction dispatched.');
+                refreshDevicesList();
+                fetchAuditLogs();
+                refreshRiskView();
+                refreshTopology();
+            })
+            .catch(e => alert('Error sending shutdown command: ' + e));
         }
 
         function openTrustModal(devId) {

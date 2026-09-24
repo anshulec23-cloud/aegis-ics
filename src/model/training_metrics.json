@@ -1115,9 +1115,9 @@
     "success": true,
     "hardware_samples_used": 252,
     "total_training_samples": 6756,
-    "accuracy": 0.9386,
-    "roc_auc": 0.9768,
-    "timestamp": 1789840365.8749797,
+    "accuracy": 0.9519,
+    "roc_auc": 0.9803,
+    "timestamp": 1790237518.53065,
     "status": "HARDWARE_CALIBRATED"
   }
 }
