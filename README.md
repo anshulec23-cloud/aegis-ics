@@ -530,7 +530,7 @@ Version 2.5.2 Summary:
 
 - Aegis ICS Core Engineering and Security Team
   - Organization: Industrial Zero-Trust Working Group
-  - Email: security@aegis-ics.internal / support@aegis-ics.org
+  - Email: anshul.ec23@sahyadri.edu.in
   - Repository: [github.com/anshulec23-cloud/aegis-ics](https://github.com/anshulec23-cloud/aegis-ics)
 
 ---
