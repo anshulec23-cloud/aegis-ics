@@ -3,6 +3,7 @@
 [![Release Version](https://img.shields.io/badge/release-v2.5.2-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
 [![Tests Status](https://img.shields.io/badge/tests-65%2F65%20passing-brightgreen.svg)](#quality-assurance-and-testing)
+[![Dependabot Alerts](https://img.shields.io/badge/dependabot-0%20vulnerabilities-brightgreen.svg)](#security-hardening-and-vulnerability-remediation)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -293,7 +294,7 @@ Aegis ICS maps empirical telemetry anomalies directly to the Factor Analysis of 
 
 ## Security Hardening and Vulnerability Remediation
 
-Aegis ICS v2.5.2 incorporates systematic fixes for 8 architectural vulnerabilities, verified by regression tests:
+Aegis ICS v2.5.2 incorporates systematic fixes for 9 security vulnerabilities (8 architectural + 1 comprehensive supply-chain dependency suite), verified by automated regression tests and GitHub Dependabot audit:
 
 | ID | Severity | CWE | Vulnerability Description | Remediated Architecture | Regression Test |
 |---|---|---|---|---|---|
@@ -305,6 +306,7 @@ Aegis ICS v2.5.2 incorporates systematic fixes for 8 architectural vulnerabiliti
 | V6 | LOW | CWE-384 | Ephemeral Session Secret Keys: Web sessions dropped across restarts | Added persistent cryptographic secret key generation and storage in app.py (.aegis_session_key). | test_flask_api_routes |
 | V7 | LOW | CWE-400 | Thread-Blocking GUI Call in Web Context: asksaveasfilename hung server | Added web-safe fallback in app.py returning direct file download JSON in headless/daemon mode. | test_pdf_download_and_view_endpoints |
 | V8 | LOW | CWE-285 | Parameter Override Bypass: Provided HMAC keys ignored | Corrected parameter precedence in serial_gateway.py to strictly prioritize passed hmac_key arguments. | test_serial_gateway_parsing |
+| V9 | HIGH | CWE-1395 | Third-Party Dependency Vulnerabilities: 9 Dependabot CVEs in cryptography, requests, flask | Upgraded to cryptography>=50.0.0, requests>=2.34.0, and Flask>=3.1.3; all 9 Dependabot alerts resolved to 0 open vulnerabilities. | test_full_suite.py / GitHub Dependabot Audit |
 
 ---
 

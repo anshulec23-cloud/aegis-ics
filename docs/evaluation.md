@@ -160,4 +160,15 @@ Result: 65 passed in 25.41s (100% pass rate, 0 regressions)
 9. `test_subsystem_financial_breakdown_endpoint`: Outage rate breakdown per node.
 10. `test_manual_isolation_and_rejoin`: Direct trip and re-arm toggles.
 
+---
+
+## 8. Supply-Chain Security & Dependabot Vulnerability Remediation (V9)
+
+A comprehensive security audit of upstream dependencies conducted via GitHub Dependabot identified 9 historical advisories across `cryptography`, `requests`, and `Flask`. All 9 advisories were remediated in v2.5.2 by establishing secure minimum package boundaries:
+- **`cryptography>=50.0.0`**: Resolves OpenSSL wheel vulnerabilities (GHSA-537c-gmf6-5ccf, CVE-2024-12797), SECT curve subgroup attack (CVE-2026-26007), Bleichenbacher oracle (CVE-2026-69247), duplicate intermediate path-building (CVE-2026-69249), and DNS constraint enforcement (CVE-2026-34073).
+- **`requests>=2.34.0`**: Resolves insecure temp file reuse in `extract_zipped_paths()` (CVE-2026-25645) and `.netrc` credential disclosure (CVE-2024-47081).
+- **`Flask>=3.1.3`**: Resolves session `Vary: Cookie` header disclosure (CVE-2026-27205).
+
+**Audit Outcome**: Verified 0 open Dependabot alerts, 0 broken dependencies (`pip check`), and 100% pass rate across the full 65-test verification suite.
+
 

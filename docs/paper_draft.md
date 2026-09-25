@@ -705,6 +705,7 @@ Prior versions of the platform contained structural security vulnerabilities tha
 | **V6** | **LOW** | CWE-384 | Ephemeral Session Secret Keys: Web sessions invalidated or predictable across restarts | Implemented persistent cryptographic secret key generation and file storage in `src/app.py`. | `test_flask_api_routes` |
 | **V7** | **LOW** | CWE-400 | Thread-Blocking GUI Call in Web Context: `asksaveasfilename` triggered Tkinter popup during HTTP downloads | Implemented web-safe fallback in `src/app.py` returning direct file streams when called in headless/daemon mode. | `test_pdf_download_and_view_endpoints` |
 | **V8** | **LOW** | CWE-285 | Parameter Override Bypass: Provided HMAC keys ignored in serial initialization | Fixed parameter precedence in `src/serial_gateway.py` to strictly prioritize explicit `hmac_key` arguments. | `test_serial_gateway_parsing` |
+| **V9** | **HIGH** | CWE-1395 | Third-Party Dependency Vulnerabilities: 9 Dependabot CVEs across cryptography, requests, and Flask | Upgraded to `cryptography>=50.0.0`, `requests>=2.34.0`, and `Flask>=3.1.3`, systematically resolving all 9 Dependabot CVE advisories to 0 open vulnerabilities. | `test_full_suite.py` / GitHub Security Audit |
 
 ---
 
