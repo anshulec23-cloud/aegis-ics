@@ -41,25 +41,33 @@ __name__ ,
 template_folder =_resource_path ('templates'),
 static_folder =_resource_path ('static'),
 )
-_secret_key = os.environ.get("FLASK_SECRET_KEY")
-if not _secret_key:
-    print("WARNING: No FLASK_SECRET_KEY set. Falling back to local file.")
-    _key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aegis_session_key")
-    if os.path.exists(_key_file):
-        with open(_key_file, "r") as f:
-            _secret_key = f.read().strip()
-    else:
-        import secrets as _s
-        _secret_key = _s.token_hex(32)
+def _load_or_generate_session_token() -> str:
+    env_token = os.environ.get("FLASK_SECRET_KEY")
+    if env_token:
+        return env_token
+    token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aegis_session_key")
+    if os.path.exists(token_path):
         try:
-            with open(_key_file, "w") as f:
-                f.write(_secret_key)
-            if hasattr(os, "chmod"):
-                os.chmod(_key_file, 0o600)
+            with open(token_path, "r", encoding="utf-8") as tf:
+                existing = tf.read().strip()
+                if existing:
+                    return existing
         except OSError:
-            pass  # Read-only filesystem; key won't persist
-        print("[Security] Generated and persisted new Flask session key.")
-app.secret_key = _secret_key
+            pass
+    import secrets as _s
+    raw_entropy = _s.token_hex(32)
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        mode = 0o600
+        fd = os.open(token_path, flags, mode)
+        with os.fdopen(fd, "w", encoding="utf-8") as tf:
+            tf.write(raw_entropy)
+    except OSError:
+        pass  # Read-only filesystem; entropy held in memory only
+    return raw_entropy
+
+app.secret_key = _load_or_generate_session_token()
+
 
 
 limiter =Limiter (
@@ -387,9 +395,10 @@ def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
         return True, 200, "Telemetry ingested successfully."
     except Exception as e :
         print (f"[Server] Database write failed: {e }")
-        return False ,500 ,f"Database write error: {e }"
+        return False ,500 ,"Database write operation failed."
     finally :
         db .close ()
+
 
 
 def login_required (f ):
@@ -564,7 +573,8 @@ def setpoint ():
         print (f"[Server] Dispatched control command: {cmd_type }={value } -> {target_device}")
     except Exception as e :
         db .close ()
-        return jsonify ({"success":False ,"error":f"UART publish failed: {e }"}),500 
+        print(f"[Server] UART publish failed: {e}")
+        return jsonify ({"success":False ,"error":"UART publish failed. Target controller unreachable."}),500 
 
 
     audit =AuditLog (
@@ -609,7 +619,8 @@ def neural_policy_status ():
             "empirical_latency_ms": round(latency_val, 4)
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        print(f"[Neural Policy Status Error] {e}")
+        return jsonify({"success": False, "error": "Unable to query neural policy status."}), 500
 
 
 @app .route ("/api/com_ports",methods =["GET"])
@@ -630,7 +641,8 @@ def list_com_ports ():
             } for p in list_ports.comports()]
         return jsonify ({"success":True ,"ports":ports })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e ), "ports": []})
+        print(f"[COM Ports Query Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to enumerate COM ports.", "ports": []}), 500
 
 @app.route("/api/gateway/raw_packets", methods=["GET"])
 @limiter.exempt
@@ -642,7 +654,8 @@ def gateway_raw_packets():
         packets = serial_gateway.get_recent_raw_packets(limit=60)
         return jsonify({"success": True, "packets": packets})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e), "packets": []})
+        print(f"[Raw Packets Query Error] {e}")
+        return jsonify({"success": False, "error": "Failed to retrieve gateway packets.", "packets": []}), 500
 
 @app .route ("/api/com_ports/status",methods =["GET"])
 @login_required 
@@ -655,7 +668,9 @@ def com_port_status ():
         health =serial_gateway.get_gateway_health()
         return jsonify ({"success":True ,"port":port, "state":state, "health":health })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )})
+        print(f"[COM Status Query Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to read gateway status."}), 500
+
 
 @app.route("/api/cluster/topology", methods=["GET"])
 @limiter.exempt
@@ -745,7 +760,8 @@ def cluster_topology():
         finally:
             db.close()
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Cluster Topology Error] {e}")
+        return jsonify({"success": False, "error": "Failed to retrieve cluster topology."}), 500
 
 @app .route ("/api/com_ports/connect",methods =["POST"])
 @login_required 
@@ -801,7 +817,8 @@ def connect_com_port ():
 
         return jsonify ({"success":True ,"details":f"Gateway connecting to {port }."})
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )})
+        print(f"[COM Connect Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to connect to specified COM port."}), 500
 
 @app .route ("/api/com_ports/disconnect",methods =["POST"])
 @login_required 
@@ -824,7 +841,9 @@ def disconnect_com_port ():
 
         return jsonify ({"success":True ,"details":"Disconnected COM port successfully."})
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )})
+        print(f"[COM Disconnect Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to disconnect COM port."}), 500
+
 
 @app .route ("/api/devices",methods =["GET"])
 @limiter.exempt
@@ -1025,7 +1044,8 @@ def shutdown_device():
         })
         return jsonify({"success": True, "details": f"Emergency shutdown instruction dispatched to {device_id}."})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Emergency Shutdown Error] {e}")
+        return jsonify({"success": False, "error": "Emergency shutdown execution failed."}), 500
     finally:
         db.close()
 
@@ -1051,7 +1071,9 @@ def discover_cluster():
             "active_nodes": active_nodes
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Cluster Discover Error] {e}")
+        return jsonify({"success": False, "error": "Failed to dispatch cluster discovery probe."}), 500
+
 
 @app .route ("/api/device/ping",methods =["POST"])
 @login_required 
@@ -1125,7 +1147,8 @@ def device_trust_breakdown (device_id ):
         breakdown =get_trust_breakdown (clean_id ,db )
         return jsonify ({"success":True ,"data":breakdown })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Trust Breakdown Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to compute trust breakdown."}),500 
     finally :
         db .close ()
 
@@ -1152,7 +1175,8 @@ def simulate_attack_endpoint ():
             db .close ()
         return jsonify (res )
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Simulation Step Error] {e}")
+        return jsonify ({"success":False ,"error":"Simulation step execution failed."}),500 
 
 @app .route ("/api/simulate/reset",methods =["POST"])
 @login_required 
@@ -1173,7 +1197,9 @@ def simulate_reset_endpoint ():
         db .close ()
         return jsonify (res )
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Simulation Reset Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to reset simulation state."}),500 
+ 
 
 @app .route ("/api/audit/logs",methods =["GET"])
 @limiter.exempt
@@ -1262,7 +1288,8 @@ def get_audit_logs ():
 
         return jsonify ({"success":True ,"logs":data })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Audit Logs Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to retrieve audit log records."}),500 
     finally :
         db .close ()
 
@@ -1290,7 +1317,8 @@ def api_retrain_model ():
         db .commit ()
         return jsonify ({"success":True ,"metrics":res })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Financial Metrics Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to execute model retraining."}),500 
     finally :
         db .close ()
 
@@ -1318,7 +1346,8 @@ def api_model_status ():
         "metrics":metrics 
         })
     except Exception as e :
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Dashboard Analytics Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to retrieve model telemetry metrics."}),500 
     finally :
         db .close ()
 
@@ -1347,7 +1376,7 @@ def download_report():
         return response
     except Exception as e:
         print(f"[Report Generation Error] {e}")
-        return jsonify({"success": False, "error": str(e)}), 500 
+        return jsonify({"success": False, "error": "Automated security report generation failed."}), 500 
     finally:
         db.close()
 
@@ -1377,9 +1406,10 @@ def view_report():
         return response
     except Exception as e:
         print(f"[Report View Error] {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Failed to render security report."}), 500
     finally:
         db.close()
+
 
 @app.route("/api/report/save_dialog", methods=["POST", "GET"])
 @login_required
@@ -1443,7 +1473,7 @@ def save_report_dialog():
         return jsonify({
             "success": True,
             "download_url": "/api/report/download",
-            "message": f"Native save dialog unavailable ({e}). Initiating direct download."
+            "message": "Native save dialog unavailable. Initiating direct download."
         })
     finally:
         db.close()
@@ -1460,7 +1490,8 @@ def get_financial_analytics():
         data = calculate_financial_analytics(db, device_id=target_dev)
         return jsonify({"success": True, "financials": data})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Financial Analytics Error] {e}")
+        return jsonify({"success": False, "error": "Failed to calculate financial analytics."}), 500
     finally:
         db.close()
 
@@ -1476,7 +1507,8 @@ def get_loss_distribution():
         curve = calculate_monte_carlo_distribution(db, device_id=target_dev)
         return jsonify({"success": True, "distribution": curve})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Monte Carlo Distribution Error] {e}")
+        return jsonify({"success": False, "error": "Failed to compute Monte Carlo risk distribution."}), 500
     finally:
         db.close()
 
@@ -1490,7 +1522,8 @@ def get_subsystems_financial():
         breakdown = get_subsystem_financial_breakdown(db)
         return jsonify({"success": True, "subsystems": breakdown})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Subsystem Breakdown Error] {e}")
+        return jsonify({"success": False, "error": "Failed to compute subsystem financial breakdown."}), 500
     finally:
         db.close()
 
@@ -1513,7 +1546,8 @@ def get_devices_locations():
             db.close()
         return jsonify({"success": True, "locations": locations})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"[Device Locations Error] {e}")
+        return jsonify({"success": False, "error": "Failed to retrieve device geographic topology."}), 500
 
 @app .route ("/api/rules",methods =["GET"])
 @login_required 
@@ -1576,9 +1610,11 @@ def update_rules ():
         return jsonify ({"success":True ,"details":"Safety threshold rules updated successfully."})
     except Exception as e :
         db .rollback ()
-        return jsonify ({"success":False ,"error":str (e )}),500 
+        print(f"[Rules Update Error] {e}")
+        return jsonify ({"success":False ,"error":"Failed to update safety threshold rules."}),500 
     finally :
         db .close ()
+
 
 @app.route("/api/simulate-attack", methods=["POST"])
 @login_required 
@@ -1835,7 +1871,8 @@ def api_stream():
                 except Exception:
                     pass
             except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                print(f"[Telemetry SSE Stream Error] {e}")
+                yield f"event: error\ndata: {json.dumps({'error': 'Telemetry stream interrupted.'})}\n\n"
             finally:
                 db.close()
             time.sleep(1.0)
@@ -1866,7 +1903,9 @@ def health ():
         db .close ()
         return jsonify ({"status":"healthy","components":{"database":"connected"}}),200 
     except Exception as e :
-        return jsonify ({"status":"unhealthy","error":str (e )}),500 
+        print(f"[Health Check Error] {e}")
+        return jsonify ({"status":"unhealthy","error":"Database connection check failed."}),500 
+ 
 
 
 @app .route ("/api/version",methods =["GET"])

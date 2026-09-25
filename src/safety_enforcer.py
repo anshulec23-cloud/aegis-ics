@@ -103,10 +103,12 @@ def validate_command(
                     return False, diag
             except Exception as e:
                 # V5 FIX: Fail-closed on neural policy errors
+                print(f"[SafetyEnforcer] Neural Safety Policy evaluation error: {e}")
                 return False, (
-                    f"SAFETY INTERLOCK BLOCK: Neural Safety Policy evaluation failed ({e}). "
-                    f"Command blocked as precautionary measure. System requires maintenance."
+                    "SAFETY INTERLOCK BLOCK: Neural Safety Policy evaluation failed. "
+                    "Command blocked as precautionary measure. System requires maintenance."
                 )
+
 
         # Deterministic Physics-Informed Hard Invariant Interlocks (Redundant Defense-in-Depth)
         if cmd_type == "set_temp" and value >= 45.0:

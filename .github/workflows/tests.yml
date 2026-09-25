@@ -2,11 +2,21 @@ name: tests
 
 on:
   push:
+    branches: [ "main", "master" ]
   pull_request:
+    branches: [ "main", "master" ]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Check out repo
@@ -24,3 +34,4 @@ jobs:
 
       - name: Run unit tests
         run: python -m pytest tests
+
