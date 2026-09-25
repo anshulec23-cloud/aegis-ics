@@ -314,8 +314,8 @@ Aegis ICS v2.5.2 incorporates systematic fixes for 9 security vulnerabilities (8
 
 ### Option A: Running Standalone Executable (Windows)
 
-1. Download AegisICS.exe from the repository releases page.
-2. Double-click AegisICS.exe to start the desktop application.
+1. Download [`AegisICS.exe`](https://github.com/anshulec23-cloud/aegis-ics/releases/download/v2.5.2/AegisICS.exe) directly from the official [v2.5.2 Releases page](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2).
+2. Double-click `AegisICS.exe` to launch the native desktop application.
 3. The embedded SCADA dashboard interface will open automatically in a dedicated PyWebView desktop window.
 
 ### Option B: Running from Source Code (Developer Mode)

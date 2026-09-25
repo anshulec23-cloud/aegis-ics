@@ -1837,21 +1837,42 @@ def test_hardware_model_calibration_and_status_api():
         sess["csrf_token"] = "valid_csrf"
     headers = {"X-CSRF-Token": "valid_csrf"}
 
-    # 1. Model status
-    res_status = client.get("/api/model/status", headers=headers)
-    assert res_status.status_code == 200
-    status_data = res_status.get_json()
-    assert status_data["success"] is True
-    assert "real_samples_count" in status_data
-    assert "enforcement_status" in status_data
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_path = os.path.join(base_dir, "src", "model", "rf_model.pkl")
+    hash_path = model_path + ".sha256"
+    metrics_path = os.path.join(base_dir, "src", "model", "training_metrics.json")
+    orig_model = open(model_path, "rb").read() if os.path.exists(model_path) else None
+    orig_hash = open(hash_path, "r", encoding="utf-8").read() if os.path.exists(hash_path) else None
+    orig_metrics = open(metrics_path, "r", encoding="utf-8").read() if os.path.exists(metrics_path) else None
 
-    # 2. Trigger model retrain / calibration
-    res_retrain = client.post("/api/model/retrain", headers=headers, json={})
-    assert res_retrain.status_code == 200
-    retrain_data = res_retrain.get_json()
-    assert retrain_data["success"] is True
-    assert "metrics" in retrain_data
-    assert retrain_data["metrics"]["accuracy"] > 0.80
+    try:
+        # 1. Model status
+        res_status = client.get("/api/model/status", headers=headers)
+        assert res_status.status_code == 200
+        status_data = res_status.get_json()
+        assert status_data["success"] is True
+        assert "real_samples_count" in status_data
+        assert "enforcement_status" in status_data
+
+        # 2. Trigger model retrain / calibration
+        res_retrain = client.post("/api/model/retrain", headers=headers, json={})
+        assert res_retrain.status_code == 200
+        retrain_data = res_retrain.get_json()
+        assert retrain_data["success"] is True
+        assert "metrics" in retrain_data
+        assert retrain_data["metrics"]["accuracy"] > 0.80
+    finally:
+        if orig_model is not None:
+            with open(model_path, "wb") as f:
+                f.write(orig_model)
+        if orig_hash is not None:
+            with open(hash_path, "w", encoding="utf-8") as f:
+                f.write(orig_hash)
+        if orig_metrics is not None:
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                f.write(orig_metrics)
+        from app import rf_model
+        rf_model.reload()
 
 
 

@@ -119,9 +119,15 @@ def find_esp32_ports():
         print(f"[Gateway] Error enumerating ports: {e}")
         return []
 
-def send_command (payload_dict ):
-    """Enqueues a command to be written to the serial port."""
-    _command_queue .put (payload_dict )
+def send_command(payload_dict):
+    """Enqueues a command to be written to the serial port, guaranteeing cryptographic integrity."""
+    if isinstance(payload_dict, dict):
+        if not payload_dict.get("signature"):
+            target_device = payload_dict.get("target_device") or payload_dict.get("device_id") or "ESP32_001"
+            key = get_device_key(target_device)
+            to_sign = {k: v for k, v in payload_dict.items() if k != "signature"}
+            payload_dict["signature"] = sign_message(to_sign, key)
+    _command_queue.put(payload_dict)
 
 def get_recent_raw_packets(limit=50):
     with _buffer_lock:
@@ -136,23 +142,26 @@ def log_raw_wire_packet(line: str, parsed: bool = True, target_id: str = "ESP32_
             "device_id": target_id
         })
 
-def canonicalize_payload (payload :dict )->dict :
-    canonical ={}
-    for k ,v in payload .items ():
-        if k in ("temperature","pressure","humidity","rssi","vibration","hall_effect","current"):
-            canonical [k ]=f"{float (v ):.2f}"
-        elif k =="timestamp":
-            canonical [k ]=f"{float (v ):.3f}"
-        else :
-            canonical [k ]=v 
-    return canonical 
+def canonicalize_payload(payload: dict) -> dict:
+    canonical = {}
+    for k, v in payload.items():
+        if k in ("temperature", "pressure", "humidity", "rssi", "vibration", "hall_effect", "current"):
+            canonical[k] = f"{float(v):.2f}"
+        elif k == "timestamp":
+            try:
+                canonical[k] = f"{float(v):.3f}"
+            except (ValueError, TypeError):
+                canonical[k] = str(v)
+        else:
+            canonical[k] = v
+    return canonical
 
-def sign_message (payload :dict ,key :str )->str :
-    canonical_payload =canonicalize_payload (payload )
-    canonical =json .dumps (canonical_payload ,sort_keys =True ,separators =(",",":"))
-    return hmac .new (key .encode ("utf-8"),canonical .encode ("utf-8"),hashlib .sha256 ).hexdigest ()
+def sign_message(payload: dict, key: str) -> str:
+    canonical_payload = canonicalize_payload(payload)
+    canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
-def parse_serial_line (line :str ,mode :str = "production" ):
+def parse_serial_line(line: str, mode: str = "production"):
     line =line .strip ()
     if not line :
         return None 

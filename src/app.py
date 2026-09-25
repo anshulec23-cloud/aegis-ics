@@ -169,16 +169,28 @@ class LocalRFModel :
         self.reload()
 
     def reload(self) -> bool:
-        try :
-            if os .path .exists (self.model_path):
-                with open (self.model_path ,"rb")as f :
-                    self .model =pickle .load (f )
+        try:
+            if os.path.exists(self.model_path):
+                # Verify cryptographic SHA-256 integrity prior to unpickling
+                hash_path = self.model_path + ".sha256"
+                if os.path.exists(hash_path):
+                    import hashlib
+                    import hmac
+                    with open(hash_path, "r", encoding="utf-8") as hf:
+                        expected_hash = hf.read().strip()
+                    with open(self.model_path, "rb") as mf:
+                        actual_hash = hashlib.sha256(mf.read()).hexdigest()
+                    if not hmac.compare_digest(expected_hash, actual_hash):
+                        print(f"[Security Error] Model integrity verification failed for {self.model_path}! Expected {expected_hash}, got {actual_hash}. Unpickling blocked.")
+                        return False
+                with open(self.model_path, "rb") as f:
+                    self.model = pickle.load(f)
                 if hasattr(self.model, "estimators_"):
                     self.fast_trees = [t.tree_ for t in self.model.estimators_]
                 print(f"[Server] Loaded Random Forest model from {self.model_path} ({len(self.fast_trees) if self.fast_trees else 0} trees)")
                 return True
-        except Exception as e :
-            print (f"[Server] Failed to load Random Forest model: {e }")
+        except Exception as e:
+            print(f"[Server] Failed to load Random Forest model: {e}")
         return False
 
     def predict_anomaly(self, telemetry: dict, db_session=None) -> bool:
@@ -286,6 +298,23 @@ class LocalRFModel :
 rf_model =LocalRFModel (_resource_path (os .path .join ("model","rf_model.pkl")))
 
 def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
+    # Enforce anti-replay sliding window (tolerance: 60s)
+    t_val = payload.get("timestamp")
+    if t_val is not None:
+        try:
+            if isinstance(t_val, str):
+                try:
+                    numeric_ts = float(t_val)
+                except ValueError:
+                    numeric_ts = datetime.fromisoformat(t_val.replace("Z", "+00:00")).timestamp()
+            else:
+                numeric_ts = float(t_val)
+            skew = abs(time.time() - numeric_ts)
+            if skew > 60.0 and not app.config.get("TESTING"):
+                return False, 400, f"Rejected: Telemetry timestamp expired (skew={skew:.1f}s)."
+        except Exception:
+            return False, 400, "Rejected: Invalid telemetry timestamp format."
+
     db =SessionLocal ()
     device_id =payload .get ("device_id","unknown")
 
@@ -381,14 +410,16 @@ def process_telemetry (payload :dict )->tuple [bool ,int ,str ]:
             # Dispatch physical isolation command to hardware via serial gateway
             try:
                 import serial_gateway
-                serial_gateway.send_command({
+                iso_cmd = {
                     "command": "ISOLATE",
                     "action": "ISOLATE",
                     "device_id": device_id,
                     "target_device": device_id,
                     "timestamp": time.time(),
                     "reason": reason_str
-                })
+                }
+                iso_cmd["signature"] = serial_gateway.sign_message(iso_cmd, get_device_key(device_id))
+                serial_gateway.send_command(iso_cmd)
             except Exception as cmd_err:
                 print(f"[Server] Hardware auto-isolation dispatch note: {cmd_err}")
 
@@ -559,22 +590,24 @@ def setpoint ():
         return jsonify ({"success":False ,"error":reason }),403 
 
 
-    command_payload ={
-    "command":"setpoint",
-    "device_id":target_device ,
-    "target":cmd_type ,
-    "value":value ,
-    "timestamp":datetime .now (timezone .utc ).isoformat (),
-    "signature":""
+    command_body = {
+        "command": "setpoint",
+        "device_id": target_device,
+        "target": cmd_type,
+        "value": value,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
-    try :
-        import serial_gateway 
-        serial_gateway .send_command (command_payload )
-        print (f"[Server] Dispatched control command: {cmd_type }={value } -> {target_device}")
-    except Exception as e :
-        db .close ()
+    try:
+        import serial_gateway
+        sig = serial_gateway.sign_message(command_body, get_device_key(target_device))
+        command_payload = dict(command_body)
+        command_payload["signature"] = sig
+        serial_gateway.send_command(command_payload)
+        print(f"[Server] Dispatched control command: {cmd_type}={value} -> {target_device}")
+    except Exception as e:
+        db.close()
         print(f"[Server] UART publish failed: {e}")
-        return jsonify ({"success":False ,"error":"UART publish failed. Target controller unreachable."}),500 
+        return jsonify({"success": False, "error": "UART publish failed. Target controller unreachable."}), 500 
 
 
     audit =AuditLog (
@@ -948,60 +981,64 @@ def isolate_device_v2 ():
     db .close ()
 
     # Dispatch physical isolation frame to hardware via serial gateway
-    try :
-        import serial_gateway 
-        serial_gateway .send_command ({
-            "command":"ISOLATE",
-            "action":"ISOLATE",
-            "device_id":device_id ,
-            "target_device":device_id ,
-            "timestamp":time .time ()
-        })
-    except Exception as e :
-        print (f"[Server] Hardware ISOLATE dispatch note: {e }")
+    try:
+        import serial_gateway
+        iso_cmd = {
+            "command": "ISOLATE",
+            "action": "ISOLATE",
+            "device_id": device_id,
+            "target_device": device_id,
+            "timestamp": time.time()
+        }
+        iso_cmd["signature"] = serial_gateway.sign_message(iso_cmd, get_device_key(device_id))
+        serial_gateway.send_command(iso_cmd)
+    except Exception as e:
+        print(f"[Server] Hardware ISOLATE dispatch note: {e}")
 
-    return jsonify ({"success":True ,"details":f"Device {device_id } successfully isolated."})
+    return jsonify({"success": True, "details": f"Device {device_id} successfully isolated."})
 
-@app .route ("/api/device/rejoin",methods =["POST"])
+@app.route("/api/device/rejoin", methods=["POST"])
 @login_required 
 @require_webview_token 
-def rejoin_device_v2 ():
-    payload =request .json or {}
-    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
-    db =SessionLocal ()
-    state =db .query (DeviceState ).filter_by (device_id =device_id ).first ()
+def rejoin_device_v2():
+    payload = request.json or {}
+    device_id = bleach.clean(str(payload.get("device_id", "ESP32_001")))
+    db = SessionLocal()
+    state = db.query(DeviceState).filter_by(device_id=device_id).first()
     now_utc = datetime.now(timezone.utc)
-    if not state :
-        state =DeviceState (device_id =device_id ,is_isolated =False ,updated_at =now_utc )
-        db .add (state )
-    else :
-        state .is_isolated =False 
-        state .updated_at =now_utc 
+    if not state:
+        state = DeviceState(device_id=device_id, is_isolated=False, updated_at=now_utc)
+        db.add(state)
+    else:
+        state.is_isolated = False 
+        state.updated_at = now_utc 
 
-    audit =AuditLog (
-    user_id =session .get ("user_id"),
-    action ="MANUAL_REJOIN",
-    location =session .get ("location","SYSTEM"),
-    details =f"Operator manually rejoined device {device_id } to control loop."
+    audit = AuditLog(
+        user_id=session.get("user_id"),
+        action="MANUAL_REJOIN",
+        location=session.get("location", "SYSTEM"),
+        details=f"Operator manually rejoined device {device_id} to control loop."
     )
-    db .add (audit )
-    db .commit ()
-    db .close ()
+    db.add(audit)
+    db.commit()
+    db.close()
 
     # Dispatch physical rearm frame to hardware via serial gateway
-    try :
-        import serial_gateway 
-        serial_gateway .send_command ({
-            "command":"REARM",
-            "action":"REARM",
-            "device_id":device_id ,
-            "target_device":device_id ,
-            "timestamp":time .time ()
-        })
-    except Exception as e :
-        print (f"[Server] Hardware REARM dispatch note: {e }")
+    try:
+        import serial_gateway
+        rearm_cmd = {
+            "command": "REARM",
+            "action": "REARM",
+            "device_id": device_id,
+            "target_device": device_id,
+            "timestamp": time.time()
+        }
+        rearm_cmd["signature"] = serial_gateway.sign_message(rearm_cmd, get_device_key(device_id))
+        serial_gateway.send_command(rearm_cmd)
+    except Exception as e:
+        print(f"[Server] Hardware REARM dispatch note: {e}")
 
-    return jsonify ({"success":True ,"details":f"Device {device_id } successfully rejoined to control loop."})
+    return jsonify({"success": True, "details": f"Device {device_id} successfully rejoined to control loop."})
 
 @app.route("/api/device/shutdown", methods=["POST"])
 @login_required
@@ -1035,13 +1072,15 @@ def shutdown_device():
         db.commit()
 
         import serial_gateway
-        serial_gateway.send_command({
+        shutdown_cmd = {
             "command": "SHUTDOWN",
             "action": "SHUTDOWN",
             "device_id": device_id,
             "target_device": device_id,
             "timestamp": time.time()
-        })
+        }
+        shutdown_cmd["signature"] = serial_gateway.sign_message(shutdown_cmd, get_device_key(device_id))
+        serial_gateway.send_command(shutdown_cmd)
         return jsonify({"success": True, "details": f"Emergency shutdown instruction dispatched to {device_id}."})
     except Exception as e:
         print(f"[Emergency Shutdown Error] {e}")
@@ -1080,11 +1119,13 @@ def discover_cluster():
 @require_webview_token 
 def ping_device ():
     payload =request .json or {}
-    device_id =bleach .clean (str (payload .get ("device_id","ESP32_001")))
-    db =SessionLocal ()
-    try :
+    device_id = bleach.clean(str(payload.get("device_id", "ESP32_001")))
+    db = SessionLocal()
+    try:
         import serial_gateway 
-        serial_gateway .send_command ({"command":"ping","target":device_id ,"timestamp":time .time ()})
+        ping_cmd = {"command": "ping", "target": device_id, "device_id": device_id, "timestamp": time.time()}
+        ping_cmd["signature"] = serial_gateway.sign_message(ping_cmd, get_device_key(device_id))
+        serial_gateway.send_command(ping_cmd)
         audit =AuditLog (
         user_id =session .get ("user_id"),
         action ="DEVICE_PING_SENT",

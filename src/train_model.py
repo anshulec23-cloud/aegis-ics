@@ -354,6 +354,15 @@ def train_random_forest(metrics_dict: dict):
 
     with open(out_path, "wb") as f:
         pickle.dump(model, f)
+    # Update cryptographic SHA-256 checksum
+    try:
+        import hashlib
+        with open(out_path, "rb") as mf:
+            h = hashlib.sha256(mf.read()).hexdigest()
+        with open(out_path + ".sha256", "w", encoding="utf-8") as hf:
+            hf.write(h + "\n")
+    except Exception as ex:
+        print(f"[!] Warning: Could not write SHA-256 checksum: {ex}")
     print(f"[+] Successfully exported Random Forest model: {out_path}")
     return model
 
@@ -614,6 +623,15 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(rf, f)
+    # Update cryptographic SHA-256 checksum
+    try:
+        import hashlib
+        with open(model_path, "rb") as mf:
+            h = hashlib.sha256(mf.read()).hexdigest()
+        with open(model_path + ".sha256", "w", encoding="utf-8") as hf:
+            hf.write(h + "\n")
+    except Exception as ex:
+        print(f"[!] Warning: Could not write SHA-256 checksum: {ex}")
 
     result = {
         "success": True,

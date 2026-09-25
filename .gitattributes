@@ -1,1 +1,2 @@
-*.exe filter=lfs diff=lfs merge=lfs -text
+# Git LFS tracking configuration
+# Standalone executables are distributed via GitHub Releases to prevent LFS bandwidth exhaustion

@@ -37,7 +37,11 @@ sudo dpkg -i dist/linux/aegis-ics_2.5.2_amd64.deb
 ```
 
 ### For Windows Users:
-Double-click [`dist/AegisICS.exe`](AegisICS.exe) to start the standalone native desktop application. The embedded PyWebView window and system tray icon will initialize automatically.
+Standalone native desktop binaries can be downloaded directly from the official GitHub Release assets:
+* **Direct Binary Download**: [AegisICS.exe (v2.5.2)](https://github.com/anshulec23-cloud/aegis-ics/releases/download/v2.5.2/AegisICS.exe)
+* **Local Compilation**: Run `python build_scripts/build_windows.py` to compile `dist/AegisICS.exe` locally from source.
+
+Double-click `AegisICS.exe` to start the standalone native desktop application. The embedded PyWebView window and system tray icon will initialize automatically.
 
 ---
 

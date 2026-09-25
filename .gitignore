@@ -25,13 +25,13 @@ isolated_devices.json
 .aegis.pids
 .aegis_session_key
 
-# Build artifacts
+# Build artifacts (binaries distributed via GitHub Releases)
 dist/*
-!dist/AegisICS.exe
 !dist/README.md
 !dist/linux/
 dist/linux/*
 !dist/linux/README.md
+
 build/
 build_temp/
 obfuscated/

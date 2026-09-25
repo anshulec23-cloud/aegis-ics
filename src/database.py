@@ -171,6 +171,8 @@ def init_db ():
     try :
 
         default_password = os.environ.get("ADMIN_PASSWORD", "noodles")
+        if default_password == "noodles":
+            print("[SECURITY WARNING] Admin password is set to default ('noodles'). Set ADMIN_PASSWORD environment variable for production deployments.")
         
         if not db.query(User).filter_by(username="noodles").first():
             noodles_user = User(
