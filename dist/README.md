@@ -14,10 +14,8 @@ dist/
 │   ├── aegis-ics-2.5.2-linux-x86_64.tar.gz # Portable standalone tarball
 │   └── README.md                           # Comprehensive Linux operations & quickstart guide
 │
-├── AegisICS                                # Direct symlink/copy of standalone Linux ELF binary
+├── AegisICS                                # Direct standalone Linux ELF binary
 ├── AegisICS.exe                            # Standalone Windows desktop executable
-├── aegis-ics_2.5.2_amd64.deb               # Direct copy of Debian package
-├── aegis-ics-2.5.2-linux-x86_64.tar.gz     # Direct copy of Linux portable tarball
 └── README.md                               # This release distribution guide
 ```
 

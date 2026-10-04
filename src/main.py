@@ -172,6 +172,13 @@ def main ():
 
     _configure_paths()
 
+    if sys.platform == "win32" and any(arg in sys.argv for arg in ("--version", "--check", "--help", "-h", "--server", "--headless", "-s")):
+        try:
+            import ctypes
+            ctypes.windll.kernel32.AttachConsole(-1)
+        except Exception:
+            pass
+
     if "--version" in sys.argv:
         from security import APP_VERSION
         print(f"Aegis ICS v{APP_VERSION}")

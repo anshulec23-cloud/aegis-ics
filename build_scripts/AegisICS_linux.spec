@@ -23,11 +23,14 @@ datas = [
     (os.path.join(src_dir, 'static'), 'static'),
     (os.path.join(src_dir, 'model'), 'model'),
     (os.path.join(project_root, 'firmware'), 'firmware'),
-    (os.path.join(project_root, 'aegis_v2.db'), '.'),
 ]
+db_path = os.path.join(project_root, 'aegis_v2.db')
+if os.path.exists(db_path):
+    datas.append((db_path, '.'))
 
 # Explicit hidden imports for dynamic imports and runtime dependencies
 hiddenimports = [
+    'app',
     'flask',
     'sqlalchemy',
     'sqlalchemy.orm',

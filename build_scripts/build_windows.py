@@ -77,6 +77,20 @@ def build_windows():
         print(" WINDOWS BUILD COMPLETED SUCCESSFULLY!")
         print(f" Executable: {target_exe}")
         print(f" File Size:  {size_mb:.2f} MB ({size_bytes:,} bytes)")
+
+        print("\nExecuting post-compilation binary self-tests...")
+        v_res = subprocess.run([target_exe, "--version"], capture_output=True, text=True)
+        if v_res.returncode == 0:
+            print(f"   [OK] Version check:   {v_res.stdout.strip()}")
+        else:
+            print(f"   [WARN] Version check returned code: {v_res.returncode}")
+
+        c_res = subprocess.run([target_exe, "--check"], capture_output=True, text=True)
+        if c_res.returncode == 0:
+            print(f"   [OK] Self-test check: {c_res.stdout.strip()}")
+        else:
+            print(f"   [WARN] Self-test check returned code: {c_res.returncode}")
+
         print("=" * 65)
         return True
     else:
