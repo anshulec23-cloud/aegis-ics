@@ -178,13 +178,63 @@ def test_s4_configured_admin_password_works():
     assert res.status_code == 302
 
 
-def test_s4_bootstrap_generates_password_when_unset(tmp_path):
+def test_s4_weak_or_legacy_admin_password_env_is_ignored():
     import bootstrap
 
-    password, generated = bootstrap.resolve_admin_password(env={}, data_dir=str(tmp_path))
-    assert generated and len(password) >= 16
-    stored = (tmp_path / "initial_admin_password.txt").read_text(encoding="utf-8")
-    assert password in stored
+    assert bootstrap.configured_admin_password({"ADMIN_PASSWORD": "noodles"}) is None
+    assert bootstrap.configured_admin_password({"ADMIN_PASSWORD": "short"}) is None
+    assert bootstrap.configured_admin_password({}) is None
+    assert bootstrap.configured_admin_password({"ADMIN_PASSWORD": "x" * 12}) == "x" * 12
+
+
+def test_first_run_setup_flow_when_no_usable_password():
+    """Packaged-app first run: everything redirects to /setup until the admin password is set."""
+    import app as app_module
+    import bootstrap
+    from database import DATA_DIR
+    from werkzeug.security import generate_password_hash
+
+    db = SessionLocal()
+    admin = db.query(User).filter_by(username="admin").first()
+    original_hash = admin.password_hash
+    admin.password_hash = bootstrap.locked_password_hash()
+    db.commit()
+    db.close()
+    app_module.refresh_setup_state()
+    try:
+        client = app.test_client()
+        assert client.get("/").headers["Location"].endswith("/setup")
+        assert client.get("/api/devices").status_code == 503
+        assert "Invalid" not in client.get("/setup").get_data(as_text=True)
+
+        start = app_module.setup_url()
+        token = start.split("token=", 1)[1]
+        page = client.get(start).get_data(as_text=True)
+        csrf = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
+
+        bad = client.post("/setup", data={"token": "wrong", "password": "p" * 14, "confirm": "p" * 14, "csrf_token": csrf})
+        assert bad.status_code == 403
+        weak = client.post("/setup", data={"token": token, "password": "short", "confirm": "short", "csrf_token": csrf})
+        assert weak.status_code == 400
+
+        ok = client.post(
+            "/setup",
+            data={"token": token, "password": "correct-horse-battery", "confirm": "correct-horse-battery", "csrf_token": csrf},
+        )
+        assert ok.status_code == 302 and ok.headers["Location"].endswith("/")
+        assert client.get("/api/devices").status_code == 200  # signed in by setup
+        assert not os.path.exists(os.path.join(DATA_DIR, bootstrap.SETUP_TOKEN_FILE))
+        assert _login(app.test_client(), "admin", "correct-horse-battery").status_code == 302
+        assert client.get("/setup").status_code == 302  # setup can't be re-run
+    finally:
+        db = SessionLocal()
+        db.query(User).filter_by(username="admin").first().password_hash = generate_password_hash(
+            TEST_ADMIN_PASSWORD
+        )
+        db.commit()
+        db.close()
+        app_module.refresh_setup_state()
+        bootstrap.clear_setup_token(DATA_DIR)
 
 
 # ----------------------------------------------------------- S5 replay ---

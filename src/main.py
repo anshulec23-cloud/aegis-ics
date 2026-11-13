@@ -244,6 +244,12 @@ def main():
     flask_thread.start()
     logger.info("Flask backend started on thread '%s'", flask_thread.name)
 
+    # First launch: the window opens straight on the setup page (with its one-time token),
+    # so a packaged install never needs a console or a command-line step.
+    from app import setup_url
+
+    start_path = setup_url()
+
     if server_mode:
         import time
 
@@ -254,6 +260,12 @@ def main():
             target_host if target_host != "0.0.0.0" else "127.0.0.1",
             actual_port,
         )
+        if start_path != "/":
+            logger.info(
+                " FIRST RUN: create the admin account at http://127.0.0.1:%d%s",
+                actual_port,
+                start_path,
+            )
         logger.info(" Press Ctrl+C to stop.")
         logger.info("=" * 60)
         try:
@@ -283,7 +295,7 @@ def main():
 
     _webview_window = webview.create_window(
         title="Aegis ICS — Industrial Control System Security",
-        url=f"http://127.0.0.1:{actual_port}",
+        url=f"http://127.0.0.1:{actual_port}{start_path}",
         width=1366,
         height=800,
         resizable=True,

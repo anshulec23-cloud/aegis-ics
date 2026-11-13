@@ -34,6 +34,8 @@ from database import (
     Rule,
     DeviceState,
     to_utc_epoch,
+    setup_required,
+    DATA_DIR,
 )
 from safety_enforcer import validate_command
 from sqlalchemy.orm import joinedload
@@ -71,7 +73,9 @@ def _load_or_generate_session_token() -> str:
     env_token = os.environ.get("FLASK_SECRET_KEY")
     if env_token:
         return env_token
-    token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".aegis_session_key")
+    # Stored in the data directory: inside a PyInstaller bundle the source directory is a
+    # temporary folder that changes on every launch (sessions would never survive a restart).
+    token_path = os.path.join(DATA_DIR, ".aegis_session_key")
     if os.path.exists(token_path):
         try:
             with open(token_path, "r", encoding="utf-8") as tf:
@@ -616,6 +620,109 @@ def login_required(f):
         return f(*args, **kwargs)
 
     return decorator
+
+
+# --- First-run setup ------------------------------------------------------------------
+_SETUP_STATE = {"required": None}
+_SETUP_OPEN_PATHS = ("/setup", "/static/", "/health", "/api/version")
+
+
+def is_setup_required() -> bool:
+    if _SETUP_STATE["required"] is None:
+        _SETUP_STATE["required"] = setup_required()
+    return _SETUP_STATE["required"]
+
+
+def refresh_setup_state() -> None:
+    _SETUP_STATE["required"] = None
+
+
+def setup_url() -> str:
+    """Path (with one-time token) the desktop shell opens when setup is pending, else ``/``."""
+    from bootstrap import ensure_setup_token
+
+    if not is_setup_required():
+        return "/"
+    return f"/setup?token={ensure_setup_token(DATA_DIR)}"
+
+
+@app.before_request
+def require_first_run_setup():
+    if not is_setup_required():
+        return None
+    if request.path.startswith(_SETUP_OPEN_PATHS) or request.path == "/api/telemetry":
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "First-run setup required.", "setup": True}), 503
+    return redirect(url_for("first_run_setup"))
+
+
+@app.route("/setup", methods=["GET", "POST"])
+@limiter.limit("20 per minute")
+def first_run_setup():
+    from bootstrap import (
+        MIN_PASSWORD_LENGTH,
+        check_setup_token,
+        clear_setup_token,
+        ensure_setup_token,
+        password_problem,
+    )
+    from werkzeug.security import generate_password_hash
+
+    if not is_setup_required():
+        return redirect(url_for("login"))
+    ensure_setup_token(DATA_DIR)  # make sure a token exists (and is announced) on first visit
+
+    token = request.values.get("token", "")
+    token_ok = check_setup_token(DATA_DIR, token)
+    context = {
+        "token": token if token_ok else "",
+        "token_ok": token_ok,
+        "min_length": MIN_PASSWORD_LENGTH,
+        "data_dir": DATA_DIR,
+    }
+    if request.method == "GET":
+        return render_template("setup.html", **context)
+
+    if not token_ok:
+        return render_template("setup.html", error="Invalid or expired setup link.", **context), 403
+    password = request.form.get("password", "")
+    if password != request.form.get("confirm", ""):
+        return render_template("setup.html", error="Passwords do not match.", **context), 400
+    problem = password_problem(password)
+    if problem:
+        return render_template("setup.html", error=f"Password {problem}.", **context), 400
+
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter_by(username="admin").first()
+        if admin is None:
+            admin = User(username="admin", password_hash=generate_password_hash(password))
+            db.add(admin)
+        else:
+            admin.password_hash = generate_password_hash(password)
+        db.flush()
+        db.add(
+            AuditLog(
+                user_id=admin.id,
+                action="ADMIN_ACCOUNT_CREATED",
+                location="FIRST_RUN_SETUP",
+                details=f"Administrator password set via first-run setup (Client IP: {request.remote_addr or 'unknown'}).",
+            )
+        )
+        db.commit()
+        admin_id = admin.id
+    finally:
+        db.close()
+
+    clear_setup_token(DATA_DIR)
+    refresh_setup_state()
+    session.clear()
+    session.permanent = True
+    session["user_id"] = admin_id
+    session["username"] = "admin"
+    session["location"] = "FIRST_RUN_SETUP"
+    return redirect(url_for("index"))
 
 
 @app.route("/")

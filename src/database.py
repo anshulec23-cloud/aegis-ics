@@ -1,6 +1,5 @@
 import os
 import sys
-import shutil
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine,
@@ -17,63 +16,52 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from werkzeug.security import generate_password_hash
 
 
+def _default_data_dir() -> str:
+    """Writable per-installation directory for the database, host identity, session key,
+    setup token and retrained models.
+
+    Precedence: ``AEGIS_DATA_DIR`` > frozen app (per-user/system data dir, or next to the
+    executable when a file named ``aegis_portable`` sits beside it) > repository root (dev).
+    The PyInstaller bundle directory (``sys._MEIPASS``) is temporary and never used for data.
+    """
+    explicit = os.environ.get("AEGIS_DATA_DIR")
+    if explicit:
+        return os.path.abspath(explicit)
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        if os.path.exists(os.path.join(exe_dir, "aegis_portable")):
+            return exe_dir
+        if sys.platform.startswith(("linux", "darwin")):
+            if hasattr(os, "geteuid") and os.geteuid() == 0:
+                return "/var/lib/aegis-ics"
+            data_home = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+            return os.path.join(data_home, "aegis-ics")
+        local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(local_app_data, "AegisICS")
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def get_database_url():
     explicit_url = os.environ.get("DATABASE_URL")
     if explicit_url:
         return explicit_url
-
-    explicit_data_dir = os.environ.get("AEGIS_DATA_DIR")
-    if explicit_data_dir:
-        os.makedirs(explicit_data_dir, exist_ok=True)
-        target_db = os.path.join(explicit_data_dir, "aegis_v2.db")
-        if not os.path.exists(target_db) and hasattr(sys, "_MEIPASS"):
-            bundled_db = os.path.join(sys._MEIPASS, "aegis_v2.db")
-            if os.path.exists(bundled_db):
-                try:
-                    shutil.copy2(bundled_db, target_db)
-                except Exception as e:
-                    print(f"[Database] Could not copy bundled db to AEGIS_DATA_DIR: {e}")
-        return f"sqlite:///{os.path.abspath(target_db)}"
-
-    # Frozen executable mode: store database next to binary if writable, else user/system data dir
-    if getattr(sys, "frozen", False):
-        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-
-        # Test if exe_dir is writable (e.g. portable extraction vs /opt or /usr/bin)
-        exe_dir_writable = os.access(exe_dir, os.W_OK)
-        if exe_dir_writable:
-            target_dir = exe_dir
-        else:
-            if sys.platform.startswith("linux") or sys.platform.startswith("darwin"):
-                if hasattr(os, "geteuid") and os.geteuid() == 0:
-                    target_dir = "/var/lib/aegis-ics"
-                else:
-                    data_home = os.environ.get("XDG_DATA_HOME") or os.path.expanduser(
-                        "~/.local/share"
-                    )
-                    target_dir = os.path.join(data_home, "aegis-ics")
-            else:
-                local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-                target_dir = os.path.join(local_app_data, "AegisICS")
-
-        os.makedirs(target_dir, exist_ok=True)
-        target_db = os.path.join(target_dir, "aegis_v2.db")
-        if not os.path.exists(target_db) and hasattr(sys, "_MEIPASS"):
-            bundled_db = os.path.join(sys._MEIPASS, "aegis_v2.db")
-            if os.path.exists(bundled_db):
-                try:
-                    shutil.copy2(bundled_db, target_db)
-                except Exception as e:
-                    print(f"[Database] Could not copy bundled db: {e}")
-        return f"sqlite:///{os.path.abspath(target_db)}"
-
-    # Development mode: default to repository root
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    dev_db = os.path.join(base_dir, "aegis_v2.db")
-    return f"sqlite:///{os.path.abspath(dev_db)}"
+    data_dir = _default_data_dir()
+    os.makedirs(data_dir, exist_ok=True)
+    return f"sqlite:///{os.path.join(data_dir, 'aegis_v2.db')}"
 
 
 DATABASE_URL = get_database_url()
+
+
+def _data_dir_for(url: str) -> str:
+    if url.startswith("sqlite:///"):
+        return os.path.dirname(os.path.abspath(url[len("sqlite:///") :]))
+    return _default_data_dir()
+
+
+# Directory holding all mutable state of this installation (see _default_data_dir).
+DATA_DIR = _data_dir_for(DATABASE_URL)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 15})
 
@@ -225,26 +213,33 @@ def migrate_sqlite_schema():
 
 
 def _bootstrap_accounts(db) -> list:
-    """Create or repair operator accounts. Returns audit messages describing what changed."""
+    """Create or repair operator accounts. Returns audit messages describing what changed.
+
+    See ``bootstrap.py``: no default password ever exists. Without a valid
+    ``ADMIN_PASSWORD`` the admin account stays locked until the first-run setup page is used.
+    """
     from werkzeug.security import check_password_hash
 
-    from bootstrap import LEGACY_DEFAULT_PASSWORD, data_dir_from_url, resolve_admin_password
+    from bootstrap import LEGACY_DEFAULT_PASSWORD, configured_admin_password, locked_password_hash
 
     events = []
+    configured = configured_admin_password()
     admin = db.query(User).filter_by(username="admin").first()
-    admin_uses_legacy = bool(
-        admin and check_password_hash(admin.password_hash, LEGACY_DEFAULT_PASSWORD)
-    )
-    if admin is None or admin_uses_legacy:
-        password, generated = resolve_admin_password(data_dir=data_dir_from_url(DATABASE_URL))
-        if admin is None:
-            db.add(User(username="admin", password_hash=generate_password_hash(password)))
-            events.append(
-                "Created 'admin' account" + (" with a generated password." if generated else ".")
-            )
+
+    if admin is None:
+        if configured:
+            db.add(User(username="admin", password_hash=generate_password_hash(configured)))
+            events.append("Created 'admin' account from ADMIN_PASSWORD.")
         else:
-            admin.password_hash = generate_password_hash(password)
-            events.append("Rotated 'admin' password away from the legacy default.")
+            db.add(User(username="admin", password_hash=locked_password_hash()))
+            events.append("Created locked 'admin' account; waiting for first-run setup.")
+    elif check_password_hash(admin.password_hash, LEGACY_DEFAULT_PASSWORD):
+        if configured:
+            admin.password_hash = generate_password_hash(configured)
+            events.append("Replaced legacy default 'admin' password with ADMIN_PASSWORD.")
+        else:
+            admin.password_hash = locked_password_hash()
+            events.append("Locked 'admin' account that used the legacy default password; setup required.")
 
     legacy = db.query(User).filter_by(username="noodles").first()
     if legacy and check_password_hash(legacy.password_hash, LEGACY_DEFAULT_PASSWORD):
@@ -252,6 +247,18 @@ def _bootstrap_accounts(db) -> list:
         db.delete(legacy)
         events.append("Removed legacy 'noodles' account that still used the default password.")
     return events
+
+
+def setup_required() -> bool:
+    """True while no operator account has a usable password (first run / locked upgrade)."""
+    from bootstrap import is_locked_hash
+
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        return not any(u.password_hash and not is_locked_hash(u.password_hash) for u in users)
+    finally:
+        db.close()
 
 
 def init_db():

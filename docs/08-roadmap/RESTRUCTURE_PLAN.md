@@ -16,7 +16,7 @@
 |---|---|---|
 | 0 Foundations | **Done** (2026-11-14) | Git + tag `v2.5.3-baseline`; `src/version.py`; `pyproject.toml`; ruff + pre-commit; CI matrix + `pip-audit`; `tests/security/` regression suite. Deferred: lockfile (0.2) and mypy (0.3), both moving to Phase 3 with the package layout. |
 | 1 Safety and security hotfixes | **Done** (2026-11-14) | All of 1.1–1.11 landed (see [DEBUG_REPORT fix status](../07-reports/DEBUG_REPORT.md#fix-status-updated-2026-11-14-v260dev0--restructure-plan-phases-01)). Deviations: 1.1 warns at startup and rejects frames per device instead of refusing to start, so the desktop app's first-run experience keeps working. 1.2's *forced* password change moves to Phase 3 with the account UI. 1.10 uses a `to_utc_epoch()` read helper rather than a column type change. 105 tests pass, 3 xfail. |
-| 2 Hardware loop | Not started | Next: protocol v1 spec (P2.1) unblocks firmware and host work in parallel |
+| 2 Hardware loop (zero-touch) | In progress | Revised 2026-11-14: automatic N-slave discovery with one-click enrollment, first-run setup for the `.exe` |
 | 3 Restructure | Not started | |
 | 4 ML integrity | Not started | |
 | 5 Production polish | Not started | |
@@ -222,19 +222,24 @@ Effort estimates assume one developer familiar with the code. "Exit criteria" mu
 
 **Exit:** all S-level CRITICAL/HIGH xfails that don't need firmware pass; the security regression suite runs in CI with security **on**.
 
-### Phase 2 — Make the hardware loop real (1–2 weeks)
+### Phase 2 — Make the hardware loop real, zero-touch (revised 2026-11-14)
+
+**Revision.** Keys must never need a manual step, the number of slaves isn't known in advance, and the packaged `.exe` must work on first launch. Phase 2 therefore replaces "key provisioning tool" with **automatic discovery plus one-click enrollment** ([ADR 0006](../adr/0006-zero-touch-enrollment.md)) and adds a **first-run setup** for the desktop app.
+
 | # | Task | Fixes |
 |---|---|---|
-| 2.1 | Write the protocol v1 spec: JSON Schemas for telemetry, command, ACK and topology, with `v`, `seq`, `ts`/`boot_id`, `sig`; generate `protocol.h`; shared test vectors | S5, F2 |
-| 2.2 | Firmware (PlatformIO): verify command HMAC + seq window; implement the `SETPOINT` actuation path; send ACK frames | S3, F2 |
-| 2.3 | Master-polled bus: the bridge polls each slave in turn (`POLL <id>`) and slaves only answer when polled | F5 |
-| 2.4 | Sensor fault detection: out-of-range or floating ADC sends `null` + `faults:[…]`; the host treats a fault as an anomaly | F7 |
-| 2.5 | Persist trip state in NVS; boot into **tripped** if the last state was isolated; hardware watchdog | firmware.md |
-| 2.6 | Key provisioning tool: `aegis-ics device provision --id ESP32_005` generates a key, writes it to NVS over USB and registers its fingerprint | S2 |
-| 2.7 | Gateway worker rewrite: own stop event, `join()`, backoff, metrics; command bus with ACK tracking | F4, F3 |
-| 2.8 | Measure end-to-end trip latency with a logic analyser on GPIO25; publish the histogram in `docs/06-research/evaluation.md` | R4 |
+| 2.0 | **Zero-touch enrollment for N slaves.** One firmware image for every slave (no per-node config). On first boot a slave derives its ID from its MAC and generates an X25519 key pair in NVS. It announces `HELLO` (ID, public key, sensors). The host lists it as **Pending** with a fingerprint; an operator clicks **Approve**; host and slave derive the HMAC key with X25519 + HKDF-SHA256 (the key never crosses the bus). A `devices` registry table replaces every hard-coded node list. | S2, scalability |
+| 2.1 | Protocol v1 (`HELLO`, `WELCOME`, `TEL`, `CMD`, `ACK`, `POLL`), with `v`, `boot`, `seq` and `sig`. Canonical signing shared by host, simulator and firmware; test vectors in `tests/`. | S5, F2 |
+| 2.2 | Firmware verifies command HMAC + host sequence number; implements `SETPOINT` (stored target + PWM actuator outputs); answers every command with a signed `ACK` | S3, F2 |
+| 2.3 | Master-polled bus: the bridge polls each known slave in turn and opens a discovery slot periodically; slaves only transmit when addressed | F5 |
+| 2.4 | Sensor fault detection: floating/out-of-range ADC sends `null` + `faults[]`; the host treats a fault as an anomaly | F7 |
+| 2.5 | Trip state persisted in NVS (a tripped node boots tripped); hardware watchdog | firmware.md |
+| 2.6 | First-run setup for the packaged app: create the admin account in a setup screen (one-time token, opened automatically by the desktop app); session key, host identity and models live in the writable data directory | `.exe` usability |
+| 2.7 | Gateway hands frames to ingestion in-process ([ADR 0003](../adr/0003-in-process-ingestion-no-loopback-http.md)); command bus with per-device sequence numbers and ACK tracking (`command_log`) | F3, F4 |
+| 2.8 | Simulator speaks protocol v1 for N devices (`AEGIS_SIM_DEVICES`), including enrollment, ACKs, setpoints and faults | demo/test realism |
+| 2.9 | Measure end-to-end trip latency with a logic analyser on GPIO25; publish the histogram | R4 |
 
-**Exit:** a setpoint is applied on real hardware and ACKed; replayed frames are rejected on both sides; four slaves run 24 h without collisions.
+**Exit:** a fresh `.exe` reaches a working dashboard with no command-line step; a new slave plugged into the bus appears as Pending and streams signed telemetry after one click; a setpoint is applied on hardware and ACKed; replayed frames are rejected on both sides; N slaves run 24 h without collisions.
 
 ### Phase 3 — Restructure the codebase (2–3 weeks)
 Done as a strangler: create `src/aegis_ics/`, move one slice at a time, and keep thin shims in the old modules until the last caller is gone.
