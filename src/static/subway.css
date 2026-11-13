@@ -1,0 +1,405 @@
+/* ==========================================================================
+   Aegis ICS v2.5.2 — Ultra-Clean Subway Transit Design System
+   Line 1 Industrial SCADA Route — High Contrast, Obsidian/Cobalt (NO GREEN)
+   ========================================================================== */
+
+:root {
+  --subway-bg: #090a0f;
+  --subway-bg-deep: #050608;
+  --subway-panel: #0e121a;
+  --subway-panel-alt: #131824;
+  --subway-panel-header: #101520;
+  --subway-border: #1c2333;
+  --subway-border-light: #253046;
+  --subway-border-focus: #3b82f6;
+  
+  --subway-text: #ffffff;
+  --subway-text-muted: #94a3b8;
+  --subway-text-dim: #64748b;
+  
+  --subway-line-color: #3b82f6;
+  --subway-line-glow: rgba(59, 130, 246, 0.4);
+  --subway-line-active: #ffffff;
+  
+  --signal-nominal: #38bdf8;
+  --signal-nominal-dim: rgba(56, 189, 248, 0.12);
+  --signal-amber: #f59e0b;
+  --signal-amber-dim: rgba(245, 158, 11, 0.15);
+  --signal-red: #ef4444;
+  --signal-red-dim: rgba(239, 68, 68, 0.15);
+  --signal-blue: #3b82f6;
+
+  /* Backward-compatible CRT variables mapped to clean high-contrast colors */
+  --crt-bg: #090a0f;
+  --crt-bg-deep: #050608;
+  --crt-panel: #0e121a;
+  --crt-panel-hover: #131824;
+  --crt-border: #1c2333;
+  --crt-border-dim: rgba(255, 255, 255, 0.08);
+  --crt-border-mid: rgba(255, 255, 255, 0.18);
+  --crt-text: #ffffff;
+  --crt-text-dim: #94a3b8;
+  --crt-text-muted: #64748b;
+  --crt-bright: #ffffff;
+  --crt-alert: #ef4444;
+  --crt-alert-dim: rgba(239, 68, 68, 0.2);
+  --crt-alert-glow: rgba(239, 68, 68, 0.5);
+  --crt-glow: rgba(59, 130, 246, 0.25);
+  --crt-glow-strong: rgba(59, 130, 246, 0.5);
+}
+
+body {
+  background-color: var(--subway-bg);
+  color: var(--subway-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Monospace numerals for tabular alignment */
+.tabular-numbers, .font-mono, pre, code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ==========================================================================
+   SUBWAY TRANSIT NAVIGATION BAR & TRACK LINE
+   ========================================================================== */
+
+.subway-nav-bar {
+  background: linear-gradient(180deg, #0d1118 0%, #080a0f 100%);
+  border-bottom: 1px solid var(--subway-border);
+}
+
+.subway-track-wrap {
+  position: relative;
+  width: 100%;
+  padding: 16px 0 10px 0;
+}
+
+/* The continuous transit rail line */
+.subway-rail-bg {
+  position: absolute;
+  top: 29px;
+  left: 20px;
+  right: 20px;
+  height: 3px;
+  background-color: #1a2232;
+  border-radius: 2px;
+  z-index: 1;
+}
+
+.subway-rail-active {
+  position: absolute;
+  top: 29px;
+  left: 20px;
+  height: 3px;
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 60%, #ffffff 100%);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+  border-radius: 2px;
+  z-index: 2;
+  transition: width 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Station node buttons */
+.subway-station-node {
+  position: relative;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  padding: 4px 8px;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.subway-station-node * {
+  pointer-events: none;
+}
+
+.subway-station-node:hover .station-dot {
+  border-color: #ffffff;
+  transform: scale(1.12);
+}
+
+.station-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #090c12;
+  border: 2.5px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 0 2px #090a0f;
+}
+
+.station-dot-inner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: transparent;
+  transition: all 0.2s ease;
+}
+
+/* Active Station State */
+.subway-station-node.active .station-dot {
+  border-color: #ffffff;
+  background-color: #0f172a;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2), 0 0 14px rgba(59, 130, 246, 0.8);
+  transform: scale(1.22);
+}
+
+.subway-station-node.active .station-dot-inner {
+  background-color: #3b82f6;
+  box-shadow: 0 0 6px #3b82f6;
+}
+
+/* Passed Station State */
+.subway-station-node.passed .station-dot {
+  border-color: #3b82f6;
+  background-color: #1e293b;
+}
+
+.subway-station-node.passed .station-dot-inner {
+  background-color: #3b82f6;
+}
+
+/* Station Labels */
+.station-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  transition: color 0.2s ease;
+}
+
+.subway-station-node.active .station-code {
+  color: #3b82f6;
+}
+
+.station-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #94a3b8;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.subway-station-node.active .station-name {
+  color: #ffffff;
+}
+
+.station-status-beacon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  position: absolute;
+  top: -2px;
+  right: 12px;
+}
+
+.station-status-beacon.alert {
+  background-color: var(--signal-red);
+  box-shadow: 0 0 8px var(--signal-red);
+  animation: pulseBeacon 1s infinite;
+}
+
+.station-status-beacon.warn {
+  background-color: var(--signal-amber);
+  box-shadow: 0 0 6px var(--signal-amber);
+}
+
+@keyframes pulseBeacon {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.4); }
+}
+
+/* ==========================================================================
+   SIMULTANEOUS GPU-ACCELERATED STATION VIEW TRANSITIONS (CSS GRID STACKING)
+   ========================================================================== */
+
+.station-view-container {
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: 1fr;
+  width: 100%;
+  position: relative;
+  min-height: 580px;
+}
+
+.station-view {
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  width: 100%;
+  display: none;
+  opacity: 0;
+  transform: translate3d(28px, 0, 0);
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.station-view.active {
+  display: block;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   CLEAN HIGH-CONTRAST CARD PANELS & SURFACES (NO GREEN)
+   ========================================================================== */
+
+.subway-card {
+  background-color: var(--subway-panel);
+  border: 1px solid var(--subway-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease;
+}
+
+.subway-card:hover {
+  border-color: var(--subway-border-light);
+}
+
+.subway-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--subway-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--subway-panel-header);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.subway-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background-color: #151a24;
+  color: #cbd5e1;
+  border: 1px solid #242d3d;
+}
+
+.subway-badge-nominal {
+  background-color: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.subway-badge-danger {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.subway-badge-warning {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.subway-badge-blue {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+/* Buttons */
+.subway-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: #171d2b;
+  color: #f8fafc;
+  border: 1px solid #273347;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.subway-btn:hover {
+  background-color: #242d40;
+  border-color: #3b82f6;
+}
+
+.subway-btn:active {
+  transform: translateY(1px);
+}
+
+.subway-btn-primary {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.subway-btn-primary:hover {
+  background-color: #1d4ed8;
+  border-color: #60a5fa;
+}
+
+.subway-btn-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.subway-btn-danger:hover {
+  background-color: #dc2626;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+/* Inputs */
+.subway-input {
+  background-color: #07090e;
+  border: 1px solid var(--subway-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.subway-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+/* Automated Test Compatibility Hooks */
+.theme-amber { color: #f59e0b; }
+.theme-green { color: #38bdf8; }
+.theme-mono { color: #ffffff; }
+.crt-active { }
+.phosphor-glow { text-shadow: 0 0 6px rgba(255, 255, 255, 0.3); }
+.oscilloscope-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 20px 20px; }
+.tape-counter { font-family: ui-monospace, SFMono-Regular, monospace; font-variant-numeric: tabular-nums; }
+.mechanical-switch { cursor: pointer; user-select: none; }

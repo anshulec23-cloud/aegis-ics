@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Aegis ICS
+GenericName=Industrial Security Gateway
+Comment=Zero-Trust ICS Security Gateway & SCADA Enforcer
+Exec=/usr/local/bin/aegis-ics
+Icon=aegis-ics
+Terminal=false
+Categories=Development;Security;System;Monitor;
+Keywords=ICS;SCADA;Security;ZeroTrust;PLC;ESP32;
+StartupNotify=true

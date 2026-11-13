@@ -1,0 +1,19 @@
+[Unit]
+Description=Aegis ICS Zero-Trust Security Gateway Service
+Documentation=https://github.com/anshulec23-cloud/aegis-ics
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/aegis-ics
+Environment="AEGIS_SERVER_MODE=1"
+Environment="FLASK_PORT=5000"
+Environment="AEGIS_DATA_DIR=/var/lib/aegis-ics"
+ExecStart=/opt/aegis-ics/AegisICS --server --port 5000 --host 0.0.0.0
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

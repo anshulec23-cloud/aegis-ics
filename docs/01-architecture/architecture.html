@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis ICS v2.5.2 — Zero-Trust Cyber-Physical Architecture</title>
+<style>
+  :root {
+    --bg-dark: #070a13;
+    --card-bg: #0f172a;
+    --card-hover: #1e293b;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(56, 189, 248, 0.3);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-purple: #c084fc;
+    --accent-emerald: #34d399;
+    --accent-amber: #fbbf24;
+    --accent-rose: #fb7185;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    padding: 2rem 1.5rem;
+    max-width: 980px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 1.25rem;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    font-size: 10px;
+    font-family: monospace;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent-blue);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    margin-bottom: 0.6rem;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .arch-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .layer {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .layer-label {
+    font-size: 11px;
+    font-family: monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .layer-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .node {
+    background: var(--card-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 11px 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  .node:hover {
+    border-color: var(--border-accent);
+    background: var(--card-hover);
+    transform: translateY(-1px);
+  }
+  .node.active {
+    border-color: var(--accent-blue);
+    background: #1e293b;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+  }
+  .node-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-sub {
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    padding: 0 4px;
+  }
+  .flow-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  }
+  .flow-label {
+    font-size: 10px;
+    font-family: monospace;
+    color: #64748b;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .flow-arrow {
+    font-size: 10px;
+    color: var(--accent-blue);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(1.5px); }
+  }
+  .panel {
+    background: #0f172a;
+    border: 1px solid var(--border-accent);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.25s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: 10px;
+  }
+  .panel-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .panel-layer {
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--accent-blue);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.08);
+    white-space: nowrap;
+  }
+  .panel-desc {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.7;
+    margin-bottom: 14px;
+  }
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .pi {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 9px 12px;
+  }
+  .pi-label {
+    font-size: 10px;
+    font-family: monospace;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 3px;
+  }
+  .pi-val {
+    font-size: 12px;
+    color: #f1f5f9;
+    font-family: monospace;
+    line-height: 1.5;
+  }
+  .l-present .node { border-left: 3px solid var(--accent-rose); }
+  .l-intel .node { border-left: 3px solid var(--accent-purple); }
+  .l-zt .node { border-left: 3px solid var(--accent-blue); }
+  .l-comms .node { border-left: 3px solid var(--accent-amber); }
+  .l-field .node { border-left: 3px solid var(--accent-emerald); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="badge">Aegis ICS v2.5.2 Architecture</span>
+  <h1>Zero-Trust Cyber-Physical Defense Architecture</h1>
+  <p class="subtitle">Interactive Component Explorer · Click any block to inspect hardware contracts, safety envelopes, and data pipelines</p>
+</header>
+
+<div class="arch-container">
+
+  <!-- Layer 1: Presentation -->
+  <div class="layer l-present">
+    <div class="layer-label"><span class="dot" style="background:var(--accent-rose)"></span>Station Presentation Layer (Mission-Control Subway UI)</div>
+    <div class="layer-row">
+      <div class="node" onclick="show('dashboard',this)">
+        <div class="node-title">7-Station Subway UI</div>
+        <div class="node-sub">Live Telemetry &amp; Controls</div>
+      </div>
+      <div class="node" onclick="show('scrubber',this)">
+        <div class="node-title">Reel-to-Reel Scrubber</div>
+        <div class="node-sub">Forensic Time Scrubbing</div>
+      </div>
+      <div class="node" onclick="show('risk-ui',this)">
+        <div class="node-title">FAIR Financial Console</div>
+        <div class="node-sub">Monte Carlo &amp; Outage Rates</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-line"></div>
+    <span class="flow-arrow">▼</span>
+    <div class="flow-label">Server-Sent Events (SSE) · REST API · WebSockets</div>
+    <div class="flow-line"></div>
+  </div>
+
+  <!-- Layer 2: Intelligence -->
+  <div class="layer l-intel">
+    <div class="layer-label"><span class="dot" style="background:var(--accent-purple)"></span>Zero-Trust Intelligence Layer</div>
+    <div class="layer-row">
+      <div class="node" onclick="show('rf-model',this)">
+        <div class="node-title">Random Forest ML</div>
+        <div class="node-sub">75 Trees · Continuous Calib</div>
+      </div>
+      <div class="node" onclick="show('nspn',this)">
+        <div class="node-title">Neural Safety Policy</div>
+        <div class="node-sub">NSPN 6D Boundary Net</div>
+      </div>
+      <div class="node" onclick="show('trust-engine',this)">
+        <div class="node-title">Dynamic Trust Engine</div>
+        <div class="node-sub">4-Param Continuous Scoring</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-line"></div>
+    <span class="flow-arrow">▼</span>
+    <div class="flow-label">Trust Scores · Anomaly Flags · Financial ALE/SLE</div>
+    <div class="flow-line"></div>
+  </div>
+
+  <!-- Layer 3: ZT Enforcement -->
+  <div class="layer l-zt">
+    <div class="layer-label"><span class="dot" style="background:var(--accent-blue)"></span>Zero-Trust Enforcement Layer</div>
+    <div class="layer-row">
+      <div class="node" onclick="show('enforcer',this)">
+        <div class="node-title">Safety Enforcer</div>
+        <div class="node-sub">Stuxnet Rejection &amp; Rules</div>
+      </div>
+      <div class="node" onclick="show('microseg',this)">
+        <div class="node-title">Hardware Isolation</div>
+        <div class="node-sub">Auto &amp; Manual Trip / Re-arm</div>
+      </div>
+      <div class="node" onclick="show('audit',this)">
+        <div class="node-title">Forensic Audit Store</div>
+        <div class="node-sub">SQLite WAL · SHA-256 Ledger</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-line"></div>
+    <span class="flow-arrow">▼</span>
+    <div class="flow-label">HMAC-SHA256 Signed Telemetry · UART Frames</div>
+    <div class="flow-line"></div>
+  </div>
+
+  <!-- Layer 4: Communication -->
+  <div class="layer l-comms">
+    <div class="layer-label"><span class="dot" style="background:var(--accent-amber)"></span>Hardware Serial Communication Layer</div>
+    <div class="layer-row">
+      <div class="node" onclick="show('serial-gateway',this)">
+        <div class="node-title">Serial COM Gateway</div>
+        <div class="node-sub">find_esp32_ports Driver</div>
+      </div>
+      <div class="node" onclick="show('master-bridge',this)">
+        <div class="node-title">Master Concentrator</div>
+        <div class="node-sub">USB UART &harr; RS-485 Bridge</div>
+      </div>
+      <div class="node" onclick="show('hmac-validator',this)">
+        <div class="node-title">HMAC-SHA256 Engine</div>
+        <div class="node-sub">Per-Node Key Validation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-line"></div>
+    <span class="flow-arrow">▼</span>
+    <div class="flow-label">RS-485 Differential Bus · 115200 Baud · Up to 5 Transducers</div>
+    <div class="flow-line"></div>
+  </div>
+
+  <!-- Layer 5: Field Devices -->
+  <div class="layer l-field">
+    <div class="layer-label"><span class="dot" style="background:var(--accent-emerald)"></span>Physical Field Device &amp; Transducer Layer</div>
+    <div class="layer-row">
+      <div class="node" onclick="show('esp32-nodes',this)">
+        <div class="node-title">ESP32 Slave Nodes</div>
+        <div class="node-sub">Dynamic Bus Enumeration</div>
+      </div>
+      <div class="node" onclick="show('transducer-array',this)">
+        <div class="node-title">5 Physical Transducers</div>
+        <div class="node-sub">Temp, Pres, Vib, Curr, RPM</div>
+      </div>
+      <div class="node" onclick="show('quarantine-mode',this)">
+        <div class="node-title">Post-Trip Quarantine</div>
+        <div class="node-sub">Safe De-energization Telemetry</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div id="panel" style="display:none" class="panel">
+    <div class="panel-header">
+      <div class="panel-title" id="p-title"></div>
+      <div class="panel-layer" id="p-layer"></div>
+    </div>
+    <div class="panel-desc" id="p-desc"></div>
+    <div class="panel-grid" id="p-grid"></div>
+  </div>
+
+</div>
+
+<script>
+const D = {
+  'dashboard': {
+    title: '7-Station Subway Mission-Control UI',
+    layer: 'Presentation',
+    desc: 'Unified industrial operator console styled after a high-contrast subway transit line. Features 7 dedicated stations: Station 01 (Split-Waveform Telemetry Monitor & Topology Ribbon with 60fps Chart.js rendering), Station 02 (Digital Twin & Spatial Geometry), Station 03 (Safety Enforcer & Boundary Rules), Station 04 (Adversarial Stress Drills), Station 05 (FAIR Financial Analytics & Subsystem Outage Table), Station 06 (Hardware Serial Gateway & Terminal), and Station 07 (NIST AU-2 Audit Ledger).',
+    items: [
+      ['Data Feeds', 'SSE (/api/stream) with dynamic event: topology & REST fallback'],
+      ['Split Waveform', 'Combined multi-node overview + 4-node concurrent sub-graphs'],
+      ['Sensor Channels', '5 multi-color transducers per node (Temp, Pres, Vib, Curr, RPM)'],
+      ['Control Actions', 'Emergency Cluster Shutdown, Manual Trip Isolation, and Re-arm']
+    ]
+  },
+  'scrubber': {
+    title: 'Reel-to-Reel Forensic Time Scrubber',
+    layer: 'Presentation',
+    desc: 'High-frequency circular history tape (1,000 frames) allowing incident investigators to scrub back in time before, during, and after an adversarial event. Instantly computes empirical mean, variance, time elapsed (&Delta;t), and incident counts at any historical position.',
+    items: [
+      ['Buffer Capacity', '1,000 in-memory historical telemetry frames'],
+      ['Forensic Jump', 'One-click jump to the exact moment of the latest safety breach'],
+      ['Live Return', 'Seamless instant handoff back to real-time telemetry streaming'],
+      ['Visual Handoff', 'Freezes Chart.js canvas and renders historic snapshot slice']
+    ]
+  },
+  'risk-ui': {
+    title: 'FAIR Financial Risk & Outage Console',
+    layer: 'Presentation',
+    desc: 'Translates physical telemetry anomalies and tripped isolations into empirical monetary metrics using the FAIR (Factor Analysis of Information Risk) framework. Plots dynamic Monte Carlo loss exceedance distributions (P05 to P99) and computes real-time hourly outage liability for all isolated nodes.',
+    items: [
+      ['Loss Metrics', 'Unmitigated Loss, Incurred Cost, Prevented Cost, Threat Index'],
+      ['Distribution', '12-point Monte Carlo exceedance curve (P05 through P99)'],
+      ['Outage Table', 'Real-time calculation of active $/hr capital downtime exposure'],
+      ['ROSI Metric', 'Return on Security Investment based on prevented cyber losses']
+    ]
+  },
+  'rf-model': {
+    title: 'Random Forest ML Anomaly Detector',
+    layer: 'Intelligence',
+    desc: 'Edge-optimized ensemble of 75 decision trees trained to identify multivariate sensor correlations and out-of-distribution drift. Features continuous on-hardware calibration directly from live serial telemetry frames, updating weights without restarting the system.',
+    items: [
+      ['Ensemble', '75 decision trees with scikit-learn optimization'],
+      ['Input Features', 'Temperature, Pressure, Vibration, Current, Rotor Speed (RPM)'],
+      ['Continuous Calib', 'One-click live calibration incorporating real hardware samples'],
+      ['Inference Time', 'Sub-millisecond inference latency on air-gapped hardware']
+    ]
+  },
+  'nspn': {
+    title: 'Neural Safety Policy Network (NSPN)',
+    layer: 'Intelligence',
+    desc: 'Deep feedforward neural safety policy trained on non-linear multi-variable operating boundaries. Intercepts supervisory operator setpoints before dispatch to ensure that commands do not drive coupled variables (e.g. heating a pressurized vessel) into hazardous Stuxnet-style explosion envelopes.',
+    items: [
+      ['Vector Space', '6D state vector [Temp, Pres, Vib, Hall, Curr, Setpoint]'],
+      ['Policy Logic', 'Rejects commands when safety probability P(safe) &lt; 0.50'],
+      ['Fallback', 'Graceful deterministic heuristic fallback if weights are unloaded'],
+      ['Stuxnet Defense', 'Guaranteed rejection of coordinated multi-variable stress']
+    ]
+  },
+  'trust-engine': {
+    title: 'Dynamic Continuous Trust Engine',
+    layer: 'Intelligence',
+    desc: 'Continuously evaluates device trust (0.0 to 1.0) using four independent orthogonal parameters: Anomaly Deviation (1 - s_anomaly), Cryptographic HMAC Parity (s_signature), Operational History Deviation (s_history), and Sensor Signal Stability (s_stability across all 5 transducers).',
+    items: [
+      ['Formula', 'Trust = w1*s_anomaly + w2*s_signature + w3*s_history + w4*s_stability'],
+      ['Isolation Rule', 'Automatically trips isolation when Trust Score &lt; 0.40'],
+      ['Sensor Stability', 'Rolling variance of temperature, pressure, vibration, current, RPM'],
+      ['Calibration', 'Trust thresholds calibrated against empirical field baselines']
+    ]
+  },
+  'enforcer': {
+    title: 'Deterministic Safety Enforcer',
+    layer: 'ZT Enforcement',
+    desc: 'Hardened rule validation engine executing before supervisory commands are committed to field devices. Enforces deterministic physical limits (e.g. max temperature 60.0°C, max pressure 7.0 bar, slew rate limits) and blocks unauthorized privilege escalation.',
+    items: [
+      ['Validation', 'Mandatory range, datatype, slew-rate, and state validation'],
+      ['Coordinated Checks', 'Cross-variable boundary evaluation preventing plant hazards'],
+      ['Zero Trust Rule', 'The supervisory server is untrusted; commands are verified'],
+      ['NIST Alignment', 'Enforces NIST SP 800-82r3 supervisory control controls']
+    ]
+  },
+  'microseg': {
+    title: 'Hardware Fault Isolation & Re-arm',
+    layer: 'ZT Enforcement',
+    desc: 'Micro-segmentation architecture that isolates a malfunctioning or compromised node from supervisory dispatch while maintaining local physical de-energization. Supports both automated trip upon trust collapse and operator manual override.',
+    items: [
+      ['Action', 'Revokes control dispatch and transitions node to ISOLATED state'],
+      ['Manual Override', 'Operators can trip isolate or re-arm any node via UI or REST'],
+      ['Visual Indication', 'Subway station line breaks and beacon turns red on isolation'],
+      ['Financial Impact', 'Active hourly downtime rate immediately kicks into FAIR engine']
+    ]
+  },
+  'audit': {
+    title: 'Forensic Audit Store & Database',
+    layer: 'ZT Enforcement',
+    desc: 'High-performance SQLite database operating in WAL (Write-Ahead Logging) mode. Maintains an immutable audit trail of operator logins, setpoint changes, isolation events, anomaly detections, and cryptographic verification logs conforming to NIST AU-2.',
+    items: [
+      ['Engine', 'SQLite 3 with WAL journal mode and immediate sync'],
+      ['Tables', 'Users, TelemetryLog, AuditLog, Rules, DeviceState'],
+      ['Search & Filter', 'Real-time category, operator, and keyword search in Station 07'],
+      ['Export', 'Automated NIST-compliant PDF incident report generator']
+    ]
+  },
+  'serial-gateway': {
+    title: 'Production Serial COM Port Gateway',
+    layer: 'Communication',
+    desc: 'Multi-threaded serial driver that listens to physical USB COM ports (e.g. COM3 or /dev/ttyUSB0). Features automated ESP32 hardware detection (`find_esp32_ports`), ring buffer packet storage, automatic reconnect with exponential backoff, and software emulation mode.',
+    items: [
+      ['Baud Rates', '115200 (default), 9600, 57600, 230400, 921600'],
+      ['Auto-Detection', 'Flags CP210x, CH340, FTDI, and ESP32 USB-JTAG candidates'],
+      ['Wire Protocol', 'Parses JSON payloads, CSV formats, and key-value fallback'],
+      ['Lifecycle', 'CONNECTED, RECONNECTING, and DISCONNECTED states']
+    ]
+  },
+  'master-bridge': {
+    title: 'ESP32 Master Concentrator Bridge',
+    layer: 'Communication',
+    desc: 'Physical ESP32 microcontroller that bridges the host PC via USB Serial to an industrial RS-485 multidrop bus. Intercepts slave sensor packets, maintains an in-memory slave discovery table (`slave_table[MAX_SLAVES]`), broadcasts periodic `BUS_TOPOLOGY` frames, and forwards bidirectional supervisory commands (`SHUTDOWN`, `ISOLATE`, `REARM`, `SETPOINT`).',
+    items: [
+      ['Firmware', 'Aegis Master Concentrator v2.5.2 (firmware/esp32_master_bridge)'],
+      ['Physical Bus', 'RS-485 half-duplex differential pair with 120Ω termination resistors'],
+      ['Discovery Protocol', 'Broadcasts BUS_TOPOLOGY frames every 3000ms and responds to DISCOVER'],
+      ['Supervisory Control', 'Forwards emergency trip, micro-segmentation, and setpoint bounds to slaves']
+    ]
+  },
+  'hmac-validator': {
+    title: 'HMAC-SHA256 Cryptographic Engine',
+    layer: 'Communication',
+    desc: 'Validates per-node cryptographic signatures on every incoming telemetry packet. Prevents packet injection, wire tampering, and replay attacks on the serial bus. Computes canonical JSON digests before verifying hashes against device secret keys.',
+    items: [
+      ['Algorithm', 'HMAC-SHA256 with 256-bit unique per-device keys'],
+      ['Canonicalization', 'Strict key-sorting and decimal precision formatting'],
+      ['Replay Defense', 'Rejects packets with duplicate or backward timestamps'],
+      ['Key Storage', 'Air-gapped local key derivation via security.py']
+    ]
+  },
+  'esp32-nodes': {
+    title: 'Dynamic ESP32 Slave Sensor Nodes',
+    layer: 'Field',
+    desc: 'Physical or simulated slave microcontrollers deployed across plant zones. The gateway dynamically detects nodes via `NODE_ANNOUNCE` frames on boot and upon discovery probes without requiring hardcoded configuration, auto-registering active transducers and auto-provisioning Tier-2 financial profiles.',
+    items: [
+      ['Cluster Nodes', 'ESP32_001 (Reactor), ESP32_002 (Pump), ESP32_003 (Cryo), ESP32_004 (Turbine)'],
+      ['Transducer Channels', '17 active sensor channels enumerated dynamically across the cluster'],
+      ['Firmware', 'Modular C++ firmware with announcement broadcast (firmware/esp32_slave_sensor)'],
+      ['Fail-Safe', 'Local hardware watchdog and optocoupler GPIO 25 de-energization relays']
+    ]
+  },
+  'transducer-array': {
+    title: '5 Physical Transducers Per Node',
+    layer: 'Field',
+    desc: 'Each physical slave node monitors up to 5 distinct physical parameters: Core Temperature (°C, thermocouple/PT100), Pressure (bar, piezo transducer), Vibration (g, 3-axis accelerometer), Current (A, CT coil / shunt), and Rotor Speed / RPM (Hall effect magnetic pickup).',
+    items: [
+      ['Temperature', '0.0 to 120.0 °C operating range'],
+      ['Pressure', '0.0 to 10.0 bar operating range'],
+      ['Vibration', '0.0 to 5.0 g root-mean-square acceleration'],
+      ['Current & RPM', '0.0 to 20.0 A current load; 0 to 3500 RPM rotor velocity']
+    ]
+  },
+  'quarantine-mode': {
+    title: 'Post-Trip Safe Quarantine Logging',
+    layer: 'Field',
+    desc: 'When an emergency trip occurs, the isolated device de-energizes its actuators. The gateway continues to record quarantine telemetry frames in the database marked with `is_anomaly=True`, enabling operators to verify complete physical zero-state de-energization (0 bar, 0 RPM).',
+    items: [
+      ['Security Rule', 'API returns 403 Forbidden to block unauthorized supervisory commands'],
+      ['Forensic Trail', 'Persists post-trip telemetry to DB for engineering compliance'],
+      ['De-energization', 'Verifies pressure drops to 0.0 bar and RPM drops to 0'],
+      ['Compliance', 'NIST SP 800-82r3 physical safety interlock verification']
+    ]
+  }
+};
+
+let active = null;
+const esc = (v) => String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+
+function show(id, el) {
+  if (active === id) {
+    document.getElementById('panel').style.display = 'none';
+    active = null;
+    document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+    return;
+  }
+  active = id;
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  const d = D[id];
+  document.getElementById('p-title').textContent = d.title;
+  document.getElementById('p-layer').textContent = d.layer + ' Layer';
+  document.getElementById('p-desc').textContent = d.desc;
+  document.getElementById('p-grid').innerHTML = d.items.map(i => `<div class="pi"><div class="pi-label">${esc(i[0])}</div><div class="pi-val">${esc(i[1])}</div></div>`).join('');
+  document.getElementById('panel').style.display = 'block';
+  document.getElementById('panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+
+</body>
+</html>

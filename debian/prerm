@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# Stop service if running
+if [ -x /etc/init.d/aegis-ics ]; then
+    /etc/init.d/aegis-ics stop >/dev/null 2>&1 || true
+fi
+if which systemctl >/dev/null 2>&1; then
+    systemctl stop aegis-ics.service >/dev/null 2>&1 || true
+fi
+
+exit 0
