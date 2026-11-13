@@ -3,6 +3,7 @@ import html
 import math
 from datetime import datetime, timezone
 from io import BytesIO
+from version import __version__
 import socket
 from sqlalchemy.orm import joinedload
 from reportlab.lib.pagesizes import letter
@@ -169,7 +170,7 @@ def generate_incident_report_pdf(db_session, username, location):
         ],
         [
             Paragraph("Document Identifier:", meta_label),
-            Paragraph("AEGIS-NIST-800-82-v2.5.2", meta_val),
+            Paragraph(f"AEGIS-NIST-800-82-v{__version__}", meta_val),
             Paragraph("Station Coordinates:", meta_label),
             Paragraph(html.escape(str(location)), meta_val)
         ],

@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.2 — Debian (.deb) Package Builder
+Aegis ICS — Debian (.deb) Package Builder
 ================================================
 Assembles a Debian binary package (.deb) targeting MX Linux and Debian.
 Packages the standalone ELF executable, desktop entry, application icons,
@@ -8,6 +8,10 @@ systemd service unit, and SysVinit script.
 Usage:
     python build_scripts/package_deb.py
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _version import VERSION  # noqa: E402
+
 
 import os
 import sys
@@ -22,12 +26,12 @@ def build_deb():
     os.chdir(project_root)
 
     print("=" * 60)
-    print(" Aegis ICS v2.5.2 — Debian (.deb) Package Packaging Pipeline")
+    print(f" Aegis ICS v{VERSION} — Debian (.deb) Package Packaging Pipeline")
     print("=" * 60)
 
     dist_dir = os.path.join(project_root, "dist")
     target_binary = os.path.join(dist_dir, "AegisICS")
-    deb_name = "aegis-ics_2.5.2_amd64.deb"
+    deb_name = f"aegis-ics_{VERSION}_amd64.deb"
     output_deb = os.path.join(dist_dir, deb_name)
 
     if not os.path.exists(target_binary):
@@ -60,7 +64,17 @@ def build_deb():
 
     # 1. DEBIAN metadata files
     debian_src = os.path.join(project_root, "debian")
-    shutil.copy2(os.path.join(debian_src, "control"), debian_control_dir)
+    # Stamp the version from src/version.py into the control file (Debian forbids ".dev" suffixes -> "~dev").
+    with open(os.path.join(debian_src, "control"), encoding="utf-8") as cf:
+        control_text = cf.read()
+    deb_version = VERSION.replace(".dev", "~dev")
+    stamped = [
+        f"Version: {deb_version}" if ln.startswith("Version:") else ln
+        for ln in control_text.splitlines()
+    ]
+    control_text = "\n".join(stamped) + "\n"
+    with open(os.path.join(debian_control_dir, "control"), "w", encoding="utf-8", newline="\n") as cf:
+        cf.write(control_text)
     shutil.copy2(os.path.join(debian_src, "postinst"), debian_control_dir)
     shutil.copy2(os.path.join(debian_src, "prerm"), debian_control_dir)
     shutil.copy2(os.path.join(debian_src, "postrm"), debian_control_dir)

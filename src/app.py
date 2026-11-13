@@ -1952,11 +1952,7 @@ def health ():
 @app .route ("/api/version",methods =["GET"])
 def api_version ():
     """Returns the current application version. Used by the auto-updater."""
-    try :
-        from security import APP_VERSION 
-        version =APP_VERSION 
-    except ImportError :
-        version ="2.5.2"
+    from version import __version__ as version
     return jsonify ({"version":version ,"name":"Aegis ICS"})
 
 

@@ -178,7 +178,7 @@ def parse_serial_line(line: str, mode: str = "production"):
                     _master_bridge_info["last_seen"] = time.time()
                     _master_bridge_info["details"] = data
                     _master_bridge_info["bridge_id"] = data.get("bridge_id", "MASTER_CONCENTRATOR")
-                    _master_bridge_info["firmware"] = data.get("firmware", "2.5.2")
+                    _master_bridge_info["firmware"] = data.get("firmware", data.get("version", "unknown"))
                     if "slave_count" in data:
                         _master_bridge_info["slave_count"] = int(data.get("slave_count"))
                     if "slaves" in data and isinstance(data["slaves"], list):

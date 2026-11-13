@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.2 — Linux Portable Tarball (.tar.gz) Builder
+Aegis ICS — Linux Portable Tarball (.tar.gz) Builder
 ===========================================================
 Bundles the standalone ELF binary with launcher scripts, icons,
 and installation utilities into a self-contained tarball archive.
@@ -7,6 +7,10 @@ and installation utilities into a self-contained tarball archive.
 Usage:
     python build_scripts/package_tarball.py
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _version import VERSION  # noqa: E402
+
 
 import os
 import sys
@@ -19,12 +23,12 @@ def build_tarball():
     os.chdir(project_root)
 
     print("=" * 60)
-    print(" Aegis ICS v2.5.2 — Linux Tarball (.tar.gz) Packaging Pipeline")
+    print(f" Aegis ICS v{VERSION} — Linux Tarball (.tar.gz) Packaging Pipeline")
     print("=" * 60)
 
     dist_dir = os.path.join(project_root, "dist")
     target_binary = os.path.join(dist_dir, "AegisICS")
-    tarball_name = "aegis-ics-2.5.2-linux-x86_64.tar.gz"
+    tarball_name = f"aegis-ics-{VERSION}-linux-x86_64.tar.gz"
     output_tarball = os.path.join(dist_dir, tarball_name)
 
     if not os.path.exists(target_binary):
@@ -32,7 +36,7 @@ def build_tarball():
         print("Please compile the binary first using: python build_scripts/build_linux.py")
         sys.exit(1)
 
-    staging_dir = os.path.join(project_root, "build", "tarball_staging", "aegis-ics-2.5.2")
+    staging_dir = os.path.join(project_root, "build", "tarball_staging", f"aegis-ics-{VERSION}")
     if os.path.exists(staging_dir):
         shutil.rmtree(staging_dir, ignore_errors=True)
     os.makedirs(staging_dir, exist_ok=True)
@@ -71,7 +75,7 @@ exec "$SCRIPT_DIR/AegisICS" "$@"
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Installing Aegis ICS v2.5.2..."
+echo "Installing Aegis ICS v{VERSION}..."
 
 if [ "$(id -u)" -eq 0 ]; then
     # System-wide installation
@@ -114,14 +118,14 @@ else
     echo "User installation complete. Make sure $BIN_DIR is in your PATH."
     echo "Launch with 'aegis-ics' or run directly from $INSTALL_DIR/AegisICS."
 fi
-""")
+""".replace("{VERSION}", VERSION))
     if os.name == "posix":
         os.chmod(install_sh, 0o755)
 
     # 5. Readme
     readme = os.path.join(staging_dir, "README.txt")
     with open(readme, "w", encoding="utf-8", newline="\n") as f:
-        f.write("""Aegis ICS v2.5.2 — Standalone Linux Release
+        f.write("""Aegis ICS v{VERSION} — Standalone Linux Release
 ==================================================
 
 Targeted for MX Linux & Debian distributions.
@@ -138,11 +142,11 @@ Quickstart:
 3. Hardware Serial Access (ESP32/PLC):
    Ensure your user is part of the 'dialout' group:
    sudo usermod -a -G dialout $USER
-""")
+""".replace("{VERSION}", VERSION))
 
     print("\n[2/3] Compressing into tarball archive...")
     with tarfile.open(output_tarball, "w:gz") as tar:
-        tar.add(staging_dir, arcname="aegis-ics-2.5.2")
+        tar.add(staging_dir, arcname=f"aegis-ics-{VERSION}")
 
     if os.path.exists(output_tarball):
         size_bytes = os.path.getsize(output_tarball)

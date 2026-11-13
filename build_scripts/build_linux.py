@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.2 — Automated Linux Executable & Debian Package Build Runner
+Aegis ICS — Automated Linux Executable & Debian Package Build Runner
 ==========================================================================
 Cleans prior build artifacts, compiles the standalone ELF AegisICS binary
 using PyInstaller, tests the binary, and produces .deb and .tar.gz packages.
@@ -7,6 +7,10 @@ using PyInstaller, tests the binary, and produces .deb and .tar.gz packages.
 Usage:
     python3 build_scripts/build_linux.py
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _version import VERSION  # noqa: E402
+
 
 import os
 import sys
@@ -18,7 +22,7 @@ def main():
     os.chdir(root_dir)
 
     print("=" * 65)
-    print(" Aegis ICS v2.5.2 — Linux (Debian & MX Linux) Build Pipeline")
+    print(f" Aegis ICS v{VERSION} — Linux (Debian & MX Linux) Build Pipeline")
     print("=" * 65)
 
     # 1. Clean prior Linux build artifacts
@@ -104,7 +108,7 @@ def main():
     # 7. Sync deliverables into dedicated dist/linux/ directory
     dist_linux = os.path.join(dist_dir, "linux")
     os.makedirs(dist_linux, exist_ok=True)
-    deliverables = ["AegisICS", "aegis-ics_2.5.2_amd64.deb", "aegis-ics-2.5.2-linux-x86_64.tar.gz"]
+    deliverables = ["AegisICS", f"aegis-ics_{VERSION}_amd64.deb", f"aegis-ics-{VERSION}-linux-x86_64.tar.gz"]
     for item in deliverables:
         src_item = os.path.join(dist_dir, item)
         dst_item = os.path.join(dist_linux, item)
@@ -114,8 +118,8 @@ def main():
     print("\n" + "=" * 65)
     print(" LINUX BUILD & PACKAGING PIPELINE COMPLETED SUCCESSFULLY!")
     print(f" Executable binary: {os.path.join('dist', 'linux', 'AegisICS')}")
-    print(f" Debian package:    {os.path.join('dist', 'linux', 'aegis-ics_2.5.2_amd64.deb')}")
-    print(f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-2.5.2-linux-x86_64.tar.gz')}")
+    print(f" Debian package:    {os.path.join('dist', 'linux', 'aegis-ics_{VERSION}_amd64.deb')}")
+    print(f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-{VERSION}-linux-x86_64.tar.gz')}")
     print("=" * 65)
 
 if __name__ == "__main__":

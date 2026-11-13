@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.2 — Automated Windows Standalone Executable Builder
+Aegis ICS — Automated Windows Standalone Executable Builder
 ==================================================================
 Compiles the self-contained, air-gapped AegisICS.exe binary using PyInstaller.
 Bundles Python runtime, embedded PyWebView, Flask backend, SQLite schema,
@@ -8,6 +8,10 @@ ReportLab PDF engine, Random Forest ML pipeline, reference firmware, and vendor 
 Usage:
     python build_scripts/build_windows.py
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _version import VERSION  # noqa: E402
+
 
 import os
 import sys
@@ -20,7 +24,7 @@ def build_windows():
     os.chdir(project_root)
 
     print("=" * 65)
-    print(" Aegis ICS v2.5.2 — Production Windows Executable Build Pipeline")
+    print(f" Aegis ICS v{VERSION} — Production Windows Executable Build Pipeline")
     print("=" * 65)
 
     # 1. Kill any running AegisICS.exe processes to unlock binary file

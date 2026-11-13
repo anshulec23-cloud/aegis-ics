@@ -1,5 +1,5 @@
 """
-Aegis ICS v2.5.2 — Universal Multi-Platform Build Dispatcher
+Aegis ICS — Universal Multi-Platform Build Dispatcher
 ============================================================
 Detects the host operating system and coordinates compilation of standalone
 executables and packages for Windows (PyInstaller .exe) or Linux (ELF, .deb, .tar.gz).
@@ -9,6 +9,10 @@ Usage:
     python build_scripts/build.py --windows
     python build_scripts/build.py --linux
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from _version import VERSION  # noqa: E402
+
 
 import os
 import sys
@@ -26,7 +30,7 @@ def main():
     os.chdir(project_root)
 
     print("=" * 65)
-    print(" Aegis ICS v2.5.2 — Universal Production Build Pipeline")
+    print(f" Aegis ICS v{VERSION} — Universal Production Build Pipeline")
     print("=" * 65)
 
     is_windows = sys.platform == "win32" or args.windows
