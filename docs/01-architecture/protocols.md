@@ -55,7 +55,7 @@ Implementations: firmware `snprintf` template; host `serial_gateway.canonicalize
 | CSV, 1 or 2 fields | `25.1` / `25.1,3.2` | T / T,P |
 | key:value | `T:25.1,P:3.2` or `temp=25.1` | t,p,v,h,c aliases |
 
-Non-JSON formats carry no `device_id` (default `ESP32_001` in `plc` mode) and no signature, so the gateway signs them itself.
+Non-JSON formats carry no `device_id` (default `ESP32_001` in `plc` mode) and no signature. Since v2.6 the gateway **drops** unsigned frames; it isn't a signing authority. For bench work with sensors that can't sign, `serial_gateway.py --allow-unsigned` signs them with the device key. Never use that in production.
 
 ---
 
@@ -74,7 +74,7 @@ Slaves are pruned from the bridge's table after 8 s of silence (`SLAVE_TIMEOUT_M
 
 ## 3. Command frame (host → bridge → slaves)
 
-Produced by `app.py` and enqueued with `serial_gateway.send_command()`. If no signature is present, one is added with the target device's key.
+Produced by `app.py` and enqueued with `serial_gateway.send_command()`, which signs with the target device's key (broadcasts to `ALL` stay unsigned until protocol v1 adds a bus key). Commands are only queued while a gateway is connected, and any command older than `AEGIS_COMMAND_TTL_S` (5 s) is dropped instead of being written late.
 
 ```json
 {"command":"ISOLATE","action":"ISOLATE","device_id":"ESP32_002","target_device":"ESP32_002","timestamp":1763050000.12,"reason":"…","signature":"…"}

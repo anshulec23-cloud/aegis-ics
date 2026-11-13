@@ -15,11 +15,11 @@ Health: `curl http://127.0.0.1:5000/health`.
 1. Plug in the master bridge. On Linux, the service user needs the `dialout` group.
 2. Dashboard → Station 06 → *Scan* → pick the port flagged as an ESP32 candidate → *Connect*.
 3. Expect a `BUS_TOPOLOGY` frame within 3 s and nodes marked LIVE within 10 s.
-4. ⚠️ Connecting clears every node's quarantine (known issue S8). Check Station 02 straight after connecting.
+4. Quarantine survives reconnects: on connect the gateway re-sends `ISOLATE` to every isolated node (the audit entry `CONNECT_COM_PORT` says how many).
 
 ## A node goes ISOLATED
 1. Open Station 07 and filter category **QUARANTINE**. Read the `AUTO_ISOLATION` reason (bad signature, trust collapse, anomaly).
-2. **Bad signature:** check that the firmware key matches `DEVICE_KEY_<id>`, and check for anyone else on the bus. Until S1 is fixed, a single forged HTTP request can also cause this, so check the client IPs in the web-server logs.
+2. **Bad signature** (reason "N invalid HMAC signatures within 60s"): check that the key flashed into the node (`aegis_secrets.h`) matches `device_keys.json` / `DEVICE_KEY_<id>`, and check for anyone else on the bus.
 3. **Trust collapse / anomaly:** compare live readings with the physical gauges. Look for a failed sensor (F7: a disconnected sensor reports plausible fake values).
 4. Fix the root cause, then Station 03 → *Rejoin*. That sends `REARM` and records `MANUAL_REJOIN`.
 5. Remember: a node that reboots **re-energises its relay** until the host sends `ISOLATE` again.
@@ -45,9 +45,10 @@ Also back up `src/model/` (or the frozen bundle's model directory) and your key 
 ## Troubleshooting
 | Symptom | Likely cause |
 |---|---|
-| Nodes 002–004 isolated right after connecting the simulator | F1 (shared HMAC key in the gateway) |
-| Setpoint "success" but nothing changes | F2, or no gateway connected (F3) |
-| Duplicate telemetry after reconnecting | F4 (two gateway threads); restart the service |
+| A node's frames get 403 "not provisioned" | no key for that device id: run `python src/device_keys.py generate <id>` and flash the matching header |
+| Gateway log says "Dropped unsigned frame" | the device isn't signing (old firmware or CSV sensor); reflash, or use `--allow-unsigned` on a bench only |
+| Setpoint returns 503 | no gateway connected: connect a COM port or the simulator first |
+| Setpoint 200 but nothing changes | F2: firmware v2.5 ignores the setpoint frame (fixed in Phase 2) |
+| Can't log in after upgrading from 2.5.x | the legacy default admin password was rotated: see `initial_admin_password.txt` in the data dir |
 | Garbled frames with more than one slave | F5 (RS-485 collisions) |
-| Audit times off by hours | F9 (timezone handling) |
-| 500 on audit log filter | F10 (non-numeric `limit`) |
+

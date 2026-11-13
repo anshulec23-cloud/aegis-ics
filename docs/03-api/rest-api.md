@@ -23,7 +23,8 @@ Fields: `username`, `password`, `csrf_token`; optional location as `location_coo
 
 ## Telemetry ingestion
 
-### `POST /api/telemetry` — no auth, no CSRF, no rate limit
+### `POST /api/telemetry` — gateway token + device HMAC (no session, no CSRF)
+Header `X-Aegis-Gateway-Token: <AEGIS_GATEWAY_TOKEN>` is required. The in-process gateway sends it automatically.
 ```json
 {"device_id":"ESP32_001","temperature":26.1,"pressure":4.21,"vibration":1.08,
  "hall_effect":0.0,"current":4.52,"humidity":45.0,"rssi":-62.0,
@@ -31,10 +32,14 @@ Fields: `username`, `password`, `csrf_token`; optional location as `location_coo
 ```
 | Status | Meaning |
 |---|---|
-| 200 `{"success":true,"message":"Telemetry ingested successfully."}` | stored (possibly also quarantined) |
-| 400 | missing `device_id`, timestamp skew > 60 s, bad timestamp format |
-| 403 | device is isolated |
+| 200 `{"success":true,"message":"Telemetry ingested successfully."}` | stored (the device may be quarantined by trust collapse) |
+| 400 | body isn't a JSON object, missing/invalid `device_id` (`[A-Za-z0-9_-]{1,50}`), timestamp skew > 60 s, bad timestamp |
+| 401 | missing/wrong gateway token, or invalid HMAC signature. 3 invalid signatures from one device within 60 s quarantine it |
+| 403 | device isn't provisioned (no key), or is isolated (frame still stored, flagged anomalous) |
+| 409 | identical signed frame seen within 300 s (replay) |
 | 500 | DB failure |
+
+`timestamp` may be epoch seconds or ISO-8601; it's stored as epoch seconds.
 
 Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signing-string).
 
@@ -44,11 +49,11 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| POST | `/api/setpoint` (30/min) 🅦 | `{"type":"set_temp"|"set_pressure","value":number,"target_device":"ESP32_001"}` | 200 `{"success":true,"details":…}` · 400 invalid · 403 isolated or safety-blocked (`error` holds the reason) · 500 enqueue failed |
-| POST | `/api/device/isolate` 🅦 | `{"device_id"}` | sends `ISOLATE` |
-| POST | `/api/device/rejoin` 🅦 | `{"device_id"}` | sends `REARM` |
-| POST | `/api/device/shutdown` 🅦 | `{"device_id": "ESP32_00x" | "ALL"}` | sends `SHUTDOWN` |
-| POST | `/api/device/ping` 🅦 | `{"device_id"}` | ⚠️ returns a fixed `latency_ms: 14.2` |
+| POST | `/api/setpoint` (30/min) 🅦 | `{"type":"set_temp"|"set_pressure","value":number,"target_device":"ESP32_001"}` | 200 `{"success":true,"details":…}` (sent; no device ACK in protocol v0) · 400 invalid · 403 isolated or safety-blocked (`error` holds the reason) · 503 no hardware gateway connected (nothing queued) · 500 enqueue failed |
+| POST | `/api/device/isolate` 🅦 | `{"device_id"}` | sends `ISOLATE` if a gateway is connected; response field `hardware_command_sent` |
+| POST | `/api/device/rejoin` 🅦 | `{"device_id"}` | sends `REARM` (same field) |
+| POST | `/api/device/shutdown` 🅦 | `{"device_id": "ESP32_00x" | "ALL"}` | sends `SHUTDOWN`; `ALL` isolates every known and provisioned node |
+| POST | `/api/device/ping` 🅦 | `{"device_id"}` | sends a ping frame; `latency_ms` is always `null` (firmware v2.5 doesn't reply) |
 | POST | `/api/device/clear` 🅦 | `{"device_id" | "ALL"}` | clears simulator attacks + audit entry |
 | POST | `/api/rules/update` 🅦 | any of `temp_min,temp_max,pressure_min,pressure_max` | rejects non-finite values and inverted ranges |
 | GET | `/api/rules` 🅦 | – | `{"rules":{key:value}}` |
@@ -73,7 +78,7 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 | GET | `/api/com_ports` 🅦 | `ports[]: {device, description, hwid, is_esp32_candidate}` |
 | GET | `/api/com_ports/status` 🅦 | `{port, state, health}` |
 | GET | `/api/gateway/raw_packets` 🅦 | last 60 raw lines |
-| POST | `/api/com_ports/connect` 🅦 | `{"port":"COM3"|"/dev/ttyUSB0"|"MOCK","baud":115200}`. ⚠️ also clears isolation on ESP32_001–004 |
+| POST | `/api/com_ports/connect` 🅦 | `{"port":"COM3"|"/dev/ttyUSB0"|"MOCK","baud":115200}`. Quarantine is kept; ISOLATE is re-sent to every isolated node once connected |
 | POST | `/api/com_ports/disconnect` 🅦 | stops the gateway |
 
 ## Dashboard data (login)
@@ -82,7 +87,7 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 |---|---|---|
 | GET | `/api/data?mode=all|real&device_id=` 🅦 | last 100 telemetry rows, 30 per node, 30 audit rows, financials, trust |
 | GET | `/api/stream` 🅦 | SSE: `telemetry`, `heartbeat`, `topology`, `error` |
-| GET | `/api/audit/logs?limit=≤300&category=ALL|AUTH|SETPOINT|QUARANTINE|VIOLATION|GATEWAY|MODEL&operator=&search=` 🅦 | adds `severity`, `nist_control` |
+| GET | `/api/audit/logs?limit=≤300&category=ALL|AUTH|SETPOINT|QUARANTINE|VIOLATION|GATEWAY|MODEL&operator=&search=` 🅦 | adds `severity` (`SIMULATED` for drill entries), `nist_control`, `is_simulated`. Invalid `limit` falls back to 100 |
 
 ## Models (login)
 
@@ -109,7 +114,7 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 |---|---|---|
 | POST | `/api/simulate/attack` 🅦 | `{"device_id","attack_type":"stuxnet|hmac_tamper|thermal_drift|fdi_spike|injection|ddos"}` (affects the mock gateway stream) |
 | POST | `/api/simulate/reset` 🅦 | – |
-| POST | `/api/simulate-attack` (30/min) 🅦 | `{"type":"stuxnet|injection|privilege"}`. ⚠️ writes synthetic telemetry **and audit rows** directly |
+| POST | `/api/simulate-attack` (30/min) 🅦 | `{"type":"stuxnet|injection|privilege"}`. Writes drill telemetry and `SIMULATED_*` audit rows, all flagged `is_simulated`; doesn't change device state; excluded from PDF reports |
 
 ## Meta (public)
 

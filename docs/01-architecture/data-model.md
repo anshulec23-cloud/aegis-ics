@@ -20,7 +20,7 @@ Resolved by `get_database_url()` in this order:
 | username | VARCHAR(50) UNIQUE NOT NULL | |
 | password_hash | VARCHAR(255) NOT NULL | Werkzeug `generate_password_hash` (scrypt/pbkdf2 depending on version) |
 
-Seeded at every start if absent: `admin` and `noodles`, both with `ADMIN_PASSWORD` (default `noodles`). ⚠️ No roles column.
+Bootstrapped by `database._bootstrap_accounts()` (see `src/bootstrap.py`). `admin` is created with `ADMIN_PASSWORD`, or with a generated password written to `initial_admin_password.txt`. An `admin` still using the legacy default is rotated, and a legacy `noodles` account still using its default password is deleted. ⚠️ No roles column yet (RBAC is Phase 3).
 
 ### `audit_logs`
 | Column | Type | Notes |
@@ -30,11 +30,12 @@ Seeded at every start if absent: `admin` and `noodles`, both with `ADMIN_PASSWOR
 | user_id | INTEGER FK → users.id, NULL | NULL = system action |
 | action | VARCHAR(100) NOT NULL | free-form verb, e.g. `LOGIN_SUCCESS`, `AUTO_ISOLATION`, `CHANGE_SETPOINT` |
 | location | VARCHAR(100) NOT NULL | operator "station coordinates" string from the login form |
-| details | VARCHAR(255) | human-readable message (⚠️ may contain unescaped user input) |
+| details | VARCHAR(255) | human-readable message; user-controlled parts are `bleach`-escaped, and the dashboard escapes again on render |
+| is_simulated | BOOLEAN NOT NULL DEFAULT 0 | true for red-team drill entries (`SIMULATED_*`); excluded from PDF reports (added in v2.6, Alembic `b7d2e4a91c05`) |
 
 Severity and NIST control are **derived at read time** from substrings of `action` (`app.py` `determine_severity`, `map_nist_control`).
 
-Actions emitted by the code: `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `CHANGE_SETPOINT`, `STALE_TELEMETRY_BLOCKED`, `SECURITY_VIOLATION_BLOCKED`, `AUTO_ISOLATION`, `MANUAL_ISOLATION`, `MANUAL_REJOIN`, `EMERGENCY_SHUTDOWN`, `DEVICE_PING_SENT`, `DEVICE_ALARMS_CLEARED`, `CONNECT_COM_PORT`, `DISCONNECT_COM_PORT`, `UPDATE_SAFETY_RULES`, `MODEL_RETRAINED_FROM_HARDWARE`, `ATTACK_SIMULATION_INJECTED`, `ATTACK_SIMULATION_RESET`. Simulation-only: `SECURITY_VIOLATION_STUXNET_BLOCKED`, `SECURITY_VIOLATION_AUTO_ISOLATION`, `SECURITY_VIOLATION_PRIVILEGE_BLOCKED`. Seeded at first start: `SYSTEM_BOOT`, `KEYRING_VALIDATED`, `SAFETY_INTERLOCKS_ENGAGED`, `ML_STATE_SPACE_BASELINE`, `STATION_GEOLOCATION_LOCKED`, `DATABASE_WAL_VERIFIED`.
+Actions emitted by the code: `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `CHANGE_SETPOINT`, `STALE_TELEMETRY_BLOCKED`, `SECURITY_VIOLATION_BLOCKED`, `AUTO_ISOLATION`, `MANUAL_ISOLATION`, `MANUAL_REJOIN`, `EMERGENCY_SHUTDOWN`, `DEVICE_PING_SENT`, `DEVICE_ALARMS_CLEARED`, `CONNECT_COM_PORT`, `DISCONNECT_COM_PORT`, `UPDATE_SAFETY_RULES`, `MODEL_RETRAINED_FROM_HARDWARE`, `ATTACK_SIMULATION_INJECTED`, `ATTACK_SIMULATION_RESET`. Also: `SETPOINT_NOT_DELIVERED` (no gateway), `SYSTEM_STARTUP` (every start, with version), `ACCOUNT_BOOTSTRAP`. Simulation-only (`is_simulated = true`): `SIMULATED_STUXNET_BLOCKED`, `SIMULATED_INJECTION_DETECTED`, `SIMULATED_PRIVILEGE_BLOCKED`. Databases created before v2.6 may still contain the six fabricated seed rows (`SYSTEM_BOOT`, `KEYRING_VALIDATED`, …); new installs don't create them.
 
 ### `telemetry_logs`
 | Column | Type | Notes |
@@ -43,8 +44,8 @@ Actions emitted by the code: `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `CHANGE_
 | timestamp | FLOAT NOT NULL | epoch seconds; device-supplied if present, else server time |
 | device_id | VARCHAR(50) NOT NULL | not a FK; not indexed ⚠️ (every dashboard query filters/sorts on it) |
 | temperature, pressure, humidity, vibration, hall_effect, current, rssi | FLOAT NULL | units: °C, bar, %RH, g RMS, RPM, A, dBm |
-| is_anomaly | BOOLEAN | `(not sig_valid) or rf/rule anomaly`; always True for frames from isolated devices |
-| is_simulated | BOOLEAN | True only for rows written by `/api/simulate-attack` |
+| is_anomaly | BOOLEAN | rule/RF anomaly; always True for frames from isolated devices. Frames with invalid signatures are no longer stored (v2.6) |
+| is_simulated | BOOLEAN | True for rows written by `/api/simulate-attack` and for all telemetry ingested while the software simulator is the active gateway |
 
 No retention policy; the table grows unbounded (about 2 rows/s per node with the 500 ms firmware interval).
 

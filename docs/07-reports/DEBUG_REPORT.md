@@ -7,6 +7,25 @@ Legend: ✅ CONFIRMED = reproduced live · 🔍 CODE = verified by reading the c
 
 ---
 
+## Fix status (updated 2026-11-14, v2.6.0.dev0 — restructure plan Phases 0–1)
+
+Every finding has a regression test in [`tests/security/test_debug_findings.py`](../../tests/security/test_debug_findings.py). That suite runs with all security controls on. Findings still open there are marked `xfail(strict=True)`, so the fix that closes one must also remove its marker.
+
+| Status | Findings |
+|---|---|
+| **Fixed in v2.6** | S1 (gateway token on ingestion, 3-strike signature quarantine, loopback-only non-root service), S2 (no keys in source: `device_keys.py` + git-ignored `aegis_secrets.h`, unknown devices rejected), S4 (generated/required admin password, legacy `noodles` removed), S6 (gateway never signs for devices), S7 (dashboard escaping, sanitised audit input, device-id validation, CSP and security headers), S8 (reconnect keeps quarantine and re-sends ISOLATE), S11, F1, F3 (no queueing without a gateway, 5 s command TTL), F4 (per-run stop event), F8, F9, F10, F13, F14, R1 (drills flagged `is_simulated`, excluded from reports, no longer change device state), R2 |
+| **Partially fixed** | S5 (interim duplicate-frame cache; full fix needs protocol v1 sequence numbers, plan P2.1), S13 (client IP no longer taken from `X-Forwarded-For`; hash-chained audit is Phase 3) |
+| **Open: Phase 2 (firmware/protocol)** | S3, F2, F5, F7 |
+| **Open: Phase 3 (restructure)** | S9 (RBAC), S12, F11, F12, F15 |
+| **Open: Phase 4 (ML/research)** | S10, F6, R3, R4, R5, R6 |
+| **Open: Phase 5** | S14 (updater opt-out for air-gapped installs) |
+
+Verification: `python -m pytest tests` → **105 passed, 3 xfailed** (the xfails are S3, F2 and F6). An end-to-end run of the real server with the simulator showed all four nodes live with none quarantined. The `hmac_tamper` drill quarantined only its target node, after 3 bad signatures.
+
+The findings below describe the code **as it was at v2.5.3** (git tag `v2.5.3-baseline`).
+
+---
+
 ## 0. Executive summary
 
 The project is large and ambitious, and the shape is right: field nodes, a gateway, ML scoring, a deterministic safety layer, an audit trail and a dashboard. The problem is that several core security claims don't hold end-to-end, and some "working" features are simulated or not wired through:

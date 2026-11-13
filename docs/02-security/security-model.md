@@ -25,10 +25,14 @@ This page answers four questions: what we protect, what we trust, which controls
 ## 3. Controls implemented
 | Boundary | Control | Code |
 |---|---|---|
-| B1/B2 | HMAC-SHA256 telemetry signature per device | firmware, `app.verify_signature` |
-| B1/B2 | Host-signed commands | `serial_gateway.send_command` (not verified by firmware) |
-| B3 | Optional ±60 s timestamp window | `process_telemetry` |
-| B4 | Password login, Werkzeug hashes | `app.login` |
+| B1/B2 | HMAC-SHA256 telemetry signature per device; keys provisioned per deployment, no fallback key; unknown devices rejected | firmware, `device_keys.py`, `app.verify_signature` |
+| B1/B2 | Host-signed commands | `serial_gateway.send_command` (not verified by firmware yet) |
+| B2 | Gateway forwards only device-signed frames (never signs on a device's behalf) | `serial_gateway.build_forward_payload` |
+| B3 | Gateway token on `/api/telemetry`; ±60 s timestamp window; duplicate-frame (replay) cache; 3-strike signature quarantine | `app.api_telemetry`, `process_telemetry` |
+| B3 | Commands expire after 5 s; nothing is queued without a connected gateway; quarantine re-sent on reconnect | `serial_gateway.pop_ready_commands`, `app._dispatch_command` |
+| B4 | Password login, Werkzeug hashes; no default password (generated or ≥ 12-char `ADMIN_PASSWORD`); session regenerated on login | `app.login`, `bootstrap.py` |
+| B4 | Security headers: CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` | `app.set_security_headers` |
+| B4 | Output escaping in the dashboard (`escapeHtml`), sanitised audit input, strict device-id format | `dashboard.html`, `app.py` |
 | B4 | Session cookie: HttpOnly, SameSite=Strict, Secure if `FLASK_SESSION_SECURE`, 30 min | `app.py` config |
 | B4 | CSRF token on mutating requests | `csrf_protect` |
 | B4 | Rate limiting (memory store) | Flask-Limiter |
@@ -38,20 +42,21 @@ This page answers four questions: what we protect, what we trust, which controls
 | B5 | Session key file created with mode 0600 | `_load_or_generate_session_token` |
 | Desktop | Random localhost port, webview token, debugger check | `main.py`, `security.py` |
 
-## 4. Gaps (verified, see [DEBUG_REPORT §2](../07-reports/DEBUG_REPORT.md))
-| ID | Gap | Boundary |
-|---|---|---|
-| S1 | Unauthenticated ingestion endpoint can quarantine nodes and trip relays | B3/B4 |
-| S2 | Device keys in source; shared fallback key | B1 |
-| S3 | Firmware ignores command signatures | B1 |
-| S4 | Default operator passwords | B4 |
-| S5 | No replay protection for firmware frames | B1 |
-| S6 | Gateway signs unsigned frames | B2 |
-| S7 | Stored XSS in the dashboard | B4 |
-| S8 | COM reconnect clears quarantine | B4 |
-| S9 | No RBAC | B4 |
-| S10 | Model poisoning; sidecar hash isn't an integrity control | B5 |
-| S13 | Mutable audit log, spoofable client IP | B5/B4 |
+## 4. Gaps (see [DEBUG_REPORT](../07-reports/DEBUG_REPORT.md))
+| ID | Gap | Boundary | Status (v2.6) |
+|---|---|---|---|
+| S1 | Unauthenticated ingestion endpoint could quarantine nodes and trip relays | B3/B4 | Fixed |
+| S2 | Device keys in source; shared fallback key | B1 | Fixed (keys still compiled into firmware from a git-ignored header; NVS provisioning is P2.6) |
+| S3 | Firmware ignores command signatures | B1 | **Open**, Phase 2 |
+| S4 | Default operator passwords | B4 | Fixed |
+| S5 | No replay protection for firmware frames | B1 | Partial: duplicate-frame cache; sequence numbers in protocol v1 (P2.1) |
+| S6 | Gateway signed unsigned frames | B2 | Fixed |
+| S7 | Stored XSS in the dashboard | B4 | Fixed (CSP still allows inline script until Phase 3) |
+| S8 | COM reconnect cleared quarantine | B4 | Fixed |
+| S9 | No RBAC | B4 | **Open**, Phase 3 |
+| S10 | Model poisoning; sidecar hash isn't an integrity control | B5 | **Open**, Phase 4 |
+| S13 | Mutable audit log, spoofable client IP | B5/B4 | Partial: client IP fixed; hash chain in Phase 3 |
+| – | Service ran as root on `0.0.0.0` | Host | Fixed: `aegis` user, loopback, systemd sandboxing |
 
 ## 5. Target security architecture (summary)
 - **Device identity:** per-device keys provisioned at manufacture into ESP32 NVS (encrypted), registered in a `devices` table; no fallback key.

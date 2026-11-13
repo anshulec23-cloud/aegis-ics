@@ -1,6 +1,6 @@
 # Aegis ICS — Architecture
 
-> **Status:** describes the code **as it is in v2.5.2/2.5.3**, not as the marketing README describes it.
+> **Status:** describes the code **as of v2.6.0.dev0** (restructure plan Phases 0–1 done), not as the marketing README describes it.
 > Where the two differ, this document follows the code and flags the gap with ⚠️.
 > The target architecture is in [`../08-roadmap/RESTRUCTURE_PLAN.md`](../08-roadmap/RESTRUCTURE_PLAN.md).
 
@@ -153,16 +153,21 @@ sequenceDiagram
     B->>G: same line over USB serial
     G->>G: parse_serial_line() (JSON / CSV / key:value)
     alt frame has no signature
-        G->>G: sign_message(payload, hmac_key or device key) ⚠️ host signs on device's behalf
+        G->>G: drop it (the gateway never signs for a device)
     end
-    G->>A: HTTP POST 127.0.0.1:FLASK_PORT/api/telemetry
-    A->>A: timestamp skew check (only if timestamp present, ±60 s)
+    G->>A: HTTP POST 127.0.0.1:FLASK_PORT/api/telemetry + X-Aegis-Gateway-Token
+    A->>A: token check (401) · device_id format (400) · device provisioned? (403)
+    A->>A: timestamp skew check (if present, ±60 s)
+    A->>A: verify_signature() with the device's own key
+    alt invalid signature
+        A->>A: count failure; 3 within 60 s → quarantine + ISOLATE; return 401
+    end
+    A->>A: duplicate signature within 300 s → 409 (replay)
     A->>D: DeviceState.is_isolated? → if yes: store row, return 403
-    A->>A: verify_signature() (canonical JSON, floats as "%.2f")
     A->>M: predict_anomaly() → rule thresholds + RF vote
     A->>D: INSERT TelemetryLog(is_anomaly)
     A->>T: compute_device_trust_score()
-    alt bad signature OR trust < 0.40 OR (anomaly AND trust < 0.50)
+    alt trust < 0.40 OR (anomaly AND trust < 0.50)
         A->>D: DeviceState.is_isolated = True, AuditLog AUTO_ISOLATION
         A->>Q: signed {"command":"ISOLATE"}
     end
@@ -202,8 +207,11 @@ sequenceDiagram
         S->>S: block only high-risk (T≥45 / P≥6); allow others
     end
     S-->>A: (allowed, reason)
-    A->>Q: signed {"command":"setpoint","target":..,"value":..}
-    A-->>UI: 200 success (⚠️ before any device ACK)
+    alt no gateway connected
+        A-->>UI: 503 (nothing queued)
+    end
+    A->>Q: signed {"command":"setpoint","target":..,"value":..} (expires after 5 s)
+    A-->>UI: 200 "sent" (⚠️ no device ACK until protocol v1)
     Q->>G: written when gateway loop next runs
 ```
 
@@ -213,11 +221,11 @@ sequenceDiagram
 
 | Trigger | Code | Effect |
 |---|---|---|
-| Automatic: bad HMAC, trust < 0.40, anomaly with trust < 0.50 | `process_telemetry` | `is_isolated=True`, `AUTO_ISOLATION` audit, `ISOLATE` queued |
+| Automatic: 3 bad HMACs in 60 s, trust < 0.40, anomaly with trust < 0.50 | `process_telemetry` → `_quarantine_device` | `is_isolated=True`, `AUTO_ISOLATION` audit, `ISOLATE` queued |
 | Manual isolate | `POST /api/device/isolate` | same, `MANUAL_ISOLATION` |
 | Emergency shutdown | `POST /api/device/shutdown` | `SHUTDOWN` to one device or `ALL` |
 | Rejoin | `POST /api/device/rejoin` | `is_isolated=False`, `REARM` queued, `MANUAL_REJOIN` |
-| ⚠️ Implicit rejoin | `POST /api/com_ports/connect` | clears isolation on ESP32_001–004 silently |
+| Re-sync on connect | `POST /api/com_ports/connect` | quarantine kept; `ISOLATE` re-sent to every isolated node |
 
 While isolated, telemetry from the device is still stored (flagged anomalous) but the API returns 403, and setpoints to that device are refused.
 
@@ -305,14 +313,14 @@ Both are trained on **synthetic data** produced by `train_model.py`. `POST /api/
 
 | Control | Implementation | Assessment |
 |---|---|---|
-| Operator auth | Username/password (Werkzeug hash), Flask signed-cookie session, 30 min lifetime | ⚠️ default `admin/noodles`; no roles; no lockout beyond 120 req/min |
+| Operator auth | Username/password (Werkzeug hash), Flask signed-cookie session, 30 min lifetime | No default password (generated or `ADMIN_PASSWORD`). ⚠️ No roles; no lockout beyond 120 req/min |
 | CSRF | Session token checked on all POST/PUT/PATCH/DELETE except `/api/telemetry` | OK; disabled when `TESTING` |
-| Device auth | Per-device HMAC-SHA256 PSK | ⚠️ keys hard-coded; gateway signs unsigned frames; no replay protection |
+| Device auth | Per-device HMAC-SHA256 PSK from env / `device_keys.json`; gateway token on ingestion; duplicate-frame replay cache | ⚠️ replay defence is interim until protocol v1 sequence numbers |
 | Command auth | Host signs commands | ⚠️ firmware never verifies |
 | Model integrity | SHA-256 sidecar next to pickle | ⚠️ same trust domain; pickle = code execution |
-| Transport | Plain HTTP; Debian unit binds `0.0.0.0` as root | ⚠️ |
+| Transport | Plain HTTP on loopback; Debian units run as `aegis` with systemd sandboxing | TLS via reverse proxy for remote access; CSP and security headers on every response |
 | Desktop hardening | Random port, `X-PYWEBVIEW-TOKEN`, anti-debugger check | Token bypassed whenever a session exists |
-| Audit | `audit_logs` table | ⚠️ mutable, contains seeded and simulated entries |
+| Audit | `audit_logs` table; drill entries flagged `is_simulated` and excluded from reports | ⚠️ mutable (hash chain is Phase 3) |
 
 Threat model: [`../02-security/threat-model.md`](../02-security/threat-model.md). Security model and gaps: [`../02-security/security-model.md`](../02-security/security-model.md).
 
@@ -324,7 +332,7 @@ Threat model: [`../02-security/threat-model.md`](../02-security/threat-model.md)
 |---|---|---|---|---|
 | Dev | `python src/app.py` | `HOST` env (default 127.0.0.1), `PORT` (5000) | `<repo>/aegis_v2.db` | Werkzeug dev server |
 | Desktop | `AegisICS.exe` / `python src/main.py` | 127.0.0.1, random port | next to exe or `%LOCALAPPDATA%\AegisICS` | PyWebView window + tray, `AEGIS_DESKTOP_MODE=1` |
-| Headless | `AegisICS --server --port 5000 --host 0.0.0.0` | as given | `AEGIS_DATA_DIR` (`/var/lib/aegis-ics`) | systemd/SysV units in `debian/`; runs as root ⚠️ |
+| Headless | `AegisICS --server --port 5000 --host 127.0.0.1` | as given | `AEGIS_DATA_DIR` (`/var/lib/aegis-ics`) | systemd/SysV units in `debian/`; user `aegis`, secrets in `/etc/default/aegis-ics` |
 
 Build and packaging: [`../05-operations/build-pipeline.md`](../05-operations/build-pipeline.md). Linux install: [`../05-operations/linux-deployment.md`](../05-operations/linux-deployment.md).
 
@@ -335,7 +343,7 @@ Build and packaging: [`../05-operations/build-pipeline.md`](../05-operations/bui
 - **Configuration:** environment variables only, read ad hoc across modules. See [`../04-development/configuration.md`](../04-development/configuration.md).
 - **Logging:** `print()` everywhere (except `main.py`, which uses `logging`). No structured logs.
 - **Concurrency:** one SQLAlchemy session per request (manually opened/closed, no context manager); module-level globals in `serial_gateway` guarded by one lock (partially); SSE holds a thread per client.
-- **Time:** telemetry uses float epoch seconds (device- or server-supplied); audit uses `DateTime` written as aware UTC but read back naive. ⚠️ Epochs are shifted by the local UTC offset.
+- **Time:** telemetry uses float epoch seconds (device- or server-supplied); audit uses `DateTime` written as aware UTC but read back naive; `database.to_utc_epoch()` converts it correctly for the API.
 - **Error handling:** broad `except Exception` with `print`; several routes have no handler (500 HTML on bad input).
 
 ---

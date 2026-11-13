@@ -10,6 +10,19 @@
 
 ---
 
+## 0. Progress
+
+| Phase | Status | Notes |
+|---|---|---|
+| 0 Foundations | **Done** (2026-11-14) | Git + tag `v2.5.3-baseline`; `src/version.py`; `pyproject.toml`; ruff + pre-commit; CI matrix + `pip-audit`; `tests/security/` regression suite. Deferred: lockfile (0.2) and mypy (0.3), both moving to Phase 3 with the package layout. |
+| 1 Safety and security hotfixes | **Done** (2026-11-14) | All of 1.1–1.11 landed (see [DEBUG_REPORT fix status](../07-reports/DEBUG_REPORT.md#fix-status-updated-2026-11-14-v260dev0--restructure-plan-phases-01)). Deviations: 1.1 warns at startup and rejects frames per device instead of refusing to start, so the desktop app's first-run experience keeps working. 1.2's *forced* password change moves to Phase 3 with the account UI. 1.10 uses a `to_utc_epoch()` read helper rather than a column type change. 105 tests pass, 3 xfail. |
+| 2 Hardware loop | Not started | Next: protocol v1 spec (P2.1) unblocks firmware and host work in parallel |
+| 3 Restructure | Not started | |
+| 4 ML integrity | Not started | |
+| 5 Production polish | Not started | |
+
+---
+
 ## 1. Guiding principles
 
 1. **Safety first, then security, then structure, then features.** Fix what can hurt someone before moving files.
