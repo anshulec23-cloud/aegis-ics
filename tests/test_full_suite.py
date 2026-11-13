@@ -1992,9 +1992,9 @@ def test_hardware_model_calibration_and_status_api():
     hash_path = model_path + ".sha256"
     metrics_path = os.path.join(base_dir, "src", "model", "training_metrics.json")
     orig_model = open(model_path, "rb").read() if os.path.exists(model_path) else None
-    orig_hash = open(hash_path, "r", encoding="utf-8").read() if os.path.exists(hash_path) else None
+    orig_hash = open(hash_path, "rb").read() if os.path.exists(hash_path) else None
     orig_metrics = (
-        open(metrics_path, "r", encoding="utf-8").read() if os.path.exists(metrics_path) else None
+        open(metrics_path, "rb").read() if os.path.exists(metrics_path) else None
     )
 
     try:
@@ -2018,10 +2018,10 @@ def test_hardware_model_calibration_and_status_api():
             with open(model_path, "wb") as f:
                 f.write(orig_model)
         if orig_hash is not None:
-            with open(hash_path, "w", encoding="utf-8") as f:
+            with open(hash_path, "wb") as f:
                 f.write(orig_hash)
         if orig_metrics is not None:
-            with open(metrics_path, "w", encoding="utf-8") as f:
+            with open(metrics_path, "wb") as f:
                 f.write(orig_metrics)
         from app import rf_model
 
