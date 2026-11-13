@@ -25,8 +25,10 @@ from werkzeug.security import generate_password_hash
 # Initialize DB for tests
 init_db()
 
+
 def get_test_db():
     return SessionLocal()
+
 
 # --- 1. Database & User Unit Tests ---
 def test_database_init_and_users():
@@ -48,6 +50,7 @@ def test_database_init_and_users():
     finally:
         db.close()
 
+
 # --- 2. Security & HMAC Signatures ---
 def test_security_hmac_and_tokens():
     key = get_device_key("ESP32_001")
@@ -57,7 +60,7 @@ def test_security_hmac_and_tokens():
         "device_id": "ESP32_001",
         "timestamp": 1700000000.123,
         "temperature": 25.5,
-        "pressure": 4.2
+        "pressure": 4.2,
     }
     sig1 = sign_message(payload, key)
     sig2 = sign_message(payload, key)
@@ -69,6 +72,7 @@ def test_security_hmac_and_tokens():
     assert can["temperature"] == "25.50"
     assert can["pressure"] == "4.20"
     assert can["timestamp"] == "1700000000.123"
+
 
 # --- 3. Safety Enforcer & Stuxnet Prevention Rules ---
 def test_safety_enforcer_rules():
@@ -106,7 +110,7 @@ def test_safety_enforcer_rules():
             device_id="ESP32_001",
             temperature=25.0,
             pressure=3.0,
-            humidity=50.0
+            humidity=50.0,
         )
         db.add(normal_log)
         db.commit()
@@ -121,7 +125,7 @@ def test_safety_enforcer_rules():
             device_id="ESP32_001",
             temperature=30.0,
             pressure=7.2,
-            humidity=50.0
+            humidity=50.0,
         )
         db.add(high_pres_log)
         db.commit()
@@ -136,7 +140,7 @@ def test_safety_enforcer_rules():
             device_id="ESP32_001",
             temperature=52.0,
             pressure=2.0,
-            humidity=50.0
+            humidity=50.0,
         )
         db.add(high_temp_log)
         db.commit()
@@ -147,19 +151,23 @@ def test_safety_enforcer_rules():
     finally:
         db.close()
 
+
 # --- 3b. Neural Safety Policy Network (NSPN) Dedicated Tests ---
 def test_neural_safety_policy_model_loading():
     from neural_policy import NeuralSafetyPolicy
+
     policy = NeuralSafetyPolicy()
     assert policy.weights_loaded, "Neural safety policy weights should be successfully loaded"
     assert len(policy.weights_dict) >= 8 or policy.torch_model is not None
 
     # Test nominal forward pass
     import numpy as np
+
     nominal_vec = np.array([28.0, 3.5, 1.2, 0.0, 4.5, 32.0], dtype=np.float32)
     p_safe = policy.predict_safety_probability(nominal_vec)
     assert 0.0 <= p_safe <= 1.0
     assert p_safe > 0.80, f"Expected nominal vector to be safe, got P(safe)={p_safe}"
+
 
 def test_neural_safety_enforcer_adversarial_rejection():
     db = get_test_db()
@@ -175,7 +183,7 @@ def test_neural_safety_enforcer_adversarial_rejection():
             pressure=7.4,
             vibration=1.8,
             hall_effect=0.0,
-            current=4.8
+            current=4.8,
         )
         db.add(active_log)
         db.commit()
@@ -193,7 +201,7 @@ def test_neural_safety_enforcer_adversarial_rejection():
             pressure=3.2,
             vibration=1.0,
             hall_effect=0.0,
-            current=4.2
+            current=4.2,
         )
         db.add(normal_log)
         db.commit()
@@ -204,9 +212,11 @@ def test_neural_safety_enforcer_adversarial_rejection():
     finally:
         db.close()
 
+
 def test_neural_policy_fallback_handling():
     from neural_policy import NeuralSafetyPolicy
     import numpy as np
+
     # Instantiate with non-existent path to verify graceful heuristic fallback
     policy = NeuralSafetyPolicy(weights_path="non_existent_weights_file.npz")
     assert not policy.weights_loaded
@@ -219,6 +229,7 @@ def test_neural_policy_fallback_handling():
     safe_vec = np.array([25.0, 3.0, 1.0, 0.0, 4.0, 30.0], dtype=np.float32)
     prob_safe = policy.predict_safety_probability(safe_vec)
     assert prob_safe > 0.50
+
 
 # --- 4. Financial & Threat Index Analytics ---
 def test_financial_analytics():
@@ -241,7 +252,7 @@ def test_financial_analytics():
                 timestamp=100.0 + i * 10,
                 device_id="ESP32_001",
                 temperature=20.0 + i,
-                pressure=3.0 + i * 0.1
+                pressure=3.0 + i * 0.1,
             )
             db.add(t)
         db.commit()
@@ -256,7 +267,7 @@ def test_financial_analytics():
                 timestamp=100.0 + i * 10,
                 device_id="ESP32_001",
                 temperature=20.0 + i * 1.5,
-                pressure=3.0 + i * 0.2
+                pressure=3.0 + i * 0.2,
             )
             db.add(t)
         db.commit()
@@ -266,6 +277,7 @@ def test_financial_analytics():
         assert fin_20["drift_risk"] >= 0.0
     finally:
         db.close()
+
 
 # --- 5. PDF Incident Report Generation ---
 def test_pdf_report_generation():
@@ -277,6 +289,7 @@ def test_pdf_report_generation():
         assert pdf_bytes.startswith(b"%PDF")
     finally:
         db.close()
+
 
 # --- 6. Serial Gateway Parser Tests ---
 def test_serial_gateway_parsing():
@@ -305,9 +318,11 @@ def test_serial_gateway_parsing():
     assert parse_serial_line("", "plc") is None
     assert parse_serial_line("  \n", "plc") is None
 
+
 # --- 7. Flask REST API Integration & Attack Simulation Tests ---
 def test_flask_api_routes():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -338,14 +353,24 @@ def test_flask_api_routes():
     # 2. Rule updates
     res = client.post(
         "/api/rules/update",
-        json={"temp_max": 65.0, "temp_min": 5.0, "pressure_max": 9.0, "pressure_min": 0.5, "csrf_token": "valid_csrf_token"},
-        headers=headers
+        json={
+            "temp_max": 65.0,
+            "temp_min": 5.0,
+            "pressure_max": 9.0,
+            "pressure_min": 0.5,
+            "csrf_token": "valid_csrf_token",
+        },
+        headers=headers,
     )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
     # 3. Attack Simulation: Stuxnet
-    res = client.post("/api/simulate-attack", json={"type": "stuxnet", "csrf_token": "valid_csrf_token"}, headers=headers)
+    res = client.post(
+        "/api/simulate-attack",
+        json={"type": "stuxnet", "csrf_token": "valid_csrf_token"},
+        headers=headers,
+    )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
@@ -355,21 +380,33 @@ def test_flask_api_routes():
     assert res_data.get_json()["financials"]["prevented_cost"] > 0.0
 
     # 4. Attack Simulation: Injection
-    res = client.post("/api/simulate-attack", json={"type": "injection", "csrf_token": "valid_csrf_token"}, headers=headers)
+    res = client.post(
+        "/api/simulate-attack",
+        json={"type": "injection", "csrf_token": "valid_csrf_token"},
+        headers=headers,
+    )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
     # 5. Attack Simulation: Privilege
-    res = client.post("/api/simulate-attack", json={"type": "privilege", "csrf_token": "valid_csrf_token"}, headers=headers)
+    res = client.post(
+        "/api/simulate-attack",
+        json={"type": "privilege", "csrf_token": "valid_csrf_token"},
+        headers=headers,
+    )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
     # 6. Device Isolation & Rejoin
-    res = client.post("/api/device/isolate", json={"csrf_token": "valid_csrf_token"}, headers=headers)
+    res = client.post(
+        "/api/device/isolate", json={"csrf_token": "valid_csrf_token"}, headers=headers
+    )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
-    res = client.post("/api/device/rejoin", json={"csrf_token": "valid_csrf_token"}, headers=headers)
+    res = client.post(
+        "/api/device/rejoin", json={"csrf_token": "valid_csrf_token"}, headers=headers
+    )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
@@ -379,9 +416,11 @@ def test_flask_api_routes():
     assert res.content_type == "application/pdf"
     assert len(res.data) > 1000
 
+
 # --- 8. STRESS TEST & Concurrency ---
 def test_stress_concurrent_telemetry_and_api():
     from app import app
+
     app.config["TESTING"] = True
 
     key = get_device_key("ESP32_001")
@@ -408,7 +447,7 @@ def test_stress_concurrent_telemetry_and_api():
                 "pressure": 4.0 + (i % 3) * 0.5,
                 "humidity": 50.0,
                 "vibration": 1.0,
-                "current": 4.5
+                "current": 4.5,
             }
             payload["signature"] = sign_message(payload, key)
 
@@ -439,13 +478,17 @@ def test_stress_concurrent_telemetry_and_api():
     for t in threads:
         t.join()
 
-    print(f"\n[Stress Test Results] Total Ingest Requests: {success_count[0]}, Errors: {error_count[0]}")
+    print(
+        f"\n[Stress Test Results] Total Ingest Requests: {success_count[0]}, Errors: {error_count[0]}"
+    )
     assert error_count[0] == 0, f"Stress test encountered {error_count[0]} errors!"
     assert success_count[0] == num_threads * 25
+
 
 # --- 8b. STRESS TEST: 3 Simulation Attacks & PDF Report Downloads ---
 def test_stress_all_3_simulation_attacks_and_pdf_download():
     from app import app
+
     app.config["TESTING"] = True
 
     sim_success = [0]
@@ -472,7 +515,7 @@ def test_stress_all_3_simulation_attacks_and_pdf_download():
                     res = client.post(
                         "/api/simulate-attack",
                         json={"type": atype, "csrf_token": f"stress_token_{worker_id}"},
-                        headers=headers
+                        headers=headers,
                     )
                     if res.status_code == 200 and res.get_json().get("success") is True:
                         with lock:
@@ -487,7 +530,11 @@ def test_stress_all_3_simulation_attacks_and_pdf_download():
             # Download PDF Report after simulations
             try:
                 rep_res = client.get("/api/report/download", headers=headers)
-                if rep_res.status_code == 200 and rep_res.content_type == "application/pdf" and len(rep_res.data) > 1000:
+                if (
+                    rep_res.status_code == 200
+                    and rep_res.content_type == "application/pdf"
+                    and len(rep_res.data) > 1000
+                ):
                     with lock:
                         report_success[0] += 1
                 else:
@@ -507,17 +554,25 @@ def test_stress_all_3_simulation_attacks_and_pdf_download():
     for t in threads:
         t.join()
 
-    print(f"\n[Attack & Report Stress Results] Successful Simulations: {sim_success[0]}, Errors: {sim_errors[0]}")
-    print(f"[Attack & Report Stress Results] Successful Report Downloads: {report_success[0]}, Report Errors: {report_errors[0]}")
+    print(
+        f"\n[Attack & Report Stress Results] Successful Simulations: {sim_success[0]}, Errors: {sim_errors[0]}"
+    )
+    print(
+        f"[Attack & Report Stress Results] Successful Report Downloads: {report_success[0]}, Report Errors: {report_errors[0]}"
+    )
 
     assert sim_errors[0] == 0, f"Simulation attack stress test failed with {sim_errors[0]} errors!"
-    assert report_errors[0] == 0, f"PDF Report download stress test failed with {report_errors[0]} errors!"
+    assert report_errors[0] == 0, (
+        f"PDF Report download stress test failed with {report_errors[0]} errors!"
+    )
     assert sim_success[0] == num_sim_threads * 5 * 3
     assert report_success[0] == num_sim_threads * 5
+
 
 # --- 9. Payload Fuzzing & Boundary Tests ---
 def test_fuzzing_and_boundary_conditions():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -543,14 +598,20 @@ def test_fuzzing_and_boundary_conditions():
     for p in fuzz_payloads:
         # Ensure no endpoint crashes with 500 error
         res_sp = client.post("/api/setpoint", json=p, headers=headers)
-        assert res_sp.status_code in (200, 400, 403, 429), f"Fuzzing /api/setpoint with {p} returned {res_sp.status_code}"
+        assert res_sp.status_code in (200, 400, 403, 429), (
+            f"Fuzzing /api/setpoint with {p} returned {res_sp.status_code}"
+        )
 
         res_sim = client.post("/api/simulate-attack", json=p, headers=headers)
-        assert res_sim.status_code in (200, 400, 403, 429), f"Fuzzing /api/simulate-attack with {p} returned {res_sim.status_code}"
+        assert res_sim.status_code in (200, 400, 403, 429), (
+            f"Fuzzing /api/simulate-attack with {p} returned {res_sim.status_code}"
+        )
+
 
 # --- 10. Multi-Device Cluster Endpoints & NIST SP 800-82 Compliance Tests ---
 def test_multi_device_cluster_endpoints():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -643,6 +704,7 @@ def test_multi_device_cluster_endpoints():
 # --- 11. Red Team Attack Simulation Suite Tests ---
 def test_attack_simulation_suite():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -656,14 +718,22 @@ def test_attack_simulation_suite():
 
     # Test injecting each valid attack vector
     for attack in ["stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike"]:
-        res = client.post("/api/simulate/attack", json={"device_id": "ESP32_002", "attack_type": attack}, headers=headers)
+        res = client.post(
+            "/api/simulate/attack",
+            json={"device_id": "ESP32_002", "attack_type": attack},
+            headers=headers,
+        )
         assert res.status_code == 200
         data = res.get_json()
         assert data["success"] is True
         assert data["attack"] == attack
 
     # Test invalid attack vector
-    res_bad = client.post("/api/simulate/attack", json={"device_id": "ESP32_002", "attack_type": "unknown_exploit"}, headers=headers)
+    res_bad = client.post(
+        "/api/simulate/attack",
+        json={"device_id": "ESP32_002", "attack_type": "unknown_exploit"},
+        headers=headers,
+    )
     assert res_bad.status_code == 200
     assert res_bad.get_json()["success"] is False
 
@@ -676,6 +746,7 @@ def test_attack_simulation_suite():
 # --- 12. Trust Parameter Mathematical Breakdown Tests ---
 def test_trust_breakdown_endpoint():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -702,7 +773,12 @@ def test_trust_breakdown_endpoint():
     assert "s_history" in comp
     assert "s_stability" in comp
 
-    total_weight = comp["s_anomaly"]["weight"] + comp["s_signature"]["weight"] + comp["s_history"]["weight"] + comp["s_stability"]["weight"]
+    total_weight = (
+        comp["s_anomaly"]["weight"]
+        + comp["s_signature"]["weight"]
+        + comp["s_history"]["weight"]
+        + comp["s_stability"]["weight"]
+    )
     assert abs(total_weight - 1.0) < 0.001
     assert "zone" in bd
     assert "stats" in bd
@@ -711,6 +787,7 @@ def test_trust_breakdown_endpoint():
 # --- 13. Live ICS Security Event & Audit Stream Tests ---
 def test_audit_logs_streaming_endpoint():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -740,6 +817,7 @@ def test_audit_logs_streaming_endpoint():
 # --- 14. Industrial Cyber-Financial FAIR & ALE Analytics Endpoint Tests ---
 def test_financial_analytics_endpoints():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -796,6 +874,7 @@ def test_financial_analytics_endpoints():
 # --- 15. Monte Carlo Probabilistic Loss Exceedance Distribution Tests ---
 def test_financial_loss_distribution_endpoint():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -828,6 +907,7 @@ def test_financial_loss_distribution_endpoint():
 # --- 16. Subsystem Capital Valuation & Outage Liability Breakdown Tests ---
 def test_financial_subsystems_endpoint():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -862,6 +942,7 @@ def test_financial_subsystems_endpoint():
 # --- 17. Device Hardware GPS & Facility Geolocation Endpoint Tests ---
 def test_device_locations_endpoint():
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -902,7 +983,7 @@ def test_pdf_report_special_characters_safety():
             user_id=1,
             action="SECURITY_VIOLATION_<XSS>",
             location="Zone <A> & Sector '4'",
-            details="<script>alert(1)</script> & Pressure > 6.0 bar && Temp < 10.0C"
+            details="<script>alert(1)</script> & Pressure > 6.0 bar && Temp < 10.0C",
         )
         db.add(malicious_audit)
         db.commit()
@@ -934,6 +1015,7 @@ def test_safety_enforcer_type_safety_and_nan():
 
         # 2. API route checks
         from app import app
+
         app.config["TESTING"] = True
         client = app.test_client()
         with client.session_transaction() as sess:
@@ -945,11 +1027,19 @@ def test_safety_enforcer_type_safety_and_nan():
         headers = {"X-CSRF-Token": "test_csrf_type"}
 
         # Boolean in setpoint
-        res = client.post("/api/setpoint", json={"type": "set_temp", "value": True, "csrf_token": "test_csrf_type"}, headers=headers)
+        res = client.post(
+            "/api/setpoint",
+            json={"type": "set_temp", "value": True, "csrf_token": "test_csrf_type"},
+            headers=headers,
+        )
         assert res.status_code == 400
 
         # Non-numeric string in setpoint
-        res2 = client.post("/api/setpoint", json={"type": "set_temp", "value": "invalid", "csrf_token": "test_csrf_type"}, headers=headers)
+        res2 = client.post(
+            "/api/setpoint",
+            json={"type": "set_temp", "value": "invalid", "csrf_token": "test_csrf_type"},
+            headers=headers,
+        )
         assert res2.status_code == 400
     finally:
         db.close()
@@ -958,6 +1048,7 @@ def test_safety_enforcer_type_safety_and_nan():
 def test_rules_inversion_rejection_and_audit_trail():
     """Verify safety rule updates reject inverted boundaries and generate audit records."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
     with client.session_transaction() as sess:
@@ -972,7 +1063,7 @@ def test_rules_inversion_rejection_and_audit_trail():
     res_inv = client.post(
         "/api/rules/update",
         json={"temp_min": 75.0, "temp_max": 50.0, "csrf_token": "test_csrf_rules"},
-        headers=headers
+        headers=headers,
     )
     assert res_inv.status_code == 400
     assert res_inv.get_json()["success"] is False
@@ -981,8 +1072,14 @@ def test_rules_inversion_rejection_and_audit_trail():
     # 2. Valid rule update
     res_valid = client.post(
         "/api/rules/update",
-        json={"temp_min": 5.0, "temp_max": 65.0, "pressure_min": 0.5, "pressure_max": 9.0, "csrf_token": "test_csrf_rules"},
-        headers=headers
+        json={
+            "temp_min": 5.0,
+            "temp_max": 65.0,
+            "pressure_min": 0.5,
+            "pressure_max": 9.0,
+            "csrf_token": "test_csrf_rules",
+        },
+        headers=headers,
     )
     assert res_valid.status_code == 200
     assert res_valid.get_json()["success"] is True
@@ -990,7 +1087,12 @@ def test_rules_inversion_rejection_and_audit_trail():
     # 3. Verify AuditLog entry was committed
     db = get_test_db()
     try:
-        audit = db.query(AuditLog).filter_by(action="UPDATE_SAFETY_RULES").order_by(AuditLog.timestamp.desc()).first()
+        audit = (
+            db.query(AuditLog)
+            .filter_by(action="UPDATE_SAFETY_RULES")
+            .order_by(AuditLog.timestamp.desc())
+            .first()
+        )
         assert audit is not None
         assert "temp=[5.0" in audit.details
     finally:
@@ -1000,6 +1102,7 @@ def test_rules_inversion_rejection_and_audit_trail():
 def test_devices_metadata_enrichment():
     """Verify /api/devices returns enriched subsystem metadata (name, zone, criticality)."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
     with client.session_transaction() as sess:
@@ -1027,6 +1130,7 @@ def test_devices_metadata_enrichment():
 def test_semver_parsing_robustness():
     """Verify _parse_semver handles standard semver, prefixes, and pre-release tags."""
     from updater import _parse_semver
+
     assert _parse_semver("2.3.0") == (2, 3, 0)
     assert _parse_semver("v2.3.0") == (2, 3, 0)
     assert _parse_semver("2.3.0-rc1") == (2, 3, 0)
@@ -1041,6 +1145,7 @@ def test_comprehensive_nist800_pdf_content():
     except ImportError:
         pytest.skip("pypdf is required to parse and inspect generated PDF contents")
     from io import BytesIO
+
     db = get_test_db()
     try:
         # Seed test telemetry for ESP32_001
@@ -1054,7 +1159,7 @@ def test_comprehensive_nist800_pdf_content():
             current=4.20,
             humidity=55.0,
             rssi=-62.0,
-            is_anomaly=False
+            is_anomaly=False,
         )
         db.add(t_sample)
         db.commit()
@@ -1107,6 +1212,7 @@ def test_comprehensive_nist800_pdf_content():
 def test_pdf_download_and_view_endpoints():
     """Verify /api/report/download and /api/report/view endpoints return valid PDF attachments and inline streams."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1168,7 +1274,9 @@ def test_firmware_cryptographic_parity():
     cpp_canonical = f'{{"current":"{current:.2f}","device_id":"{device_id}","hall_effect":"{rpm:.2f}","pressure":"{pressure:.2f}","temperature":"{temperature:.2f}","vibration":"{vibration:.2f}"}}'
 
     # Compute HMAC as mbedTLS does on ESP32
-    cpp_sig = hmac.new(key.encode("utf-8"), cpp_canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    cpp_sig = hmac.new(
+        key.encode("utf-8"), cpp_canonical.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
 
     # Wire packet emitted by ESP32
     wire_packet = {
@@ -1178,7 +1286,7 @@ def test_firmware_cryptographic_parity():
         "pressure": pressure,
         "signature": cpp_sig,
         "temperature": temperature,
-        "vibration": vibration
+        "vibration": vibration,
     }
 
     # Python verify_signature must return True
@@ -1218,7 +1326,7 @@ def test_multi_node_keys_parity():
             "pressure": pres,
             "signature": sig,
             "temperature": temp,
-            "vibration": vib
+            "vibration": vib,
         }
         assert verify_signature(packet) is True, f"Verification failed for {dev_id}!"
 
@@ -1234,6 +1342,7 @@ def test_serial_gateway_firmware_packet_forwarding():
     key = get_device_key(dev_id)
     canonical = f'{{"current":"5.20","device_id":"{dev_id}","hall_effect":"1500.00","pressure":"5.40","temperature":"41.00","vibration":"1.80"}}'
     import hmac, hashlib
+
     sig = hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
     firmware_line = f'{{"current":5.20,"device_id":"{dev_id}","hall_effect":1500.00,"pressure":5.40,"signature":"{sig}","temperature":41.00,"vibration":1.80}}\r\n'
@@ -1263,11 +1372,7 @@ def test_serial_command_queue_dispatch():
         except Exception:
             break
 
-    cmd = {
-        "target_device": "ESP32_001",
-        "command": "ISOLATE",
-        "reason": "Emergency Interlock Trip"
-    }
+    cmd = {"target_device": "ESP32_001", "command": "ISOLATE", "reason": "Emergency Interlock Trip"}
     send_command(cmd)
 
     assert not _command_queue.empty()
@@ -1330,6 +1435,7 @@ def test_audit_log_baseline_seeding_and_api():
 def test_esp32_004_turbine_generator_rpm_handling():
     """Verify ESP32_004 operating at normal baseline 2200 RPM is not flagged as anomaly."""
     from app import rf_model
+
     db = get_test_db()
     try:
         telemetry = {
@@ -1338,7 +1444,7 @@ def test_esp32_004_turbine_generator_rpm_handling():
             "pressure": 3.8,
             "vibration": 2.2,
             "hall_effect": 2200.0,
-            "current": 7.1
+            "current": 7.1,
         }
         is_anomaly = rf_model.predict_anomaly(telemetry, db_session=db)
         assert not is_anomaly, "ESP32_004 operating at normal 2200 RPM should NOT trigger anomaly"
@@ -1354,6 +1460,7 @@ def test_esp32_004_turbine_generator_rpm_handling():
 def test_isolated_device_telemetry_returns_403():
     """Verify that incoming telemetry from a quarantined device receives HTTP 403 Forbidden."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1375,12 +1482,14 @@ def test_isolated_device_telemetry_returns_403():
             "temperature": 18.5,
             "pressure": 2.2,
             "vibration": 0.6,
-            "current": 2.8
+            "current": 2.8,
         }
         payload["signature"] = sign_message(payload, key)
 
         res = client.post("/api/telemetry", json=payload)
-        assert res.status_code == 403, f"Expected 403 Forbidden for isolated device, got {res.status_code}"
+        assert res.status_code == 403, (
+            f"Expected 403 Forbidden for isolated device, got {res.status_code}"
+        )
         assert "quarantined" in res.get_json().get("error", "").lower()
     finally:
         # Reset isolation state
@@ -1395,6 +1504,7 @@ def test_hardware_isolation_command_dispatched():
     """Verify that isolating a device enqueues a physical ISOLATE command for serial dispatch."""
     import serial_gateway
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1411,7 +1521,11 @@ def test_hardware_isolation_command_dispatched():
     headers = {"X-CSRF-Token": "cmd_csrf"}
 
     # Trigger manual isolation
-    res = client.post("/api/device/isolate", json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"}, headers=headers)
+    res = client.post(
+        "/api/device/isolate",
+        json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"},
+        headers=headers,
+    )
     assert res.status_code == 200
 
     # Verify command was queued for physical UART transmission
@@ -1421,7 +1535,11 @@ def test_hardware_isolation_command_dispatched():
     assert queued_cmd["target_device"] == "ESP32_002"
 
     # Trigger manual rejoin
-    res = client.post("/api/device/rejoin", json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"}, headers=headers)
+    res = client.post(
+        "/api/device/rejoin",
+        json={"device_id": "ESP32_002", "csrf_token": "cmd_csrf"},
+        headers=headers,
+    )
     assert res.status_code == 200
 
     assert not serial_gateway._command_queue.empty()
@@ -1433,6 +1551,7 @@ def test_hardware_isolation_command_dispatched():
 def test_airgap_offline_assets():
     """Verify local static vendor assets exist for 100% air-gapped industrial deployment."""
     import os
+
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     chart_js = os.path.join(base_dir, "src", "static", "vendor", "chart.umd.js")
     tailwind_css = os.path.join(base_dir, "src", "static", "vendor", "tailwind.min.css")
@@ -1477,6 +1596,7 @@ def test_ml_model_synthetic_inference():
 def test_sse_stream_endpoint():
     """Verify /api/stream endpoint returns text/event-stream response."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1493,6 +1613,7 @@ def test_sse_stream_endpoint():
 def test_terminal_css_and_1980s_assets():
     """Verify 1980s DEC VT-220 / IBM 3270 CRT styling assets and templates exist."""
     import os
+
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     terminal_css = os.path.join(base_dir, "src", "static", "terminal.css")
     login_html = os.path.join(base_dir, "src", "templates", "login.html")
@@ -1537,15 +1658,17 @@ def test_forensic_time_scrubber_slicing():
     now = time.time()
     buffer = []
     for i in range(100):
-        buffer.append({
-            "timestamp": now - (100 - i) * 2.0,
-            "temperature": 25.0 + (i * 0.1),
-            "pressure": 4.0,
-            "vibration": 1.2 if i < 80 else 6.8,  # Attack injected at frame 80
-            "rpm": 1500 if i < 80 else 3600,
-            "current": 4.5 if i < 80 else 14.2,
-            "is_anomaly": 0 if i < 80 else 1
-        })
+        buffer.append(
+            {
+                "timestamp": now - (100 - i) * 2.0,
+                "temperature": 25.0 + (i * 0.1),
+                "pressure": 4.0,
+                "vibration": 1.2 if i < 80 else 6.8,  # Attack injected at frame 80
+                "rpm": 1500 if i < 80 else 3600,
+                "current": 4.5 if i < 80 else 14.2,
+                "is_anomaly": 0 if i < 80 else 1,
+            }
+        )
 
     # Test 1: Slicing at 50% (index 50)
     slice_50 = buffer[:51]
@@ -1583,6 +1706,7 @@ def test_forensic_time_scrubber_slicing():
 def test_terminal_dashboard_routes_and_html_render():
     """Verify Flask routes serve 1980s terminal markup with valid HTTP 200."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1627,7 +1751,7 @@ def test_v1_telemetry_staleness_fail_closed():
             vibration=1.0,
             hall_effect=0.0,
             current=4.0,
-            is_anomaly=False
+            is_anomaly=False,
         )
         db.add(stale_log)
         db.commit()
@@ -1710,7 +1834,7 @@ def test_v5_neural_policy_exception_fail_closed():
             vibration=1.0,
             hall_effect=0.0,
             current=4.0,
-            is_anomaly=False
+            is_anomaly=False,
         )
         db.add(fresh_log)
         db.commit()
@@ -1719,7 +1843,9 @@ def test_v5_neural_policy_exception_fail_closed():
 
         with patch("safety_enforcer.get_neural_policy") as mock_get_policy:
             mock_policy = mock_get_policy.return_value
-            mock_policy.evaluate_safety.side_effect = RuntimeError("Simulated neural inference tensor crash")
+            mock_policy.evaluate_safety.side_effect = RuntimeError(
+                "Simulated neural inference tensor crash"
+            )
 
             is_valid, msg = validate_command(cmd, db, target_device="ESP32_FAIL_TEST")
             # Must FAIL-CLOSED
@@ -1737,25 +1863,42 @@ def test_login_audit_success_and_failure():
     """Verify that both valid and invalid authentication attempts are audited with operator identity and IP."""
     from app import app
     from database import SessionLocal, AuditLog
+
     app.config["TESTING"] = True
     client = app.test_client()
 
     # 1. Failed login
-    res = client.post("/login", data={"username": "unauthorized_user", "password": "wrong_password"}, follow_redirects=False)
+    res = client.post(
+        "/login",
+        data={"username": "unauthorized_user", "password": "wrong_password"},
+        follow_redirects=False,
+    )
     assert res.status_code == 401
 
     db = SessionLocal()
     try:
-        failed_log = db.query(AuditLog).filter_by(action="LOGIN_FAILED").order_by(AuditLog.timestamp.desc()).first()
+        failed_log = (
+            db.query(AuditLog)
+            .filter_by(action="LOGIN_FAILED")
+            .order_by(AuditLog.timestamp.desc())
+            .first()
+        )
         assert failed_log is not None
         assert "unauthorized_user" in failed_log.details
         assert "Client IP" in failed_log.details
 
         # 2. Successful login with noodles / noodles
-        res_ok = client.post("/login", data={"username": "noodles", "password": "noodles"}, follow_redirects=False)
+        res_ok = client.post(
+            "/login", data={"username": "noodles", "password": "noodles"}, follow_redirects=False
+        )
         assert res_ok.status_code == 302
 
-        success_log = db.query(AuditLog).filter_by(action="LOGIN_SUCCESS").order_by(AuditLog.timestamp.desc()).first()
+        success_log = (
+            db.query(AuditLog)
+            .filter_by(action="LOGIN_SUCCESS")
+            .order_by(AuditLog.timestamp.desc())
+            .first()
+        )
         assert success_log is not None
         assert "noodles" in success_log.details
         assert success_log.user_id is not None
@@ -1766,6 +1909,7 @@ def test_login_audit_success_and_failure():
 def test_audit_logs_enriched_filters_and_operator():
     """Verify /api/audit/logs enriched schema (operator, severity, nist_control) and filtering."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1803,6 +1947,7 @@ def test_serial_gateway_raw_packet_buffer_and_api():
     """Verify UART wire packet buffer and /api/gateway/raw_packets endpoint."""
     from app import app
     import serial_gateway
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1813,8 +1958,12 @@ def test_serial_gateway_raw_packet_buffer_and_api():
     headers = {"X-CSRF-Token": "valid_csrf"}
 
     # Simulate wire packet log
-    serial_gateway.log_raw_wire_packet('{"device_id":"ESP32_001","temp":28.5,"pressure":4.2}', parsed=True, target_id="ESP32_001")
-    serial_gateway.log_raw_wire_packet('INVALID_GARBLED_UART_FRAME', parsed=False, target_id="UNKNOWN")
+    serial_gateway.log_raw_wire_packet(
+        '{"device_id":"ESP32_001","temp":28.5,"pressure":4.2}', parsed=True, target_id="ESP32_001"
+    )
+    serial_gateway.log_raw_wire_packet(
+        'INVALID_GARBLED_UART_FRAME', parsed=False, target_id="UNKNOWN"
+    )
 
     res = client.get("/api/gateway/raw_packets", headers=headers)
     assert res.status_code == 200
@@ -1828,6 +1977,7 @@ def test_serial_gateway_raw_packet_buffer_and_api():
 def test_hardware_model_calibration_and_status_api():
     """Verify /api/model/status and /api/model/retrain hardware calibration endpoint."""
     from app import app
+
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -1843,7 +1993,9 @@ def test_hardware_model_calibration_and_status_api():
     metrics_path = os.path.join(base_dir, "src", "model", "training_metrics.json")
     orig_model = open(model_path, "rb").read() if os.path.exists(model_path) else None
     orig_hash = open(hash_path, "r", encoding="utf-8").read() if os.path.exists(hash_path) else None
-    orig_metrics = open(metrics_path, "r", encoding="utf-8").read() if os.path.exists(metrics_path) else None
+    orig_metrics = (
+        open(metrics_path, "r", encoding="utf-8").read() if os.path.exists(metrics_path) else None
+    )
 
     try:
         # 1. Model status
@@ -1872,10 +2024,5 @@ def test_hardware_model_calibration_and_status_api():
             with open(metrics_path, "w", encoding="utf-8") as f:
                 f.write(orig_metrics)
         from app import rf_model
+
         rf_model.reload()
-
-
-
-
-
-

@@ -20,13 +20,21 @@ import json
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve, precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+    roc_curve,
+    precision_recall_fscore_support,
+    accuracy_score,
+)
 
 try:
     import torch
     import torch.nn as nn
     import torch.optim as optim
     from torch.utils.data import DataLoader, TensorDataset
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -55,7 +63,7 @@ def generate_synthetic_dataset(n_samples: int = 15000, random_state: int = 42):
     samples_per_zone = n_nominal // len(nominal_zones)
     # Give remaining to first zone to be exact
     remainder = n_nominal % len(nominal_zones)
-    
+
     for i, z in enumerate(nominal_zones):
         sz = samples_per_zone + (1 if i < remainder else 0)
         t = np.random.normal(z["t"][0], z["t"][1], sz)
@@ -117,7 +125,7 @@ def generate_synthetic_dataset(n_samples: int = 15000, random_state: int = 42):
     h5 = np.random.normal(1800.0, 300.0, sz)
     c5 = np.random.uniform(9.0, 15.0, sz)
     anom_samples.append(np.column_stack([t5, p5, v5, h5, c5]))
-    
+
     # Attack Vector 6: Subtle Slow Drift
     sz = n_each + (1 if 5 < remainder_anom else 0)
     t6 = 26.0 + np.arange(sz) * 0.3
@@ -129,7 +137,7 @@ def generate_synthetic_dataset(n_samples: int = 15000, random_state: int = 42):
 
     X_anom = np.vstack(anom_samples)
     y_anom = np.ones(len(X_anom), dtype=int)
-    
+
     # Boundary / Ambiguous samples
     t_b = np.random.uniform(42.0, 48.0, n_boundary)
     p_b = np.random.uniform(5.0, 6.5, n_boundary)
@@ -141,11 +149,11 @@ def generate_synthetic_dataset(n_samples: int = 15000, random_state: int = 42):
 
     X = np.vstack([X_nom, X_anom, X_bound])
     y = np.concatenate([y_nom, y_anom, y_bound])
-    
+
     # Add 5% sensor noise
     noise = 1 + np.random.normal(0, 0.05, X.shape)
     X = X * noise
-    
+
     # Add 2% label noise
     n_flips = int(0.02 * len(y))
     flip_indices = np.random.choice(len(y), n_flips, replace=False)
@@ -174,13 +182,13 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
     v_safe = np.random.uniform(0.5, 3.0, n_safe)
     r_safe = np.random.choice([0.0, 1500.0, 2200.0], n_safe) + np.random.normal(0, 50, n_safe)
     c_safe = np.random.uniform(2.0, 6.5, n_safe)
-    
+
     # Safe commands: moderate temperature or pressure setpoints
     cmd_choice = np.random.randint(0, 2, n_safe)
     u_safe = np.where(
         cmd_choice == 0,
         np.random.uniform(20.0, 44.0, n_safe),  # safe temp setpoint
-        np.random.uniform(1.5, 5.5, n_safe)    # safe pressure setpoint
+        np.random.uniform(1.5, 5.5, n_safe),  # safe pressure setpoint
     )
     X_safe = np.column_stack([t_safe, p_safe, v_safe, r_safe, c_safe, u_safe])
     y_safe = np.ones(n_safe, dtype=np.float32)
@@ -188,7 +196,7 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
     # 2. Unsafe Setpoints (Coordinated Stuxnet, Exotherm Runaway, Burst Hazards)
     n_each = n_unsafe // 4
     remainder_unsafe = n_unsafe % 4
-    
+
     # Hazard 1: Stuxnet Coordinated Attack (High Live Pressure + High Temp Setpoint >= 45C)
     sz1 = n_each + (1 if 0 < remainder_unsafe else 0)
     t_u1 = np.random.uniform(25.0, 40.0, sz1)
@@ -197,7 +205,7 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
     r_u1 = np.random.uniform(1200.0, 2200.0, sz1)
     c_u1 = np.random.uniform(4.0, 7.0, sz1)
     u_u1 = np.random.uniform(45.0, 58.0, sz1)  # Dangerous temp setpoint under high pressure
-    
+
     # Hazard 2: Stuxnet Coordinated Attack (High Live Temp + High Pressure Setpoint >= 6.0 bar)
     sz2 = n_each + (1 if 1 < remainder_unsafe else 0)
     t_u2 = np.random.uniform(45.0, 58.0, sz2)  # High active temperature
@@ -217,7 +225,7 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
     u_u3 = np.where(
         np.random.randint(0, 2, sz3) == 0,
         np.random.uniform(61.0, 95.0, sz3),
-        np.random.uniform(8.2, 16.0, sz3)
+        np.random.uniform(8.2, 16.0, sz3),
     )
 
     # Hazard 4: Mechanical Resonance Overload (High Vib + High Current + Aggressive Setpoint)
@@ -229,14 +237,16 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
     c_u4 = np.random.uniform(8.0, 14.0, sz4)
     u_u4 = np.random.uniform(50.0, 65.0, sz4)
 
-    X_unsafe = np.vstack([
-        np.column_stack([t_u1, p_u1, v_u1, r_u1, c_u1, u_u1]),
-        np.column_stack([t_u2, p_u2, v_u2, r_u2, c_u2, u_u2]),
-        np.column_stack([t_u3, p_u3, v_u3, r_u3, c_u3, u_u3]),
-        np.column_stack([t_u4, p_u4, v_u4, r_u4, c_u4, u_u4]),
-    ])
+    X_unsafe = np.vstack(
+        [
+            np.column_stack([t_u1, p_u1, v_u1, r_u1, c_u1, u_u1]),
+            np.column_stack([t_u2, p_u2, v_u2, r_u2, c_u2, u_u2]),
+            np.column_stack([t_u3, p_u3, v_u3, r_u3, c_u3, u_u3]),
+            np.column_stack([t_u4, p_u4, v_u4, r_u4, c_u4, u_u4]),
+        ]
+    )
     y_unsafe = np.zeros(len(X_unsafe), dtype=np.float32)
-    
+
     # Boundary samples
     t_b = np.random.uniform(40.0, 44.0, n_boundary)
     p_b = np.random.uniform(5.0, 5.8, n_boundary)
@@ -249,11 +259,11 @@ def generate_neural_policy_dataset(n_samples: int = 12000, random_state: int = 4
 
     X = np.vstack([X_safe, X_unsafe, X_bound])
     y = np.concatenate([y_safe, y_unsafe, y_bound])
-    
+
     # Add 5% feature noise
     noise = 1 + np.random.normal(0, 0.05, X.shape)
     X = X * noise
-    
+
     # Add 2% label noise
     n_flips = int(0.02 * len(y))
     flip_indices = np.random.choice(len(y), n_flips, replace=False)
@@ -275,7 +285,7 @@ def train_random_forest(metrics_dict: dict):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
-    
+
     start_time = time.perf_counter()
     model = RandomForestClassifier(
         n_estimators=50,
@@ -283,32 +293,32 @@ def train_random_forest(metrics_dict: dict):
         min_samples_split=4,
         class_weight="balanced",
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
     )
     model.fit(X_train, y_train)
     model.feature_names_in_ = np.array(feature_names)
 
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
-    
+
     # Inference latency
     start_inf = time.perf_counter()
     _ = model.predict(X_test)
     inf_latency = ((time.perf_counter() - start_inf) / len(X_test)) * 1000.0
-    
+
     auc = roc_auc_score(y_test, y_prob)
     cv_scores = cross_val_score(model, X, y, cv=5, scoring="f1")
-    
+
     print(f"Random Forest ROC-AUC Score: {auc:.4f}")
     print(f"5-Fold CV F1-Score: {cv_scores.mean():.4f} (±{cv_scores.std():.4f})")
-    
+
     print("\nConfusion Matrix:")
     cm = confusion_matrix(y_test, y_pred)
     print(cm)
-    
+
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
-    
+
     print("\nFeature Importances:")
     importances = model.feature_importances_
     feat_imps = {f: float(imp) for f, imp in zip(feature_names, importances)}
@@ -316,7 +326,7 @@ def train_random_forest(metrics_dict: dict):
         print(f"  {f}: {imp:.4f}")
 
     fpr, tpr, thresholds = roc_curve(y_test, y_prob)
-    
+
     # Subsample ROC curve data points to ~200 max
     if len(fpr) > 200:
         idx = np.linspace(0, len(fpr) - 1, 200, dtype=int)
@@ -337,14 +347,10 @@ def train_random_forest(metrics_dict: dict):
         "recall_nominal": float(rec[0]),
         "confusion_matrix": cm.tolist(),
         "feature_importances": feat_imps,
-        "roc_curve": {
-            "fpr": fpr.tolist(),
-            "tpr": tpr.tolist(),
-            "thresholds": thresholds.tolist()
-        },
+        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": thresholds.tolist()},
         "n_train": len(X_train),
         "n_test": len(X_test),
-        "inference_latency_ms": inf_latency
+        "inference_latency_ms": inf_latency,
     }
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -357,6 +363,7 @@ def train_random_forest(metrics_dict: dict):
     # Update cryptographic SHA-256 checksum
     try:
         import hashlib
+
         with open(out_path, "rb") as mf:
             h = hashlib.sha256(mf.read()).hexdigest()
         with open(out_path + ".sha256", "w", encoding="utf-8") as hf:
@@ -394,6 +401,7 @@ def train_neural_safety_policy(metrics_dict: dict):
     test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
 
     from neural_policy import NeuralSafetyPolicyTorch
+
     model = NeuralSafetyPolicyTorch(in_features=6, hidden_dims=(64, 32, 16))
     criterion = nn.BCELoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.003, weight_decay=1e-4)
@@ -401,7 +409,7 @@ def train_neural_safety_policy(metrics_dict: dict):
 
     print(f"[*] Architecture: 6 -> 64 -> 32 -> 16 -> 1 (LeakyReLU, Sigmoid)")
     print(f"[*] Training on {len(X_train)} samples across 20 epochs...")
-    
+
     avg_loss = 0.0
     for epoch in range(1, 21):
         model.train()
@@ -426,7 +434,9 @@ def train_neural_safety_policy(metrics_dict: dict):
                     correct += (preds == by).sum().item()
                     total += len(by)
                 acc = correct / total
-            print(f"    Epoch {epoch:2d}/20 | Loss: {avg_loss:.4f} | Validation Acc: {acc * 100:.2f}%")
+            print(
+                f"    Epoch {epoch:2d}/20 | Loss: {avg_loss:.4f} | Validation Acc: {acc * 100:.2f}%"
+            )
 
     # Final Evaluation
     model.eval()
@@ -446,8 +456,12 @@ def train_neural_safety_policy(metrics_dict: dict):
     nspn_auc = roc_auc_score(all_targets, all_probs)
     print("\n" + "=" * 45 + " NSPN EVALUATION REPORT " + "=" * 45)
     print(f"Neural Policy ROC-AUC Score: {nspn_auc:.4f}")
-    print(classification_report(all_targets, all_preds, target_names=["Blocked (Hazard)", "Approved (Safe)"]))
-    
+    print(
+        classification_report(
+            all_targets, all_preds, target_names=["Blocked (Hazard)", "Approved (Safe)"]
+        )
+    )
+
     cm = confusion_matrix(all_targets, all_preds)
     print("\nConfusion Matrix:")
     print(cm)
@@ -485,14 +499,17 @@ def train_neural_safety_policy(metrics_dict: dict):
         w3=state["network.6.weight"].numpy().T,
         b3=state["network.6.bias"].numpy(),
         means=means,
-        stds=stds
+        stds=stds,
     )
-    print(f"[+] Exported Vectorized NumPy weights: {npz_path} ({os.path.getsize(npz_path):,} bytes)")
+    print(
+        f"[+] Exported Vectorized NumPy weights: {npz_path} ({os.path.getsize(npz_path):,} bytes)"
+    )
 
     # Sanity checks and Numpy Inference latency
     from neural_policy import NeuralSafetyPolicy
+
     policy = NeuralSafetyPolicy(npz_path)
-    
+
     # Measure CPU inference latency over 5,000 passes (NumPy)
     start_time_np = time.perf_counter()
     sample_vec_np = X[0]
@@ -521,13 +538,9 @@ def train_neural_safety_policy(metrics_dict: dict):
         "loss_final": float(avg_loss),
         "inference_latency_torch_ms": float(torch_latency_ms),
         "inference_latency_numpy_ms": float(numpy_latency_ms),
-        "roc_curve": {
-            "fpr": fpr.tolist(),
-            "tpr": tpr.tolist(),
-            "thresholds": thresholds.tolist()
-        },
+        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": thresholds.tolist()},
         "n_train": len(X_train),
-        "n_test": len(X_test)
+        "n_test": len(X_test),
     }
 
     metrics_file = os.path.join(model_dir, "training_metrics.json")
@@ -538,13 +551,17 @@ def train_neural_safety_policy(metrics_dict: dict):
     # Test case 1: Nominal setpoint
     safe_vec = np.array([25.0, 3.2, 1.1, 0.0, 4.2, 35.0])
     prob_safe = policy.predict_safety_probability(safe_vec)
-    print(f"\nSanity Check 1: Nominal setpoint (T=25, P=3.2, set_temp=35) -> P(safe) = {prob_safe*100:.1f}%")
+    print(
+        f"\nSanity Check 1: Nominal setpoint (T=25, P=3.2, set_temp=35) -> P(safe) = {prob_safe * 100:.1f}%"
+    )
     assert prob_safe > 0.60, f"Expected safe setpoint, got P={prob_safe}"
 
     # Test case 2: Stuxnet coordinated attack
     stux_vec = np.array([30.0, 7.2, 1.5, 1500.0, 5.0, 52.0])
     prob_stux = policy.predict_safety_probability(stux_vec)
-    print(f"Sanity Check 2: Stuxnet setpoint (T=30, P=7.2, set_temp=52) -> P(safe) = {prob_stux*100:.1f}%")
+    print(
+        f"Sanity Check 2: Stuxnet setpoint (T=30, P=7.2, set_temp=52) -> P(safe) = {prob_stux * 100:.1f}%"
+    )
     assert prob_stux < 0.40, f"Expected unsafe Stuxnet block, got P={prob_stux}"
 
     print("[+] All Neural Safety Policy sanity checks PASSED.")
@@ -576,12 +593,20 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
     for log in real_logs:
         if None not in (log.temperature, log.pressure, log.vibration, log.current):
             hall = float(log.hall_effect) if log.hall_effect is not None else 0.0
-            vec = [float(log.temperature), float(log.pressure), float(log.vibration), hall, float(log.current)]
+            vec = [
+                float(log.temperature),
+                float(log.pressure),
+                float(log.vibration),
+                hall,
+                float(log.current),
+            ]
             real_samples.append(vec)
             real_labels.append(1 if log.is_anomaly else 0)
 
     # Blend with synthetic boundary and attack profiles to preserve defense envelopes
-    X_synth, y_synth = generate_synthetic_dataset(n_samples=6000, random_state=int(time.time()) % 100000)
+    X_synth, y_synth = generate_synthetic_dataset(
+        n_samples=6000, random_state=int(time.time()) % 100000
+    )
 
     if real_samples:
         X_real = np.array(real_samples, dtype=np.float64)
@@ -602,7 +627,9 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
     X_final = X_combined[indices]
     y_final = y_combined[indices]
 
-    X_train, X_test, y_train, y_test = train_test_split(X_final, y_final, test_size=0.20, random_state=42, stratify=y_final)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_final, y_final, test_size=0.20, random_state=42, stratify=y_final
+    )
 
     rf = RandomForestClassifier(
         n_estimators=75,
@@ -611,7 +638,7 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
         min_samples_leaf=2,
         class_weight="balanced",
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
     )
     rf.fit(X_train, y_train)
 
@@ -626,6 +653,7 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
     # Update cryptographic SHA-256 checksum
     try:
         import hashlib
+
         with open(model_path, "rb") as mf:
             h = hashlib.sha256(mf.read()).hexdigest()
         with open(model_path + ".sha256", "w", encoding="utf-8") as hf:
@@ -640,7 +668,7 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
         "accuracy": round(acc, 4),
         "roc_auc": round(auc, 4),
         "timestamp": time.time(),
-        "status": "HARDWARE_CALIBRATED" if len(real_samples) > 0 else "SYNTHETIC_BASELINE"
+        "status": "HARDWARE_CALIBRATED" if len(real_samples) > 0 else "SYNTHETIC_BASELINE",
     }
 
     # Update training_metrics.json
@@ -656,7 +684,9 @@ def retrain_from_hardware_telemetry(db_session, model_path: str = None) -> dict:
     except Exception as e:
         print(f"[ModelRetrain] Could not update training_metrics.json: {e}")
 
-    print(f"[ModelRetrain] Successfully trained model on {len(real_samples)} hardware samples (Accuracy: {acc*100:.1f}%, AUC: {auc:.4f})")
+    print(
+        f"[ModelRetrain] Successfully trained model on {len(real_samples)} hardware samples (Accuracy: {acc * 100:.1f}%, AUC: {auc:.4f})"
+    )
     return result
 
 

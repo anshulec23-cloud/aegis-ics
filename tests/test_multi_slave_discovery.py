@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import serial_gateway
 from app import app, SessionLocal, User, DeviceState, TelemetryLog
 
+
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
@@ -19,6 +20,7 @@ def client():
             sess["username"] = "admin"
             sess["location"] = "Central SCADA Enclave"
         yield c
+
 
 def test_master_bridge_bus_topology_parsing():
     """Verify Master Concentrator BUS_TOPOLOGY frames dynamically register active slaves and transducers."""
@@ -33,8 +35,8 @@ def test_master_bridge_bus_topology_parsing():
             "ESP32_001": ["temperature", "pressure", "vibration", "current"],
             "ESP32_002": ["temperature", "pressure", "vibration", "hall_effect", "current"],
             "ESP32_003": ["temperature", "pressure", "current"],
-            "ESP32_004": ["temperature", "pressure", "vibration", "hall_effect", "current"]
-        }
+            "ESP32_004": ["temperature", "pressure", "vibration", "hall_effect", "current"],
+        },
     }
     raw_line = json.dumps(topo_payload)
     parsed = serial_gateway.parse_serial_line(raw_line)
@@ -57,6 +59,7 @@ def test_master_bridge_bus_topology_parsing():
     assert health["total_active_sensors"] >= 17
     assert health["master_bridge"]["status"] == "ONLINE"
 
+
 def test_slave_node_announce_parsing():
     """Verify individual slave NODE_ANNOUNCE frames dynamically register the node and its sensor array."""
     announce_payload = {
@@ -65,7 +68,7 @@ def test_slave_node_announce_parsing():
         "hardware": "ESP32-S3",
         "version": "2.5.2",
         "sensors": ["temperature", "pressure", "vibration"],
-        "sensor_count": 3
+        "sensor_count": 3,
     }
     raw_line = json.dumps(announce_payload)
     parsed = serial_gateway.parse_serial_line(raw_line)
@@ -79,6 +82,7 @@ def test_slave_node_announce_parsing():
     assert active_nodes["ESP32_005_CUSTOM"]["active_sensors_count"] == 3
     assert "temperature" in active_nodes["ESP32_005_CUSTOM"]["sensors"]
 
+
 def test_cluster_topology_endpoint(client):
     """Verify /api/cluster/topology returns connected slaves and active sensor counts."""
     res = client.get("/api/cluster/topology")
@@ -89,6 +93,7 @@ def test_cluster_topology_endpoint(client):
     assert data["total_nodes_count"] >= 4
     assert data["total_active_sensors"] >= 10
 
+
 def test_cluster_discover_endpoint(client):
     """Verify /api/cluster/discover enqueues discovery command to hardware."""
     res = client.post("/api/cluster/discover")
@@ -96,6 +101,7 @@ def test_cluster_discover_endpoint(client):
     data = res.get_json()
     assert data["success"] is True
     assert "Discovery probe dispatched" in data["message"]
+
 
 def test_emergency_shutdown_endpoint(client):
     """Verify /api/device/shutdown trips device isolation and logs emergency audit event."""

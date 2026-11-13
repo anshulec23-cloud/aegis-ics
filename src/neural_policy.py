@@ -21,6 +21,7 @@ from typing import Tuple, Dict, Any, Optional
 try:
     import torch
     import torch.nn as nn
+
     TORCH_AVAILABLE = True
 except ImportError:
     torch = None
@@ -40,8 +41,10 @@ def _get_resource_path(relative_path: str) -> str:
 
 
 if TORCH_AVAILABLE:
+
     class NeuralSafetyPolicyTorch(nn.Module):
         """Deep Multi-Layer Perceptron for Cyber-Physical Safety Invariant Evaluation."""
+
         def __init__(self, in_features: int = 6, hidden_dims: tuple = (64, 32, 16)):
             super().__init__()
             self.network = nn.Sequential(
@@ -52,7 +55,7 @@ if TORCH_AVAILABLE:
                 nn.Linear(hidden_dims[1], hidden_dims[2]),
                 nn.LeakyReLU(0.1),
                 nn.Linear(hidden_dims[2], 1),
-                nn.Sigmoid()
+                nn.Sigmoid(),
             )
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -68,6 +71,7 @@ class NeuralSafetyPolicy:
         z = [T_live, P_live, Vib_live, RPM_live, Curr_live, Setpoint_Val]
     Outputs P(Safe | s, u) in [0.0, 1.0].
     """
+
     def __init__(self, weights_path: Optional[str] = None):
         self.weights_loaded = False
         self.torch_model = None
@@ -84,7 +88,9 @@ class NeuralSafetyPolicy:
                 if weights_path.endswith(".npz"):
                     try:
                         data = np.load(weights_path, allow_pickle=False)
-                        self.weights_dict = {k: data[k] for k in data.files if k not in ("means", "stds")}
+                        self.weights_dict = {
+                            k: data[k] for k in data.files if k not in ("means", "stds")
+                        }
                         if "means" in data.files:
                             self.input_means = data["means"]
                         if "stds" in data.files:
@@ -108,10 +114,15 @@ class NeuralSafetyPolicy:
                         self.weights_loaded = True
                     except Exception as e:
                         import pickle
+
                         if isinstance(e, (pickle.UnpicklingError, RuntimeError)):
-                            print(f"[NeuralPolicy] Warning: Legacy model format detected. Cannot load with weights_only=True. ({e})")
+                            print(
+                                f"[NeuralPolicy] Warning: Legacy model format detected. Cannot load with weights_only=True. ({e})"
+                            )
                         else:
-                            print(f"[NeuralPolicy] Warning: Could not load explicit PyTorch model ({e})")
+                            print(
+                                f"[NeuralPolicy] Warning: Could not load explicit PyTorch model ({e})"
+                            )
         else:
             # Default auto-discovery in model directory
             npz_path = os.path.join(model_dir, "neural_safety_policy.npz")
@@ -121,7 +132,9 @@ class NeuralSafetyPolicy:
             if os.path.exists(npz_path):
                 try:
                     data = np.load(npz_path, allow_pickle=False)
-                    self.weights_dict = {k: data[k] for k in data.files if k not in ("means", "stds")}
+                    self.weights_dict = {
+                        k: data[k] for k in data.files if k not in ("means", "stds")
+                    }
                     if "means" in data.files:
                         self.input_means = data["means"]
                     if "stds" in data.files:
@@ -147,8 +160,11 @@ class NeuralSafetyPolicy:
                     self.weights_loaded = True
                 except Exception as e:
                     import pickle
+
                     if isinstance(e, (pickle.UnpicklingError, RuntimeError)):
-                        print(f"[NeuralPolicy] Warning: Legacy model format detected. Cannot load with weights_only=True. ({e})")
+                        print(
+                            f"[NeuralPolicy] Warning: Legacy model format detected. Cannot load with weights_only=True. ({e})"
+                        )
                     else:
                         print(f"[NeuralPolicy] Warning: Could not load PyTorch model ({e})")
 
@@ -216,7 +232,7 @@ class NeuralSafetyPolicy:
         telemetry: Optional[Dict[str, Any]],
         cmd_type: str,
         setpoint_val: float,
-        device_id: Optional[str] = None
+        device_id: Optional[str] = None,
     ) -> Tuple[bool, float, str]:
         """
         Evaluates a proposed SCADA setpoint against live multi-sensor physical telemetry.
@@ -271,11 +287,16 @@ class NeuralSafetyPolicy:
                 )
             return False, safety_prob, diag
 
-        return True, safety_prob, f"Approved by Neural Safety Policy (P(safe) = {safety_prob * 100:.1f}%)"
+        return (
+            True,
+            safety_prob,
+            f"Approved by Neural Safety Policy (P(safe) = {safety_prob * 100:.1f}%)",
+        )
 
 
 # Global singleton instance for high-efficiency in-process reuse
 _global_neural_policy: Optional[NeuralSafetyPolicy] = None
+
 
 def get_neural_policy() -> NeuralSafetyPolicy:
     global _global_neural_policy

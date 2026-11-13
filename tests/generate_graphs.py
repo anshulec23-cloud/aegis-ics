@@ -19,10 +19,12 @@ import numpy as np
 
 try:
     import matplotlib
+
     matplotlib.use('Agg')  # Non-interactive backend for headless generation
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
     from matplotlib.ticker import FuncFormatter
+
     MPL_AVAILABLE = True
 except ImportError:
     MPL_AVAILABLE = False
@@ -37,9 +39,9 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 def dollar_formatter(x, pos):
     """Format axis ticks as dollar amounts."""
     if x >= 1_000_000:
-        return f'${x/1_000_000:.1f}M'
+        return f'${x / 1_000_000:.1f}M'
     elif x >= 1_000:
-        return f'${x/1_000:.0f}K'
+        return f'${x / 1_000:.0f}K'
     return f'${x:.0f}'
 
 
@@ -63,18 +65,57 @@ def graph_stuxnet_attack():
     # Attack window shading
     attack_start = summary["attack_window_start_s"]
     attack_end = summary["attack_window_end_s"]
-    ax1.axvspan(attack_start, attack_end, alpha=0.15, color='#fca5a5', label='Stuxnet Attack Window')
+    ax1.axvspan(
+        attack_start, attack_end, alpha=0.15, color='#fca5a5', label='Stuxnet Attack Window'
+    )
 
     # Temperature lines
-    line_true_temp, = ax1.plot(time_s, data["true_temp"], color='#a93226', linewidth=1.0, alpha=0.9, label='True Temp (Physical)')
-    line_spoof_temp, = ax1.plot(time_s, data["spoofed_temp"], color='#c0392b', linewidth=0.8, alpha=0.7, linestyle='--', label='Spoofed Temp (SCADA)')
+    (line_true_temp,) = ax1.plot(
+        time_s,
+        data["true_temp"],
+        color='#a93226',
+        linewidth=1.0,
+        alpha=0.9,
+        label='True Temp (Physical)',
+    )
+    (line_spoof_temp,) = ax1.plot(
+        time_s,
+        data["spoofed_temp"],
+        color='#c0392b',
+        linewidth=0.8,
+        alpha=0.7,
+        linestyle='--',
+        label='Spoofed Temp (SCADA)',
+    )
 
     # Pressure lines
-    line_true_pres, = ax1.plot(time_s, data["true_pressure"], color='#2980b9', linewidth=1.0, alpha=0.9, label='True Pressure (Physical)')
-    line_spoof_pres, = ax1.plot(time_s, data["spoofed_pressure"], color='#3498db', linewidth=0.8, alpha=0.7, linestyle='--', label='Spoofed Pressure (SCADA)')
+    (line_true_pres,) = ax1.plot(
+        time_s,
+        data["true_pressure"],
+        color='#2980b9',
+        linewidth=1.0,
+        alpha=0.9,
+        label='True Pressure (Physical)',
+    )
+    (line_spoof_pres,) = ax1.plot(
+        time_s,
+        data["spoofed_pressure"],
+        color='#3498db',
+        linewidth=0.8,
+        alpha=0.7,
+        linestyle='--',
+        label='Spoofed Pressure (SCADA)',
+    )
 
     # Anomaly score on right axis
-    line_anomaly, = ax2.plot(time_s, data["anomaly_score"], color='#555555', linewidth=1.0, alpha=0.8, label='Aegis Anomaly Score')
+    (line_anomaly,) = ax2.plot(
+        time_s,
+        data["anomaly_score"],
+        color='#555555',
+        linewidth=1.0,
+        alpha=0.8,
+        label='Aegis Anomaly Score',
+    )
 
     ax1.set_xlabel('Time (s)', fontsize=10)
     ax1.set_ylabel('Temperature (°C) / Pressure (bar)', fontsize=10)
@@ -96,7 +137,7 @@ def graph_stuxnet_attack():
         line_true_pres,
         line_spoof_pres,
         mpatches.Patch(facecolor='#fca5a5', alpha=0.3, label='Stuxnet Attack Window'),
-        line_anomaly
+        line_anomaly,
     ]
     labels = [h.get_label() for h in handles]
     ax1.legend(handles, labels, loc='upper left', fontsize=8, framealpha=0.9, edgecolor='#e5e7eb')
@@ -129,24 +170,55 @@ def graph_financial_risk():
     isolation_h = data.get("isolation_triggered_hour", 18.0)
 
     # Unmitigated loss (black dotted)
-    line_unmit, = ax1.plot(time_h, data["projected_unmitigated_loss"], color='#1f2937',
-                           linewidth=1.2, linestyle=':', alpha=0.8, label='Projected Unmitigated Loss')
+    (line_unmit,) = ax1.plot(
+        time_h,
+        data["projected_unmitigated_loss"],
+        color='#1f2937',
+        linewidth=1.2,
+        linestyle=':',
+        alpha=0.8,
+        label='Projected Unmitigated Loss',
+    )
 
     # Actual incurred loss (solid red)
-    line_actual, = ax1.plot(time_h, data["actual_incurred_loss"], color='#a93226',
-                            linewidth=1.8, alpha=0.9, label='Actual Incurred Loss')
+    (line_actual,) = ax1.plot(
+        time_h,
+        data["actual_incurred_loss"],
+        color='#a93226',
+        linewidth=1.8,
+        alpha=0.9,
+        label='Actual Incurred Loss',
+    )
 
     # Damages prevented (green fill between)
-    fill_prevented = ax1.fill_between(time_h, data["actual_incurred_loss"], data["projected_unmitigated_loss"],
-                                      alpha=0.35, color='#27ae60', label='Damages Prevented ($)')
+    fill_prevented = ax1.fill_between(
+        time_h,
+        data["actual_incurred_loss"],
+        data["projected_unmitigated_loss"],
+        alpha=0.35,
+        color='#27ae60',
+        label='Damages Prevented ($)',
+    )
 
     # Threat index on right axis
-    line_threat, = ax2.plot(time_h, data["threat_index"], color='#e67e22',
-                            linewidth=1.8, alpha=0.9, label='Real-time Threat Index')
+    (line_threat,) = ax2.plot(
+        time_h,
+        data["threat_index"],
+        color='#e67e22',
+        linewidth=1.8,
+        alpha=0.9,
+        label='Real-time Threat Index',
+    )
 
     # Isolation trigger line
-    line_iso = ax1.axvline(x=isolation_h, color='#2980b9', linewidth=1.2, linestyle='--',
-                           alpha=0.9, label='Aegis Isolation Triggered')
+    line_iso = ax1.axvline(
+        x=isolation_h,
+        color='#2980b9',
+        linewidth=1.2,
+        linestyle='--',
+        alpha=0.9,
+        label='Aegis Isolation Triggered',
+    )
 
     ax1.set_xlabel('Time (Hours)', fontsize=10)
     ax1.set_ylabel('Financial Impact ($ USD)', fontsize=10)
@@ -168,11 +240,10 @@ def graph_financial_risk():
         line_actual,
         mpatches.Patch(facecolor='#27ae60', alpha=0.35, label='Damages Prevented ($)'),
         line_iso,
-        line_threat
+        line_threat,
     ]
     labels = [h.get_label() for h in handles]
-    ax1.legend(handles, labels, loc='upper left', fontsize=8,
-               framealpha=0.9, edgecolor='#e5e7eb')
+    ax1.legend(handles, labels, loc='upper left', fontsize=8, framealpha=0.9, edgecolor='#e5e7eb')
 
     ax1.grid(True, linestyle='-', linewidth=0.7, alpha=0.6)
     ax2.grid(False)
@@ -200,8 +271,15 @@ def graph_nspn_heatmap():
     temp_range = data["temp_range"]
     pres_range = data["pressure_range"]
 
-    im = ax.imshow(matrix, extent=[temp_range[0], temp_range[-1], pres_range[0], pres_range[-1]],
-                   origin='lower', aspect='auto', cmap='RdYlGn', vmin=0, vmax=1)
+    im = ax.imshow(
+        matrix,
+        extent=[temp_range[0], temp_range[-1], pres_range[0], pres_range[-1]],
+        origin='lower',
+        aspect='auto',
+        cmap='RdYlGn',
+        vmin=0,
+        vmax=1,
+    )
 
     # Add contour at 0.5 threshold
     X, Y = np.meshgrid(temp_range, pres_range)
@@ -211,17 +289,21 @@ def graph_nspn_heatmap():
     # Mark the Stuxnet danger zone
     ax.axvline(x=45.0, color='red', linewidth=1, linestyle=':', alpha=0.7)
     ax.axhline(y=6.0, color='red', linewidth=1, linestyle=':', alpha=0.7)
-    ax.annotate('Stuxnet\nDanger Zone', xy=(55, 8), fontsize=9, color='red',
-                fontweight='bold', ha='center')
+    ax.annotate(
+        'Stuxnet\nDanger Zone', xy=(55, 8), fontsize=9, color='red', fontweight='bold', ha='center'
+    )
 
     cbar = plt.colorbar(im, ax=ax, shrink=0.8)
     cbar.set_label('P(Safe | state, action)', fontsize=11)
 
     ax.set_xlabel('Temperature Setpoint (\u00b0C)', fontsize=12)
     ax.set_ylabel('Live Pressure (bar)', fontsize=12)
-    ax.set_title('Neural Safety Policy Network (NSPN) — Learned Decision Boundary\n'
-                 'P(Safe) heatmap across temperature-pressure state space',
-                 fontsize=11, fontweight='bold')
+    ax.set_title(
+        'Neural Safety Policy Network (NSPN) — Learned Decision Boundary\n'
+        'P(Safe) heatmap across temperature-pressure state space',
+        fontsize=11,
+        fontweight='bold',
+    )
 
     plt.tight_layout()
     out_path = os.path.join(FIGURES_DIR, "fig_nspn_heatmap.png")
@@ -240,8 +322,15 @@ def graph_trust_evolution():
     with open(data_path) as f:
         data = json.load(f)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), dpi=150, height_ratios=[3, 1],
-                                    sharex=True, gridspec_kw={'hspace': 0.08})
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        1,
+        figsize=(14, 8),
+        dpi=150,
+        height_ratios=[3, 1],
+        sharex=True,
+        gridspec_kw={'hspace': 0.08},
+    )
 
     time_s = data["time_s"]
     trust = data["trust_score"]
@@ -249,12 +338,18 @@ def graph_trust_evolution():
 
     # Phase coloring
     phase_colors = {
-        "nominal": "#22c55e", "hmac_spoof": "#f97316",
-        "thermal_creep": "#eab308", "stuxnet_attack": "#dc2626", "recovery": "#3b82f6"
+        "nominal": "#22c55e",
+        "hmac_spoof": "#f97316",
+        "thermal_creep": "#eab308",
+        "stuxnet_attack": "#dc2626",
+        "recovery": "#3b82f6",
     }
     phase_labels = {
-        "nominal": "Nominal", "hmac_spoof": "HMAC Spoofing",
-        "thermal_creep": "Thermal Creep", "stuxnet_attack": "Stuxnet Attack", "recovery": "Recovery"
+        "nominal": "Nominal",
+        "hmac_spoof": "HMAC Spoofing",
+        "thermal_creep": "Thermal Creep",
+        "stuxnet_attack": "Stuxnet Attack",
+        "recovery": "Recovery",
     }
 
     # Phase background shading
@@ -262,10 +357,18 @@ def graph_trust_evolution():
     start_idx = 0
     for i, p in enumerate(phases + [None]):
         if p != prev_phase:
-            ax1.axvspan(time_s[start_idx], time_s[min(i, len(time_s)-1)],
-                        alpha=0.08, color=phase_colors.get(prev_phase, '#gray'))
-            ax2.axvspan(time_s[start_idx], time_s[min(i, len(time_s)-1)],
-                        alpha=0.12, color=phase_colors.get(prev_phase, '#gray'))
+            ax1.axvspan(
+                time_s[start_idx],
+                time_s[min(i, len(time_s) - 1)],
+                alpha=0.08,
+                color=phase_colors.get(prev_phase, '#gray'),
+            )
+            ax2.axvspan(
+                time_s[start_idx],
+                time_s[min(i, len(time_s) - 1)],
+                alpha=0.12,
+                color=phase_colors.get(prev_phase, '#gray'),
+            )
             start_idx = i
             prev_phase = p
 
@@ -278,19 +381,26 @@ def graph_trust_evolution():
     ax1.axhline(y=50, color='#eab308', linewidth=0.8, linestyle='--', alpha=0.6)
     ax1.axhline(y=40, color='#dc2626', linewidth=0.8, linestyle='--', alpha=0.6)
     ax1.text(time_s[-1] + 5, 85, 'TRUSTED (>=80%)', fontsize=7, color='#22c55e', fontweight='bold')
-    ax1.text(time_s[-1] + 5, 55, 'DEGRADED (50-80%)', fontsize=7, color='#eab308', fontweight='bold')
-    ax1.text(time_s[-1] + 5, 42, 'SUSPICIOUS (40-50%)', fontsize=7, color='#f97316', fontweight='bold')
+    ax1.text(
+        time_s[-1] + 5, 55, 'DEGRADED (50-80%)', fontsize=7, color='#eab308', fontweight='bold'
+    )
+    ax1.text(
+        time_s[-1] + 5, 42, 'SUSPICIOUS (40-50%)', fontsize=7, color='#f97316', fontweight='bold'
+    )
     ax1.text(time_s[-1] + 5, 15, 'CRITICAL (<40%)', fontsize=7, color='#dc2626', fontweight='bold')
 
     ax1.set_ylabel('Trust Score (%)', fontsize=11)
     ax1.set_ylim(-5, 105)
-    ax1.set_title('Trust Score Evolution Under Multi-Phase Attack Scenario',
-                  fontsize=11, fontweight='bold')
+    ax1.set_title(
+        'Trust Score Evolution Under Multi-Phase Attack Scenario', fontsize=11, fontweight='bold'
+    )
     ax1.grid(True, alpha=0.3)
 
     # Phase label subplot
-    phase_patches = [mpatches.Patch(color=c, label=phase_labels.get(p, p), alpha=0.5)
-                     for p, c in phase_colors.items()]
+    phase_patches = [
+        mpatches.Patch(color=c, label=phase_labels.get(p, p), alpha=0.5)
+        for p, c in phase_colors.items()
+    ]
     ax2.legend(handles=phase_patches, loc='center', ncol=5, fontsize=8, framealpha=0.9)
     ax2.set_xlabel('Time Step', fontsize=11)
     ax2.set_ylabel('Phase', fontsize=9)
@@ -341,13 +451,30 @@ def graph_latency_distribution():
             if not filtered_samples:
                 filtered_samples = samples
 
-            ax.hist(filtered_samples, bins=25, color=color, alpha=0.7, edgecolor='white', linewidth=0.5)
-            ax.axvline(x=stats["mean"], color='black', linewidth=1.5, linestyle='-',
-                       label=f'Mean: {stats["mean"]:.3f}ms')
-            ax.axvline(x=stats["p95"], color='#dc2626', linewidth=1, linestyle='--',
-                       label=f'P95: {stats["p95"]:.3f}ms')
-            ax.axvline(x=stats["p99"], color='#7c3aed', linewidth=1, linestyle=':',
-                       label=f'P99: {stats["p99"]:.3f}ms')
+            ax.hist(
+                filtered_samples, bins=25, color=color, alpha=0.7, edgecolor='white', linewidth=0.5
+            )
+            ax.axvline(
+                x=stats["mean"],
+                color='black',
+                linewidth=1.5,
+                linestyle='-',
+                label=f'Mean: {stats["mean"]:.3f}ms',
+            )
+            ax.axvline(
+                x=stats["p95"],
+                color='#dc2626',
+                linewidth=1,
+                linestyle='--',
+                label=f'P95: {stats["p95"]:.3f}ms',
+            )
+            ax.axvline(
+                x=stats["p99"],
+                color='#7c3aed',
+                linewidth=1,
+                linestyle=':',
+                label=f'P99: {stats["p99"]:.3f}ms',
+            )
 
             # Set tight, meaningful x-limits around empirical data
             x_low = max(0.0, p_min * 0.92)
@@ -360,8 +487,12 @@ def graph_latency_distribution():
         ax.legend(fontsize=7, framealpha=0.9)
         ax.grid(True, alpha=0.2)
 
-    fig.suptitle('Empirical Inference Latency Distribution across AI/ML Components',
-                 fontsize=12, fontweight='bold', y=1.02)
+    fig.suptitle(
+        'Empirical Inference Latency Distribution across AI/ML Components',
+        fontsize=12,
+        fontweight='bold',
+        y=1.02,
+    )
     plt.tight_layout()
 
     out_path = os.path.join(FIGURES_DIR, "fig_latency_distribution.png")
@@ -372,7 +503,9 @@ def graph_latency_distribution():
 
 def graph_roc_curves():
     """Graph 6: Empirical ROC Curves for RF and NSPN."""
-    metrics_path = os.path.join(os.path.dirname(__file__), "..", "src", "model", "training_metrics.json")
+    metrics_path = os.path.join(
+        os.path.dirname(__file__), "..", "src", "model", "training_metrics.json"
+    )
     if not os.path.exists(metrics_path):
         print("  [SKIP] training_metrics.json not found.")
         return
@@ -383,28 +516,48 @@ def graph_roc_curves():
     fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=150)
 
     # Plot random chance line
-    ax.plot([0, 1], [0, 1], color='#9ca3af', linestyle='--', linewidth=1.2, label='Random Classifier (AUC = 0.500)')
+    ax.plot(
+        [0, 1],
+        [0, 1],
+        color='#9ca3af',
+        linestyle='--',
+        linewidth=1.2,
+        label='Random Classifier (AUC = 0.500)',
+    )
 
     if "rf" in data and "roc_curve" in data["rf"]:
         rf_fpr = data["rf"]["roc_curve"]["fpr"]
         rf_tpr = data["rf"]["roc_curve"]["tpr"]
         rf_auc = data["rf"]["roc_auc"]
-        ax.plot(rf_fpr, rf_tpr, color='#2563eb', linewidth=2.0,
-                label=f'Random Forest 5D Anomaly Detector (AUC = {rf_auc:.4f})')
+        ax.plot(
+            rf_fpr,
+            rf_tpr,
+            color='#2563eb',
+            linewidth=2.0,
+            label=f'Random Forest 5D Anomaly Detector (AUC = {rf_auc:.4f})',
+        )
 
     if "nspn" in data and "roc_curve" in data["nspn"]:
         nspn_fpr = data["nspn"]["roc_curve"]["fpr"]
         nspn_tpr = data["nspn"]["roc_curve"]["tpr"]
         nspn_auc = data["nspn"]["roc_auc"]
-        ax.plot(nspn_fpr, nspn_tpr, color='#16a34a', linewidth=2.0,
-                label=f'Neural Safety Policy Network (AUC = {nspn_auc:.4f})')
+        ax.plot(
+            nspn_fpr,
+            nspn_tpr,
+            color='#16a34a',
+            linewidth=2.0,
+            label=f'Neural Safety Policy Network (AUC = {nspn_auc:.4f})',
+        )
 
     ax.set_xlim([-0.02, 1.02])
     ax.set_ylim([-0.02, 1.05])
     ax.set_xlabel('False Positive Rate (1 - Specificity)', fontsize=11)
     ax.set_ylabel('True Positive Rate (Sensitivity / Recall)', fontsize=11)
-    ax.set_title('Empirical Receiver Operating Characteristic (ROC) Curves\nEvaluated on Complex Overlapping Cyber-Physical Telemetry',
-                 fontsize=11, fontweight='bold')
+    ax.set_title(
+        'Empirical Receiver Operating Characteristic (ROC) Curves\nEvaluated on Complex Overlapping Cyber-Physical Telemetry',
+        fontsize=11,
+        fontweight='bold',
+    )
     ax.legend(loc='lower right', fontsize=9, framealpha=0.9, edgecolor='#d1d5db')
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -429,4 +582,3 @@ if __name__ == "__main__":
     graph_roc_curves()
 
     print(f"\nAll graphs saved to: {os.path.abspath(FIGURES_DIR)}")
-

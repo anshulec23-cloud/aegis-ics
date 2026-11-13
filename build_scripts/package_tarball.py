@@ -7,7 +7,9 @@ and installation utilities into a self-contained tarball archive.
 Usage:
     python build_scripts/package_tarball.py
 """
+
 import os as _os, sys as _sys
+
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _version import VERSION  # noqa: E402
 
@@ -16,6 +18,7 @@ import os
 import sys
 import shutil
 import tarfile
+
 
 def build_tarball():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +45,7 @@ def build_tarball():
     os.makedirs(staging_dir, exist_ok=True)
 
     print("\n[1/3] Assembling portable directory structure...")
-    
+
     # 1. Binary
     shutil.copy2(target_binary, staging_dir)
     if os.name == "posix":
@@ -71,7 +74,8 @@ exec "$SCRIPT_DIR/AegisICS" "$@"
     # 4. User-local / System install.sh script
     install_sh = os.path.join(staging_dir, "install.sh")
     with open(install_sh, "w", encoding="utf-8", newline="\n") as f:
-        f.write("""#!/bin/sh
+        f.write(
+            """#!/bin/sh
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -118,14 +122,16 @@ else
     echo "User installation complete. Make sure $BIN_DIR is in your PATH."
     echo "Launch with 'aegis-ics' or run directly from $INSTALL_DIR/AegisICS."
 fi
-""".replace("{VERSION}", VERSION))
+""".replace("{VERSION}", VERSION)
+        )
     if os.name == "posix":
         os.chmod(install_sh, 0o755)
 
     # 5. Readme
     readme = os.path.join(staging_dir, "README.txt")
     with open(readme, "w", encoding="utf-8", newline="\n") as f:
-        f.write("""Aegis ICS v{VERSION} — Standalone Linux Release
+        f.write(
+            """Aegis ICS v{VERSION} — Standalone Linux Release
 ==================================================
 
 Targeted for MX Linux & Debian distributions.
@@ -142,7 +148,8 @@ Quickstart:
 3. Hardware Serial Access (ESP32/PLC):
    Ensure your user is part of the 'dialout' group:
    sudo usermod -a -G dialout $USER
-""".replace("{VERSION}", VERSION))
+""".replace("{VERSION}", VERSION)
+        )
 
     print("\n[2/3] Compressing into tarball archive...")
     with tarfile.open(output_tarball, "w:gz") as tar:
@@ -160,6 +167,7 @@ Quickstart:
     else:
         print(f"[ERROR] Failed to generate tarball: {output_tarball}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     build_tarball()

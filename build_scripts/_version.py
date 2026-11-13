@@ -1,4 +1,5 @@
 """Reads the application version from src/version.py (the single source of truth)."""
+
 import os
 import re
 

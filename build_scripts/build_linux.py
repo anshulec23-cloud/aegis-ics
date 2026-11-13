@@ -7,7 +7,9 @@ using PyInstaller, tests the binary, and produces .deb and .tar.gz packages.
 Usage:
     python3 build_scripts/build_linux.py
 """
+
 import os as _os, sys as _sys
+
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _version import VERSION  # noqa: E402
 
@@ -16,6 +18,7 @@ import os
 import sys
 import shutil
 import subprocess
+
 
 def main():
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,7 +30,12 @@ def main():
 
     # 1. Clean prior Linux build artifacts
     print("\n[1/5] Purging Linux build/ and dist/ artifacts...")
-    for folder in ["build/deb_staging", "build/tarball_staging", "build/AegisICS_linux", "build/AegisICS"]:
+    for folder in [
+        "build/deb_staging",
+        "build/tarball_staging",
+        "build/AegisICS_linux",
+        "build/AegisICS",
+    ]:
         folder_path = os.path.join(root_dir, folder)
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path, ignore_errors=True)
@@ -51,12 +59,7 @@ def main():
 
     # 3. Execute PyInstaller compilation
     print("\n[2/5] Compiling standalone ELF executable with PyInstaller...")
-    cmd = [
-        sys.executable, "-m", "PyInstaller",
-        spec_file,
-        "--noconfirm",
-        "--clean"
-    ]
+    cmd = [sys.executable, "-m", "PyInstaller", spec_file, "--noconfirm", "--clean"]
     print(f"      Command: {' '.join(cmd)}")
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -108,7 +111,11 @@ def main():
     # 7. Sync deliverables into dedicated dist/linux/ directory
     dist_linux = os.path.join(dist_dir, "linux")
     os.makedirs(dist_linux, exist_ok=True)
-    deliverables = ["AegisICS", f"aegis-ics_{VERSION}_amd64.deb", f"aegis-ics-{VERSION}-linux-x86_64.tar.gz"]
+    deliverables = [
+        "AegisICS",
+        f"aegis-ics_{VERSION}_amd64.deb",
+        f"aegis-ics-{VERSION}-linux-x86_64.tar.gz",
+    ]
     for item in deliverables:
         src_item = os.path.join(dist_dir, item)
         dst_item = os.path.join(dist_linux, item)
@@ -119,8 +126,11 @@ def main():
     print(" LINUX BUILD & PACKAGING PIPELINE COMPLETED SUCCESSFULLY!")
     print(f" Executable binary: {os.path.join('dist', 'linux', 'AegisICS')}")
     print(f" Debian package:    {os.path.join('dist', 'linux', 'aegis-ics_{VERSION}_amd64.deb')}")
-    print(f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-{VERSION}-linux-x86_64.tar.gz')}")
+    print(
+        f" Portable tarball:  {os.path.join('dist', 'linux', 'aegis-ics-{VERSION}-linux-x86_64.tar.gz')}"
+    )
     print("=" * 65)
+
 
 if __name__ == "__main__":
     main()

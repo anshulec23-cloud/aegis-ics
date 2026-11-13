@@ -71,7 +71,7 @@ def test_telemetry_anti_replay_window():
         "pressure": 3.0,
         "vibration": 0.05,
         "current": 1.5,
-        "timestamp": stale_ts
+        "timestamp": stale_ts,
     }
     stale_payload["signature"] = sign_message(stale_payload, key)
 
@@ -90,7 +90,7 @@ def test_telemetry_anti_replay_window():
             "pressure": 3.0,
             "vibration": 0.05,
             "current": 1.5,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
         fresh_payload["signature"] = sign_message(fresh_payload, key)
         fresh_success, fresh_code, fresh_msg = process_telemetry(fresh_payload)
@@ -114,7 +114,7 @@ def test_actuator_commands_hmac_signing():
         "action": "SHUTDOWN",
         "device_id": "ESP32_001",
         "target_device": "ESP32_001",
-        "timestamp": time.time()
+        "timestamp": time.time(),
     }
     send_command(unsigned_cmd)
 

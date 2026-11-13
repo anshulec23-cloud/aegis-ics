@@ -6,24 +6,22 @@ ephemeral port allocation, path resolution for PyInstaller builds, cryptographic
 secret generation, and basic anti-debug detection.
 """
 
-import ctypes 
-import functools 
-import os 
-import secrets 
-import socket 
-import sys 
-from typing import Callable ,Any 
+import ctypes
+import functools
+import os
+import secrets
+import socket
+import sys
+from typing import Callable, Any
 
-from flask import jsonify ,request 
-
-
-
+from flask import jsonify, request
 
 
 from version import __version__ as APP_VERSION  # single source of truth: src/version.py
+
 """Current application version string."""
 
-GITHUB_REPO :str ="anshulec23-cloud/aegis-ics"
+GITHUB_REPO: str = "anshulec23-cloud/aegis-ics"
 """GitHub repository identifier used for update checks."""
 
 
@@ -34,6 +32,7 @@ DEFAULT_DEVICE_KEYS = {
     "ESP32_004": "aegis_shared_esp32_004_secret_key_v2",
 }
 
+
 def get_device_key(device_id: str = "ESP32_001") -> str:
     """Return a consistent device HMAC pre-shared key across processes."""
     env_key = os.environ.get(f"DEVICE_KEY_{device_id}")
@@ -42,11 +41,7 @@ def get_device_key(device_id: str = "ESP32_001") -> str:
     return DEFAULT_DEVICE_KEYS.get(device_id, "aegis_shared_default_secret_key_v2")
 
 
-
-
-
-
-def find_free_port ()->int :
+def find_free_port() -> int:
     """Find a random available ephemeral port on localhost.
 
     Binds a TCP socket to ``127.0.0.1:0`` and lets the operating system
@@ -55,18 +50,14 @@ def find_free_port ()->int :
     Returns:
         int: An available port number assigned by the OS.
     """
-    with socket .socket (socket .AF_INET ,socket .SOCK_STREAM )as s :
-        s .bind (("127.0.0.1",0 ))
-        s .setsockopt (socket .SOL_SOCKET ,socket .SO_REUSEADDR ,1 )
-        _ ,port =s .getsockname ()
-        return port 
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _, port = s.getsockname()
+        return port
 
 
-
-
-
-
-def resource_path (relative_path :str )->str :
+def resource_path(relative_path: str) -> str:
     """Resolve a file path for both development and frozen PyInstaller builds.
 
     When the application is bundled with PyInstaller, files are extracted to a
@@ -80,15 +71,11 @@ def resource_path (relative_path :str )->str :
         str: The absolute path to the requested resource.
     """
 
-    base_path :str =getattr (sys ,"_MEIPASS",os .path .dirname (os .path .abspath (__file__ )))
-    return os .path .join (base_path ,relative_path )
+    base_path: str = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 
-
-
-
-
-def require_webview_token (f :Callable [...,Any ])->Callable [...,Any ]:
+def require_webview_token(f: Callable[..., Any]) -> Callable[..., Any]:
     """Flask route decorator that validates the ``X-PYWEBVIEW-TOKEN`` header.
 
     The decorator enforces that every decorated request carries a valid
@@ -108,40 +95,37 @@ def require_webview_token (f :Callable [...,Any ])->Callable [...,Any ]:
         The decorated function with token validation applied.
     """
 
-    @functools .wraps (f )
-    def decorated_function (*args :Any ,**kwargs :Any )->Any :
+    @functools.wraps(f)
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         from flask import current_app
+
         if current_app and current_app.config.get("TESTING"):
             return f(*args, **kwargs)
 
-        if not os .environ .get ("AEGIS_DESKTOP_MODE"):
-            return f (*args ,**kwargs )
+        if not os.environ.get("AEGIS_DESKTOP_MODE"):
+            return f(*args, **kwargs)
 
-        from flask import session 
-        if session .get ("user_id"):
-            return f (*args ,**kwargs )
+        from flask import session
 
-        try :
-            import webview 
-        except ImportError :
+        if session.get("user_id"):
+            return f(*args, **kwargs)
 
-            return jsonify ({"error":"Forbidden – webview module unavailable"}),403 
+        try:
+            import webview
+        except ImportError:
+            return jsonify({"error": "Forbidden – webview module unavailable"}), 403
 
-        token :str |None =request .headers .get ("X-PYWEBVIEW-TOKEN")
+        token: str | None = request.headers.get("X-PYWEBVIEW-TOKEN")
 
         if not token or not secrets.compare_digest(str(token), str(getattr(webview, "token", ""))):
-            return jsonify ({"error":"Forbidden – invalid or missing token"}),403 
+            return jsonify({"error": "Forbidden – invalid or missing token"}), 403
 
-        return f (*args ,**kwargs )
+        return f(*args, **kwargs)
 
-    return decorated_function 
-
-
+    return decorated_function
 
 
-
-
-def generate_runtime_secret ()->str :
+def generate_runtime_secret() -> str:
     """Generate a cryptographically secure runtime secret.
 
     Uses :func:`secrets.token_hex` to produce a 64-character hexadecimal
@@ -151,14 +135,10 @@ def generate_runtime_secret ()->str :
     Returns:
         str: A 64-character hex string.
     """
-    return secrets .token_hex (32 )
+    return secrets.token_hex(32)
 
 
-
-
-
-
-def check_debugger ()->bool :
+def check_debugger() -> bool:
     """Perform basic anti-debug detection on Windows and Linux.
 
     On Windows: Calls ``kernel32.IsDebuggerPresent()`` via :mod:`ctypes`.
@@ -168,10 +148,10 @@ def check_debugger ()->bool :
         bool: ``True`` if a debugger is detected, ``False`` otherwise.
     """
     if sys.platform == "win32":
-        try :
-            return bool (ctypes .windll .kernel32 .IsDebuggerPresent ())
-        except (AttributeError ,OSError ):
-            return False 
+        try:
+            return bool(ctypes.windll.kernel32.IsDebuggerPresent())
+        except (AttributeError, OSError):
+            return False
     elif sys.platform.startswith("linux"):
         try:
             status_path = "/proc/self/status"
@@ -183,4 +163,4 @@ def check_debugger ()->bool :
                             return tracer_pid > 0
         except Exception:
             return False
-    return False 
+    return False

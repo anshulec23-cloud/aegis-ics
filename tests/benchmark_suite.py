@@ -24,12 +24,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 try:
     from neural_policy import NeuralSafetyPolicy, get_neural_policy
+
     NEURAL_AVAILABLE = True
 except Exception:
     NEURAL_AVAILABLE = False
 
 try:
     import pickle
+
     RF_AVAILABLE = True
 except ImportError:
     RF_AVAILABLE = False
@@ -163,16 +165,24 @@ def benchmark_stuxnet_attack():
             break
 
     results["summary"] = {
-        "total_frames": n_steps, "attack_frames": total_attack,
-        "attack_detections": attack_detections, "detection_rate_pct": round(detection_rate, 2),
-        "false_positives_nominal": false_positives, "false_positive_rate_pct": round(fp_rate, 2),
+        "total_frames": n_steps,
+        "attack_frames": total_attack,
+        "attack_detections": attack_detections,
+        "detection_rate_pct": round(detection_rate, 2),
+        "false_positives_nominal": false_positives,
+        "false_positive_rate_pct": round(fp_rate, 2),
         "total_nominal_frames": len(nominal_frames),
         "first_detection_time_s": first_detection,
-        "attack_window_start_s": 600, "attack_window_end_s": 850,
+        "attack_window_start_s": 600,
+        "attack_window_end_s": 850,
     }
 
-    print(f"  Attack detection rate: {detection_rate:.1f}% ({attack_detections}/{total_attack} frames)")
-    print(f"  False positive rate (nominal): {fp_rate:.2f}% ({false_positives}/{len(nominal_frames)} frames)")
+    print(
+        f"  Attack detection rate: {detection_rate:.1f}% ({attack_detections}/{total_attack} frames)"
+    )
+    print(
+        f"  False positive rate (nominal): {fp_rate:.2f}% ({false_positives}/{len(nominal_frames)} frames)"
+    )
     print(f"  First detection at: t={first_detection}s" if first_detection else "  No detection!")
 
     out_path = os.path.join(RESULTS_DIR, "stuxnet_attack_results.json")
@@ -217,6 +227,7 @@ def benchmark_financial_risk():
     projected_loss = np.zeros(len(hours))
 
     import serial_gateway
+
     serial_gateway.reset_attacks()
 
     for i, h in enumerate(hours):
@@ -225,12 +236,15 @@ def benchmark_financial_risk():
 
         if h < 10.0:
             for _ in range(5):
-                db.add(TelemetryLog(
-                    timestamp=t_sec, device_id="ESP32_001",
-                    temperature=26.0 + np.random.normal(0, 0.5),
-                    pressure=4.2 + np.random.normal(0, 0.2),
-                    is_anomaly=False
-                ))
+                db.add(
+                    TelemetryLog(
+                        timestamp=t_sec,
+                        device_id="ESP32_001",
+                        temperature=26.0 + np.random.normal(0, 0.5),
+                        pressure=4.2 + np.random.normal(0, 0.2),
+                        is_anomaly=False,
+                    )
+                )
             db.commit()
             fa = calculate_financial_analytics(db, "ESP32_001")
             actual_loss[i] = round(float(fa["incurred_cost"]), 2)
@@ -240,17 +254,23 @@ def benchmark_financial_risk():
             serial_gateway.inject_attack("ESP32_001", "stuxnet")
             attack_prog = (h - 10.0) / (isolation_hour - 10.0)
             for _ in range(5):
-                db.add(TelemetryLog(
-                    timestamp=t_sec, device_id="ESP32_001",
-                    temperature=29.0 + attack_prog * 33.0,
-                    pressure=4.5 + attack_prog * 4.0,
-                    is_anomaly=True
-                ))
-            db.add(AuditLog(
-                timestamp=now_dt, action="SECURITY_VIOLATION_BLOCKED",
-                location="REACTOR_01",
-                details=f"ESP32_001 Stuxnet coordinated stress attack detected at h={h:.1f}"
-            ))
+                db.add(
+                    TelemetryLog(
+                        timestamp=t_sec,
+                        device_id="ESP32_001",
+                        temperature=29.0 + attack_prog * 33.0,
+                        pressure=4.5 + attack_prog * 4.0,
+                        is_anomaly=True,
+                    )
+                )
+            db.add(
+                AuditLog(
+                    timestamp=now_dt,
+                    action="SECURITY_VIOLATION_BLOCKED",
+                    location="REACTOR_01",
+                    details=f"ESP32_001 Stuxnet coordinated stress attack detected at h={h:.1f}",
+                )
+            )
             db.commit()
             fa = calculate_financial_analytics(db, "ESP32_001")
             actual_loss[i] = round(float(fa["incurred_cost"]), 2)
@@ -261,28 +281,47 @@ def benchmark_financial_risk():
             st = db.query(DeviceState).filter_by(device_id="ESP32_001").first()
             if not st.is_isolated:
                 st.is_isolated = True
-                db.add(AuditLog(
-                    timestamp=now_dt, action="HARDWARE_ISOLATION_TRIGGERED",
-                    location="REACTOR_01", details="ESP32_001 quarantined"
-                ))
-            db.add(TelemetryLog(
-                timestamp=t_sec, device_id="ESP32_001",
-                temperature=30.0, pressure=4.5, is_anomaly=False
-            ))
+                db.add(
+                    AuditLog(
+                        timestamp=now_dt,
+                        action="HARDWARE_ISOLATION_TRIGGERED",
+                        location="REACTOR_01",
+                        details="ESP32_001 quarantined",
+                    )
+                )
+            db.add(
+                TelemetryLog(
+                    timestamp=t_sec,
+                    device_id="ESP32_001",
+                    temperature=30.0,
+                    pressure=4.5,
+                    is_anomaly=False,
+                )
+            )
             db.commit()
             fa = calculate_financial_analytics(db, "ESP32_001")
             # Incurred loss is capped at isolation level; unmitigated continues to asset ceiling
             actual_loss[i] = round(float(fa["incurred_cost"]), 2)
             prog_unmit = min(1.0, (h - isolation_hour) / 2.0)
-            projected_loss[i] = round(float(fa["incurred_cost"]) + prog_unmit * (asset_ceiling - float(fa["incurred_cost"])), 2)
+            projected_loss[i] = round(
+                float(fa["incurred_cost"])
+                + prog_unmit * (asset_ceiling - float(fa["incurred_cost"])),
+                2,
+            )
             threat_index[i] = round(float(fa["threat_index"]) / 100.0, 3)
 
     damages_prevented = np.maximum(0.0, projected_loss - actual_loss)
 
     p1 = SUBSYSTEM_PROFILES.get("ESP32_001", {})
     p4 = SUBSYSTEM_PROFILES.get("ESP32_004", {})
-    cluster_unmit = (p1.get("base_sle", 570000.0) + p4.get("base_sle", 800000.0)) + (p1.get("downtime_rate_per_hour", 22500.0) + p4.get("downtime_rate_per_hour", 31000.0)) * 24.0
-    cluster_act = (p1.get("cleanup_remediation", 120000.0) + p4.get("cleanup_remediation", 150000.0)) + (p1.get("downtime_rate_per_hour", 22500.0) + p4.get("downtime_rate_per_hour", 31000.0)) * isolation_hour
+    cluster_unmit = (p1.get("base_sle", 570000.0) + p4.get("base_sle", 800000.0)) + (
+        p1.get("downtime_rate_per_hour", 22500.0) + p4.get("downtime_rate_per_hour", 31000.0)
+    ) * 24.0
+    cluster_act = (
+        p1.get("cleanup_remediation", 120000.0) + p4.get("cleanup_remediation", 150000.0)
+    ) + (
+        p1.get("downtime_rate_per_hour", 22500.0) + p4.get("downtime_rate_per_hour", 31000.0)
+    ) * isolation_hour
     cluster_saved = cluster_unmit - cluster_act
     cluster_pct = round((cluster_saved / cluster_unmit) * 100.0, 1)
 
@@ -299,14 +338,16 @@ def benchmark_financial_risk():
             "cluster_damages_prevented": round(float(cluster_saved), 2),
             "cluster_reduction_pct": cluster_pct,
             "single_subsystem_prevented": round(float(damages_prevented[-1]), 2),
-            "asset_ceiling": asset_ceiling
-        }
+            "asset_ceiling": asset_ceiling,
+        },
     }
 
     print(f"  Total unmitigated loss (single node): ${projected_loss[-1]:,.0f}")
     print(f"  Actual incurred loss:                 ${actual_loss[-1]:,.0f}")
     print(f"  Damages prevented (single node):      ${damages_prevented[-1]:,.0f}")
-    print(f"  Cluster cumulative damages saved:     ${cluster_saved:,.0f} ({cluster_pct:.1f}% reduction)")
+    print(
+        f"  Cluster cumulative damages saved:     ${cluster_saved:,.0f} ({cluster_pct:.1f}% reduction)"
+    )
 
     out_path = os.path.join(RESULTS_DIR, "financial_risk_results.json")
     with open(out_path, "w") as f:
@@ -332,14 +373,18 @@ def benchmark_nspn_decision_boundary():
     fixed_vib, fixed_hall, fixed_curr = 1.5, 1200.0, 5.0
 
     results = {
-        "temp_range": temp_range.tolist(), "pressure_range": pres_range.tolist(),
-        "safety_prob_matrix": [], "setpoint_type": "set_temp",
+        "temp_range": temp_range.tolist(),
+        "pressure_range": pres_range.tolist(),
+        "safety_prob_matrix": [],
+        "setpoint_type": "set_temp",
     }
 
     for p_val in pres_range:
         row = []
         for t_setpoint in temp_range:
-            vec = np.array([30.0, p_val, fixed_vib, fixed_hall, fixed_curr, t_setpoint], dtype=np.float32)
+            vec = np.array(
+                [30.0, p_val, fixed_vib, fixed_hall, fixed_curr, t_setpoint], dtype=np.float32
+            )
             prob = nspn.predict_safety_probability(vec)
             row.append(round(prob, 4))
         results["safety_prob_matrix"].append(row)
@@ -365,23 +410,31 @@ def benchmark_latency():
     rf_model = _load_rf_model()
     if rf_model is not None:
         sample = np.array([[30.0, 4.5, 1.2, 1500.0, 5.0]])
-        for _ in range(100): rf_model.predict_proba(sample)
+        for _ in range(100):
+            rf_model.predict_proba(sample)
         latencies = []
         for _ in range(n_iterations):
             start = time.perf_counter()
             rf_model.predict_proba(sample)
             latencies.append((time.perf_counter() - start) * 1000)
         results["rf_latency_ms"] = {
-            "mean": round(np.mean(latencies), 4), "median": round(np.median(latencies), 4),
-            "p95": round(np.percentile(latencies, 95), 4), "p99": round(np.percentile(latencies, 99), 4),
-            "min": round(np.min(latencies), 4), "max": round(np.max(latencies), 4),
-            "n_iterations": n_iterations, "raw_samples": [round(l, 6) for l in latencies[:200]],
+            "mean": round(np.mean(latencies), 4),
+            "median": round(np.median(latencies), 4),
+            "p95": round(np.percentile(latencies, 95), 4),
+            "p99": round(np.percentile(latencies, 99), 4),
+            "min": round(np.min(latencies), 4),
+            "max": round(np.max(latencies), 4),
+            "n_iterations": n_iterations,
+            "raw_samples": [round(l, 6) for l in latencies[:200]],
         }
-        print(f"  RF (Standard): mean={results['rf_latency_ms']['mean']:.4f}ms, p95={results['rf_latency_ms']['p95']:.4f}ms, p99={results['rf_latency_ms']['p99']:.4f}ms")
+        print(
+            f"  RF (Standard): mean={results['rf_latency_ms']['mean']:.4f}ms, p95={results['rf_latency_ms']['p95']:.4f}ms, p99={results['rf_latency_ms']['p99']:.4f}ms"
+        )
 
         # Fast Vectorized Tree Traversal (Zero scikit-learn Python overhead)
         trees = [t.tree_ for t in rf_model.estimators_]
         s_flat = sample[0]
+
         def _fast_rf(s):
             p = 0.0
             for t in trees:
@@ -395,39 +448,54 @@ def benchmark_latency():
                 p += v[1] / (v[0] + v[1])
             return p / len(trees)
 
-        for _ in range(100): _fast_rf(s_flat)
+        for _ in range(100):
+            _fast_rf(s_flat)
         fast_latencies = []
         for _ in range(n_iterations):
             start = time.perf_counter()
             _fast_rf(s_flat)
             fast_latencies.append((time.perf_counter() - start) * 1000)
         results["rf_fast_latency_ms"] = {
-            "mean": round(np.mean(fast_latencies), 4), "median": round(np.median(fast_latencies), 4),
-            "p95": round(np.percentile(fast_latencies, 95), 4), "p99": round(np.percentile(fast_latencies, 99), 4),
-            "min": round(np.min(fast_latencies), 4), "max": round(np.max(fast_latencies), 4),
-            "n_iterations": n_iterations, "raw_samples": [round(l, 6) for l in fast_latencies[:200]],
+            "mean": round(np.mean(fast_latencies), 4),
+            "median": round(np.median(fast_latencies), 4),
+            "p95": round(np.percentile(fast_latencies, 95), 4),
+            "p99": round(np.percentile(fast_latencies, 99), 4),
+            "min": round(np.min(fast_latencies), 4),
+            "max": round(np.max(fast_latencies), 4),
+            "n_iterations": n_iterations,
+            "raw_samples": [round(l, 6) for l in fast_latencies[:200]],
         }
-        print(f"  RF (Fast Path): mean={results['rf_fast_latency_ms']['mean']:.4f}ms, p95={results['rf_fast_latency_ms']['p95']:.4f}ms")
+        print(
+            f"  RF (Fast Path): mean={results['rf_fast_latency_ms']['mean']:.4f}ms, p95={results['rf_fast_latency_ms']['p95']:.4f}ms"
+        )
 
     if NEURAL_AVAILABLE:
         nspn = get_neural_policy()
         sample_vec = np.array([30.0, 4.5, 1.2, 1500.0, 5.0, 35.0], dtype=np.float32)
-        for _ in range(100): nspn.predict_safety_probability(sample_vec)
+        for _ in range(100):
+            nspn.predict_safety_probability(sample_vec)
         latencies = []
         for _ in range(n_iterations):
             start = time.perf_counter()
             nspn.predict_safety_probability(sample_vec)
             latencies.append((time.perf_counter() - start) * 1000)
         results["nspn_latency_ms"] = {
-            "mean": round(np.mean(latencies), 4), "median": round(np.median(latencies), 4),
-            "p95": round(np.percentile(latencies, 95), 4), "p99": round(np.percentile(latencies, 99), 4),
-            "min": round(np.min(latencies), 4), "max": round(np.max(latencies), 4),
-            "n_iterations": n_iterations, "raw_samples": [round(l, 6) for l in latencies[:200]],
+            "mean": round(np.mean(latencies), 4),
+            "median": round(np.median(latencies), 4),
+            "p95": round(np.percentile(latencies, 95), 4),
+            "p99": round(np.percentile(latencies, 99), 4),
+            "min": round(np.min(latencies), 4),
+            "max": round(np.max(latencies), 4),
+            "n_iterations": n_iterations,
+            "raw_samples": [round(l, 6) for l in latencies[:200]],
         }
-        print(f"  NSPN: mean={results['nspn_latency_ms']['mean']:.4f}ms, p95={results['nspn_latency_ms']['p95']:.4f}ms, p99={results['nspn_latency_ms']['p99']:.4f}ms")
+        print(
+            f"  NSPN: mean={results['nspn_latency_ms']['mean']:.4f}ms, p95={results['nspn_latency_ms']['p95']:.4f}ms, p99={results['nspn_latency_ms']['p99']:.4f}ms"
+        )
 
     import hmac
     import hashlib
+
     payload = '{"current":"4.50","device_id":"ESP32_001","hall_effect":"0.00","pressure":"4.20","temperature":"26.00","vibration":"1.10"}'
     key = get_device_key("ESP32_001")
     latencies = []
@@ -436,11 +504,16 @@ def benchmark_latency():
         hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest()
         latencies.append((time.perf_counter() - start) * 1000)
     results["hmac_latency_ms"] = {
-        "mean": round(np.mean(latencies), 4), "median": round(np.median(latencies), 4),
-        "p95": round(np.percentile(latencies, 95), 4), "p99": round(np.percentile(latencies, 99), 4),
-        "n_iterations": n_iterations, "raw_samples": [round(l, 6) for l in latencies[:200]],
+        "mean": round(np.mean(latencies), 4),
+        "median": round(np.median(latencies), 4),
+        "p95": round(np.percentile(latencies, 95), 4),
+        "p99": round(np.percentile(latencies, 99), 4),
+        "n_iterations": n_iterations,
+        "raw_samples": [round(l, 6) for l in latencies[:200]],
     }
-    print(f"  HMAC: mean={results['hmac_latency_ms']['mean']:.4f}ms, p95={results['hmac_latency_ms']['p95']:.4f}ms")
+    print(
+        f"  HMAC: mean={results['hmac_latency_ms']['mean']:.4f}ms, p95={results['hmac_latency_ms']['p95']:.4f}ms"
+    )
 
     out_path = os.path.join(RESULTS_DIR, "latency_benchmarks.json")
     with open(out_path, "w") as f:
@@ -461,6 +534,7 @@ def benchmark_trust_evolution():
         from trust_engine import compute_device_trust_score
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
+
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine)
@@ -478,8 +552,16 @@ def benchmark_trust_evolution():
     n_steps = 500
     base_temp, base_pres = 26.0, 4.2
 
-    results = {"time_s": [], "trust_score": [], "s_anomaly": [], "s_signature": [],
-               "s_history": [], "s_stability": [], "phase": [], "status": []}
+    results = {
+        "time_s": [],
+        "trust_score": [],
+        "s_anomaly": [],
+        "s_signature": [],
+        "s_history": [],
+        "s_stability": [],
+        "phase": [],
+        "status": [],
+    }
 
     for t in range(n_steps):
         if t < 150:
@@ -494,7 +576,7 @@ def benchmark_trust_evolution():
             pres = base_pres + np.random.normal(0, 0.3)
             # Occasional single-packet tamper, followed by sustained spoofing burst at t >= 180
             if t < 180:
-                sig_valid = (np.random.random() > 0.5)
+                sig_valid = np.random.random() > 0.5
                 is_isolated_frame = False
             elif t < 192:
                 sig_valid = False
@@ -516,7 +598,7 @@ def benchmark_trust_evolution():
             pres = base_pres + 1.5 + attack_prog * 1.5 + np.random.normal(0, 0.5)
             sig_valid = True
             # At t >= 365, peak physical hazard trips supervisory fail-closed isolation
-            is_isolated_frame = (t >= 365)
+            is_isolated_frame = t >= 365
         else:
             phase = "recovery"
             recovery = (t - 400) / 100.0
@@ -524,11 +606,13 @@ def benchmark_trust_evolution():
             pres = (base_pres + 3.0) * (1.0 - recovery * 0.5) + np.random.normal(0, 0.3)
             sig_valid = True
             # Quarantined node is inspected and re-armed at t = 410
-            is_isolated_frame = (t < 410)
+            is_isolated_frame = t < 410
 
         is_anomaly = 0
         if rf_model is not None:
-            features = np.array([[max(0, temp), max(0, pres), max(0, 1.1), max(0, 0.0), max(0, 4.5)]])
+            features = np.array(
+                [[max(0, temp), max(0, pres), max(0, 1.1), max(0, 0.0), max(0, 4.5)]]
+            )
             try:
                 is_anomaly = int(rf_model.predict(features)[0])
             except Exception:
@@ -548,16 +632,13 @@ def benchmark_trust_evolution():
                 vibration=1.1,
                 current=4.5,
                 hall_effect=0.0,
-                is_anomaly=(is_anomaly == 1)
+                is_anomaly=(is_anomaly == 1),
             )
             db.add(log)
             db.commit()
 
             score_res = compute_device_trust_score(
-                "ESP32_001",
-                db,
-                latest_is_anomaly=(is_anomaly == 1),
-                latest_sig_valid=sig_valid
+                "ESP32_001", db, latest_is_anomaly=(is_anomaly == 1), latest_sig_valid=sig_valid
             )
             trust_val = score_res["trust_score"]
             s_anom = score_res["s_anomaly"]
@@ -579,10 +660,14 @@ def benchmark_trust_evolution():
                 s_hist = 0.8
                 s_stab = 0.8
                 trust_val = 0.35 * (1.0 - s_anom) + 0.30 * s_sig + 0.20 * s_hist + 0.15 * s_stab
-                if trust_val >= 0.80: stat = "TRUSTED"
-                elif trust_val >= 0.50: stat = "DEGRADED"
-                elif trust_val >= 0.40: stat = "SUSPICIOUS"
-                else: stat = "CRITICAL"
+                if trust_val >= 0.80:
+                    stat = "TRUSTED"
+                elif trust_val >= 0.50:
+                    stat = "DEGRADED"
+                elif trust_val >= 0.40:
+                    stat = "SUSPICIOUS"
+                else:
+                    stat = "CRITICAL"
 
         results["time_s"].append(t)
         results["trust_score"].append(round(trust_val * 100, 2))

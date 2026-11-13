@@ -9,7 +9,9 @@ Usage:
     python build_scripts/build.py --windows
     python build_scripts/build.py --linux
 """
+
 import os as _os, sys as _sys
+
 _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from _version import VERSION  # noqa: E402
 
@@ -18,6 +20,7 @@ import os
 import sys
 import subprocess
 import argparse
+
 
 def main():
     parser = argparse.ArgumentParser(description="Aegis ICS Universal Build Dispatcher")
@@ -49,6 +52,7 @@ def main():
     else:
         print(f"[ERROR] Unsupported target environment: {sys.platform}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
