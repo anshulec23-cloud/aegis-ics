@@ -19,6 +19,8 @@ def client():
             sess["user_id"] = 1
             sess["username"] = "admin"
             sess["location"] = "Central SCADA Enclave"
+            sess["csrf_token"] = "fixture-csrf-token"
+        c.environ_base["HTTP_X_CSRF_TOKEN"] = "fixture-csrf-token"
         yield c
 
 

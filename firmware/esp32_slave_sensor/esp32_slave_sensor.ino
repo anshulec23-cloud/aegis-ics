@@ -23,9 +23,16 @@
 // #define NODE_CONFIG_ESP32_003  // Cooling Cryo 03 (Cryogenics Vault Sub-1)
 // #define NODE_CONFIG_ESP32_004  // Turbine Generator 04 (Turbine Hall South)
 
+// Per-device HMAC keys are NOT stored in source control. Generate them with:
+//   python src/device_keys.py generate ESP32_001 ESP32_002 ESP32_003 ESP32_004
+//       --out device_keys.json --firmware-header firmware/esp32_slave_sensor/aegis_secrets.h
+// The same device_keys.json is read by the Aegis host (see docs/04-development/configuration.md).
+// A template lives in aegis_secrets.example.h.
+#include "aegis_secrets.h"
+
 #if defined(NODE_CONFIG_ESP32_001)
   #define DEVICE_ID           "ESP32_001"
-  #define PRE_SHARED_HMAC_KEY "aegis_shared_esp32_001_secret_key_v2"
+  #define PRE_SHARED_HMAC_KEY AEGIS_KEY_ESP32_001
   #define BASE_TEMP           26.0
   #define BASE_PRES           4.2
   #define BASE_VIB            1.1
@@ -33,7 +40,7 @@
   #define BASE_CURR           4.5
 #elif defined(NODE_CONFIG_ESP32_002)
   #define DEVICE_ID           "ESP32_002"
-  #define PRE_SHARED_HMAC_KEY "aegis_shared_esp32_002_secret_key_v2"
+  #define PRE_SHARED_HMAC_KEY AEGIS_KEY_ESP32_002
   #define BASE_TEMP           41.0
   #define BASE_PRES           5.4
   #define BASE_VIB            1.8
@@ -41,7 +48,7 @@
   #define BASE_CURR           5.2
 #elif defined(NODE_CONFIG_ESP32_003)
   #define DEVICE_ID           "ESP32_003"
-  #define PRE_SHARED_HMAC_KEY "aegis_shared_esp32_003_secret_key_v2"
+  #define PRE_SHARED_HMAC_KEY AEGIS_KEY_ESP32_003
   #define BASE_TEMP           18.5
   #define BASE_PRES           2.2
   #define BASE_VIB            0.6
@@ -49,7 +56,7 @@
   #define BASE_CURR           2.8
 #elif defined(NODE_CONFIG_ESP32_004)
   #define DEVICE_ID           "ESP32_004"
-  #define PRE_SHARED_HMAC_KEY "aegis_shared_esp32_004_secret_key_v2"
+  #define PRE_SHARED_HMAC_KEY AEGIS_KEY_ESP32_004
   #define BASE_TEMP           33.0
   #define BASE_PRES           3.8
   #define BASE_VIB            2.2

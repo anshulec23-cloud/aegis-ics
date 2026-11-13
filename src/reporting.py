@@ -350,7 +350,7 @@ def generate_incident_report_pdf(db_session, username, location):
     for did in cluster_device_ids:
         last_log = (
             db_session.query(TelemetryLog)
-            .filter_by(device_id=did)
+            .filter_by(device_id=did, is_simulated=False)
             .order_by(TelemetryLog.timestamp.desc())
             .first()
         )
@@ -526,7 +526,8 @@ def generate_incident_report_pdf(db_session, username, location):
         )
     )
 
-    fin = calculate_financial_analytics(db_session)
+    # Reports cover real events only: simulator data and drills are excluded (R1).
+    fin = calculate_financial_analytics(db_session, include_simulated=False)
     fair_metrics = fin.get("fair_model", {})
 
     tef = fair_metrics.get("tef", 0.0)
@@ -826,7 +827,7 @@ def generate_incident_report_pdf(db_session, username, location):
         )
     )
 
-    mc_distribution = calculate_monte_carlo_distribution(db_session)
+    mc_distribution = calculate_monte_carlo_distribution(db_session, include_simulated=False)
     mc_headers = [
         Paragraph("Percentile", table_header),
         Paragraph("Probability of Exceedance", table_header),
@@ -921,6 +922,7 @@ def generate_incident_report_pdf(db_session, username, location):
             | (AuditLog.action.like("%ISOLATION%"))
             | (AuditLog.action.like("%ATTACK%"))
         )
+        .filter(AuditLog.is_simulated == False)  # noqa: E712
         .order_by(AuditLog.timestamp.desc())
         .limit(25)
         .all()
@@ -1016,7 +1018,11 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     story.append(Paragraph("8. Sensor Telemetry Dynamics &amp; Physical Waveform Plot", h2_style))
     telemetry = (
-        db_session.query(TelemetryLog).order_by(TelemetryLog.timestamp.desc()).limit(35).all()
+        db_session.query(TelemetryLog)
+        .filter(TelemetryLog.is_simulated == False)  # noqa: E712
+        .order_by(TelemetryLog.timestamp.desc())
+        .limit(35)
+        .all()
     )
 
     if telemetry:
@@ -1118,11 +1124,12 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     # SECTION 9: Append-Only Chronological Security Audit Trail
     # =========================================================================
-    story.append(Paragraph("9. Append-Only Chronological Security Audit Trail", h2_style))
+    story.append(Paragraph("9. Chronological Security Audit Trail", h2_style))
 
     audit_logs = (
         db_session.query(AuditLog)
         .options(joinedload(AuditLog.user))
+        .filter(AuditLog.is_simulated == False)  # noqa: E712
         .order_by(AuditLog.timestamp.desc())
         .limit(35)
         .all()

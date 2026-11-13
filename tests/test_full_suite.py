@@ -21,6 +21,7 @@ from analytics import calculate_financial_analytics
 from reporting import generate_incident_report_pdf
 from serial_gateway import parse_serial_line, sign_message, canonicalize_payload
 from werkzeug.security import generate_password_hash
+from conftest import GATEWAY_HEADERS
 
 # Initialize DB for tests
 init_db()
@@ -452,7 +453,7 @@ def test_stress_concurrent_telemetry_and_api():
             payload["signature"] = sign_message(payload, key)
 
             try:
-                res = client.post("/api/telemetry", json=payload)
+                res = client.post("/api/telemetry", json=payload, headers=GATEWAY_HEADERS)
                 if res.status_code == 200:
                     with lock:
                         success_count[0] += 1
@@ -655,7 +656,7 @@ def test_multi_device_cluster_endpoints():
     assert res_ping.status_code == 200
     ping_data = res_ping.get_json()
     assert ping_data["success"] is True
-    assert "Ping echo successful" in ping_data["details"]
+    assert ping_data["latency_ms"] is None  # not measured: firmware v2.5 does not answer pings
 
     # 3. Test POST /api/device/isolate for specific device
     res_iso = client.post("/api/device/isolate", json={"device_id": "ESP32_003"}, headers=headers)
@@ -1486,7 +1487,7 @@ def test_isolated_device_telemetry_returns_403():
         }
         payload["signature"] = sign_message(payload, key)
 
-        res = client.post("/api/telemetry", json=payload)
+        res = client.post("/api/telemetry", json=payload, headers=GATEWAY_HEADERS)
         assert res.status_code == 403, (
             f"Expected 403 Forbidden for isolated device, got {res.status_code}"
         )
@@ -1500,10 +1501,12 @@ def test_isolated_device_telemetry_returns_403():
         db.close()
 
 
-def test_hardware_isolation_command_dispatched():
+def test_hardware_isolation_command_dispatched(monkeypatch):
     """Verify that isolating a device enqueues a physical ISOLATE command for serial dispatch."""
     import serial_gateway
     from app import app
+
+    monkeypatch.setattr(serial_gateway, "is_connected", lambda: True)
 
     app.config["TESTING"] = True
     client = app.test_client()
@@ -1529,8 +1532,9 @@ def test_hardware_isolation_command_dispatched():
     assert res.status_code == 200
 
     # Verify command was queued for physical UART transmission
-    assert not serial_gateway._command_queue.empty()
-    queued_cmd = serial_gateway._command_queue.get_nowait()
+    ready = serial_gateway.pop_ready_commands()
+    assert ready, "ISOLATE command was not queued"
+    queued_cmd = ready[0]
     assert queued_cmd["command"] == "ISOLATE"
     assert queued_cmd["target_device"] == "ESP32_002"
 
@@ -1864,13 +1868,18 @@ def test_login_audit_success_and_failure():
     from app import app
     from database import SessionLocal, AuditLog
 
+    import re
+    from conftest import TEST_ADMIN_PASSWORD
+
     app.config["TESTING"] = True
     client = app.test_client()
+    page = client.get("/login").get_data(as_text=True)
+    csrf = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
 
     # 1. Failed login
     res = client.post(
         "/login",
-        data={"username": "unauthorized_user", "password": "wrong_password"},
+        data={"username": "unauthorized_user", "password": "wrong_password", "csrf_token": csrf},
         follow_redirects=False,
     )
     assert res.status_code == 401
@@ -1887,9 +1896,11 @@ def test_login_audit_success_and_failure():
         assert "unauthorized_user" in failed_log.details
         assert "Client IP" in failed_log.details
 
-        # 2. Successful login with noodles / noodles
+        # 2. Successful login with the configured admin password
         res_ok = client.post(
-            "/login", data={"username": "noodles", "password": "noodles"}, follow_redirects=False
+            "/login",
+            data={"username": "admin", "password": TEST_ADMIN_PASSWORD, "csrf_token": csrf},
+            follow_redirects=False,
         )
         assert res_ok.status_code == 302
 
@@ -1900,7 +1911,7 @@ def test_login_audit_success_and_failure():
             .first()
         )
         assert success_log is not None
-        assert "noodles" in success_log.details
+        assert "admin" in success_log.details
         assert success_log.user_id is not None
     finally:
         db.close()
@@ -1993,9 +2004,7 @@ def test_hardware_model_calibration_and_status_api():
     metrics_path = os.path.join(base_dir, "src", "model", "training_metrics.json")
     orig_model = open(model_path, "rb").read() if os.path.exists(model_path) else None
     orig_hash = open(hash_path, "rb").read() if os.path.exists(hash_path) else None
-    orig_metrics = (
-        open(metrics_path, "rb").read() if os.path.exists(metrics_path) else None
-    )
+    orig_metrics = open(metrics_path, "rb").read() if os.path.exists(metrics_path) else None
 
     try:
         # 1. Model status

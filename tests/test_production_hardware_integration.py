@@ -39,6 +39,8 @@ def client():
         with client.session_transaction() as sess:
             sess["user_id"] = 1
             sess["username"] = "hardware_engineer"
+            sess["csrf_token"] = "fixture-csrf-token"
+        client.environ_base["HTTP_X_CSRF_TOKEN"] = "fixture-csrf-token"
         yield client
 
 
@@ -153,7 +155,13 @@ def test_isolated_device_quarantine_telemetry_persistence(client):
             "current": 0.0,
             "hall_effect": 0.0,
         }
-        res = client.post("/api/telemetry", json=payload)
+        # Post-trip frames are still device-signed and arrive through the gateway.
+        from conftest import GATEWAY_HEADERS
+        from security import get_device_key
+        from serial_gateway import sign_message
+
+        payload["signature"] = sign_message(payload, get_device_key("ESP32_003"))
+        res = client.post("/api/telemetry", json=payload, headers=GATEWAY_HEADERS)
         assert res.status_code == 403
 
         # Verify telemetry was logged as anomaly/quarantine in DB

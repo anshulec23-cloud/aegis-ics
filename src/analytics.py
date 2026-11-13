@@ -84,15 +84,22 @@ def get_subsystem_profile(dev_id: str) -> Dict[str, Any]:
     }
 
 
-def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
+def calculate_financial_analytics(
+    db, device_id: str = None, include_simulated: bool = True
+) -> Dict[str, Any]:
     """
     Comprehensive Quantitative Risk & Financial Analytics Engine.
     Evaluates empirical telemetry, isolation history, active cyber attacks, and physical subsystem valuations.
     Enforces a strict $0.00 baseline under normal operating conditions.
+
+    ``include_simulated=False`` (used by the PDF report) ignores simulator telemetry,
+    drill audit entries and simulator attack vectors, so reports only reflect real events.
     """
     from sqlalchemy import or_
 
     query = db.query(TelemetryLog)
+    if not include_simulated:
+        query = query.filter(TelemetryLog.is_simulated == False)  # noqa: E712
     if device_id and device_id != "ALL":
         query = query.filter_by(device_id=device_id)
     telemetry = query.order_by(TelemetryLog.timestamp.desc()).limit(60).all()
@@ -111,6 +118,9 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
         except Exception:
             active_attacks = {}
     except Exception:
+        active_attacks = {}
+
+    if not include_simulated:
         active_attacks = {}
 
     target_attack = None
@@ -136,8 +146,12 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
             AuditLog.action.like("%VIOLATION%"),
             AuditLog.action.like("%ISOLATION%"),
             AuditLog.action.like("%ATTACK%"),
+            # Drill entries count in the live (simulation-inclusive) risk view only.
+            AuditLog.action.like("SIMULATED_%"),
         )
     )
+    if not include_simulated:
+        audit_query = audit_query.filter(AuditLog.is_simulated == False)  # noqa: E712
     if device_id and device_id != "ALL":
         audit_query = audit_query.filter(AuditLog.details.like(f"%{device_id}%"))
     violations = audit_query.all()
@@ -365,13 +379,15 @@ def calculate_financial_analytics(db, device_id: str = None) -> Dict[str, Any]:
     }
 
 
-def calculate_monte_carlo_distribution(db, device_id: str = None) -> List[Dict[str, Any]]:
+def calculate_monte_carlo_distribution(
+    db, device_id: str = None, include_simulated: bool = True
+) -> List[Dict[str, Any]]:
     """
     Generates a 12-point probabilistic loss exceedance distribution curve
     (Percentile vs Monetary Loss in USD) from P5 to P99.
     Scales dynamically based on empirical active incidents and threats.
     """
-    fin = calculate_financial_analytics(db, device_id)
+    fin = calculate_financial_analytics(db, device_id, include_simulated=include_simulated)
     expected_loss = fin["expected_loss"]
     active_attack = fin.get("active_attack")
 
@@ -409,9 +425,8 @@ def calculate_monte_carlo_distribution(db, device_id: str = None) -> List[Dict[s
 def get_subsystem_financial_breakdown(db) -> List[Dict[str, Any]]:
     """Returns per-subsystem capital valuation, downtime liability, and status."""
     states = {d.device_id: d.is_isolated for d in db.query(DeviceState).all()}
-    from sqlalchemy import distinct
 
-    t_devs = [r[0] for r in db.query(distinct(TelemetryLog.device_id)).all() if r[0]]
+    t_devs = [r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]]
     all_dev_ids = sorted(list(set(list(SUBSYSTEM_PROFILES.keys()) + list(states.keys()) + t_devs)))
 
     results = []

@@ -108,14 +108,21 @@ The Master ESP32 acts as the physical bridge between the differential RS-485 bus
 
 ## 4. Multi-Node Flashing Matrix & Pre-Shared Cryptographic Keys
 
+> **Since v2.6 the keys are not in the source.** Generate one key per node and the matching header before compiling:
+> ```bash
+> python src/device_keys.py generate ESP32_001 ESP32_002 ESP32_003 ESP32_004 \
+>     --out device_keys.json --firmware-header firmware/esp32_slave_sensor/aegis_secrets.h
+> ```
+> `aegis_secrets.h` and `device_keys.json` are git-ignored. Point the host at the same file (`AEGIS_DEVICE_KEYS_FILE`) so it can verify the frames. A template is in `esp32_slave_sensor/aegis_secrets.example.h`.
+
 Each physical node must be flashed with its corresponding node macro in [`firmware/esp32_slave_sensor/esp32_slave_sensor.ino`](esp32_slave_sensor/esp32_slave_sensor.ino).
 
 | Node Designation | Subsystem Monitored | Macro to Uncomment in Firmware | Device ID | Pre-Shared HMAC-SHA256 Key |
 |---|---|---|---|---|
-| **Node 1** | Catalytic Reactor 01 | `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | `aegis_shared_esp32_001_secret_key_v2` |
-| **Node 2** | Centrifugal Pump 02 | `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | `aegis_shared_esp32_002_secret_key_v2` |
-| **Node 3** | Cooling Cryo 03 | `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | `aegis_shared_esp32_003_secret_key_v2` |
-| **Node 4** | Turbine Generator 04 | `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | `aegis_shared_esp32_004_secret_key_v2` |
+| **Node 1** | Catalytic Reactor 01 | `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | `AEGIS_KEY_ESP32_001` (from `aegis_secrets.h`) |
+| **Node 2** | Centrifugal Pump 02 | `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | `AEGIS_KEY_ESP32_002` (from `aegis_secrets.h`) |
+| **Node 3** | Cooling Cryo 03 | `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | `AEGIS_KEY_ESP32_003` (from `aegis_secrets.h`) |
+| **Node 4** | Turbine Generator 04 | `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | `AEGIS_KEY_ESP32_004` (from `aegis_secrets.h`) |
 
 > [!IMPORTANT]
 > **Cryptographic Parity**:

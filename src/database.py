@@ -1,7 +1,7 @@
 import os
 import sys
 import shutil
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine,
     Column,
@@ -107,6 +107,9 @@ class AuditLog(Base):
     action = Column(String(100), nullable=False)
     location = Column(String(100), nullable=False)
     details = Column(String(255), nullable=True)
+    # True for entries written by red-team drills / simulations. Reports and risk
+    # analytics exclude them; the dashboard shows them with a SIMULATED badge.
+    is_simulated = Column(Boolean, default=False, nullable=False)
 
     user = relationship("User", back_populates="logs")
 
@@ -150,6 +153,20 @@ class Rule(Base):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def to_utc_epoch(dt) -> float:
+    """Epoch seconds for a DateTime read back from SQLite.
+
+    SQLite drops tzinfo, so naive values are UTC by construction (they are written with
+    ``datetime.now(timezone.utc)``). Calling ``.timestamp()`` on them directly would
+    interpret them as local time (debug report F9).
+    """
+    if dt is None:
+        return 0.0
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
 def migrate_sqlite_schema():
     import sqlite3
 
@@ -165,6 +182,15 @@ def migrate_sqlite_schema():
             needs_migration = any(
                 row[1] in ("temperature", "pressure", "humidity") and row[3] == 1 for row in cols
             )
+            audit_cols = [
+                row[1] for row in cursor.execute("PRAGMA table_info('audit_logs')").fetchall()
+            ]
+            if audit_cols and "is_simulated" not in audit_cols:
+                print("[Database] Adding audit_logs.is_simulated column...")
+                cursor.execute(
+                    "ALTER TABLE audit_logs ADD COLUMN is_simulated BOOLEAN NOT NULL DEFAULT 0"
+                )
+                conn.commit()
             if needs_migration:
                 print(
                     "[Database] Migrating telemetry_logs table to support nullable sensor fields..."
@@ -198,28 +224,42 @@ def migrate_sqlite_schema():
             print(f"[Database] Auto-migration note: {e}")
 
 
+def _bootstrap_accounts(db) -> list:
+    """Create or repair operator accounts. Returns audit messages describing what changed."""
+    from werkzeug.security import check_password_hash
+
+    from bootstrap import LEGACY_DEFAULT_PASSWORD, data_dir_from_url, resolve_admin_password
+
+    events = []
+    admin = db.query(User).filter_by(username="admin").first()
+    admin_uses_legacy = bool(
+        admin and check_password_hash(admin.password_hash, LEGACY_DEFAULT_PASSWORD)
+    )
+    if admin is None or admin_uses_legacy:
+        password, generated = resolve_admin_password(data_dir=data_dir_from_url(DATABASE_URL))
+        if admin is None:
+            db.add(User(username="admin", password_hash=generate_password_hash(password)))
+            events.append(
+                "Created 'admin' account" + (" with a generated password." if generated else ".")
+            )
+        else:
+            admin.password_hash = generate_password_hash(password)
+            events.append("Rotated 'admin' password away from the legacy default.")
+
+    legacy = db.query(User).filter_by(username="noodles").first()
+    if legacy and check_password_hash(legacy.password_hash, LEGACY_DEFAULT_PASSWORD):
+        db.query(AuditLog).filter_by(user_id=legacy.id).update({AuditLog.user_id: None})
+        db.delete(legacy)
+        events.append("Removed legacy 'noodles' account that still used the default password.")
+    return events
+
+
 def init_db():
     migrate_sqlite_schema()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        default_password = os.environ.get("ADMIN_PASSWORD", "noodles")
-        if default_password == "noodles":
-            print(
-                "[SECURITY WARNING] Admin password is set to default ('noodles'). Set ADMIN_PASSWORD environment variable for production deployments."
-            )
-
-        if not db.query(User).filter_by(username="noodles").first():
-            noodles_user = User(
-                username="noodles", password_hash=generate_password_hash(default_password)
-            )
-            db.add(noodles_user)
-
-        if not db.query(User).filter_by(username="admin").first():
-            admin_user = User(
-                username="admin", password_hash=generate_password_hash(default_password)
-            )
-            db.add(admin_user)
+        account_events = _bootstrap_accounts(db)
 
         rules = {
             "temp_max": (60.0, "Absolute maximum allowed temperature setpoint (C)"),
@@ -236,56 +276,24 @@ def init_db():
             if not db.query(DeviceState).filter_by(device_id=node_id).first():
                 db.add(DeviceState(device_id=node_id, is_isolated=False))
 
-        # Seed baseline NIST SP 800-53 / 800-82r3 Audit Records if empty
-        if db.query(AuditLog).count() == 0:
-            admin_user = db.query(User).filter_by(username="admin").first()
-            admin_id = admin_user.id if admin_user else None
-            now = datetime.now(timezone.utc)
-            baseline_logs = [
+        # Only record things that actually happened (the old fabricated "baseline"
+        # audit entries were removed in v2.6 -- debug report R2).
+        from version import __version__
+
+        db.add(
+            AuditLog(
+                user_id=None,
+                action="SYSTEM_STARTUP",
+                location="SYSTEM",
+                details=f"Aegis ICS v{__version__} started; database schema verified.",
+            )
+        )
+        for message in account_events:
+            db.add(
                 AuditLog(
-                    timestamp=now - timedelta(minutes=15),
-                    user_id=admin_id,
-                    action="SYSTEM_BOOT",
-                    location="CONTROL_CENTER_ALPHA",
-                    details="Aegis Zero-Trust ICS Engine initialized with FIPS 198-1 cryptographic module.",
-                ),
-                AuditLog(
-                    timestamp=now - timedelta(minutes=12),
-                    user_id=admin_id,
-                    action="KEYRING_VALIDATED",
-                    location="CRYPTOGRAPHIC_STORE",
-                    details="Multi-node hardware HMAC pre-shared key ring verified for ESP32_001..004.",
-                ),
-                AuditLog(
-                    timestamp=now - timedelta(minutes=10),
-                    user_id=admin_id,
-                    action="SAFETY_INTERLOCKS_ENGAGED",
-                    location="SAFETY_SUBSYSTEM",
-                    details="Stuxnet physical interlock enforcement rules active (temp < 60°C, pressure < 8.0 bar).",
-                ),
-                AuditLog(
-                    timestamp=now - timedelta(minutes=8),
-                    user_id=admin_id,
-                    action="ML_STATE_SPACE_BASELINE",
-                    location="STATE_ESTIMATOR",
-                    details="Multi-sensor Random Forest state space baseline initialized.",
-                ),
-                AuditLog(
-                    timestamp=now - timedelta(minutes=5),
-                    user_id=admin_id,
-                    action="STATION_GEOLOCATION_LOCKED",
-                    location="GPS_TELEMETRY",
-                    details="Cartesian coordinates verified (X:+12.40, Y:-48.10, Z:+3.50).",
-                ),
-                AuditLog(
-                    timestamp=now - timedelta(minutes=2),
-                    user_id=admin_id,
-                    action="DATABASE_WAL_VERIFIED",
-                    location="STORAGE_ENGINE",
-                    details="SQLite WAL write-ahead log journal verified.",
-                ),
-            ]
-            db.add_all(baseline_logs)
+                    user_id=None, action="ACCOUNT_BOOTSTRAP", location="SYSTEM", details=message
+                )
+            )
 
         db.commit()
     finally:

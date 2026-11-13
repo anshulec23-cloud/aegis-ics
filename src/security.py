@@ -17,28 +17,15 @@ from typing import Callable, Any
 from flask import jsonify, request
 
 
-from version import __version__ as APP_VERSION  # single source of truth: src/version.py
-
-"""Current application version string."""
+from version import __version__ as APP_VERSION  # noqa: F401 -- single source: src/version.py
 
 GITHUB_REPO: str = "anshulec23-cloud/aegis-ics"
 """GitHub repository identifier used for update checks."""
 
 
-DEFAULT_DEVICE_KEYS = {
-    "ESP32_001": "aegis_shared_esp32_001_secret_key_v2",
-    "ESP32_002": "aegis_shared_esp32_002_secret_key_v2",
-    "ESP32_003": "aegis_shared_esp32_003_secret_key_v2",
-    "ESP32_004": "aegis_shared_esp32_004_secret_key_v2",
-}
-
-
-def get_device_key(device_id: str = "ESP32_001") -> str:
-    """Return a consistent device HMAC pre-shared key across processes."""
-    env_key = os.environ.get(f"DEVICE_KEY_{device_id}")
-    if env_key:
-        return env_key
-    return DEFAULT_DEVICE_KEYS.get(device_id, "aegis_shared_default_secret_key_v2")
+# Device keys are provisioned per deployment (env or key file); see src/device_keys.py.
+# There are intentionally no built-in or fallback keys.
+from device_keys import get_device_key, is_valid_device_id  # noqa: E402,F401
 
 
 def find_free_port() -> int:
@@ -97,11 +84,7 @@ def require_webview_token(f: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(f)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        from flask import current_app
-
-        if current_app and current_app.config.get("TESTING"):
-            return f(*args, **kwargs)
-
+        # Note: no TESTING bypass -- tests must exercise the same checks as production.
         if not os.environ.get("AEGIS_DESKTOP_MODE"):
             return f(*args, **kwargs)
 

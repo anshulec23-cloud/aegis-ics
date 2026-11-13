@@ -2,8 +2,13 @@
 Aegis ICS V2 — Production Serial COM Port Telemetry Gateway Driver
 
 Listens to the designated serial COM port (USB connection from the ESP32),
-parses the sensor readings (supporting both CSV and JSON formats), signs
-the payload using HMAC-SHA256, and forwards it to the Aegis REST API.
+parses the sensor readings, and forwards **device-signed** frames to the Aegis
+ingestion API. The gateway never signs telemetry on a device's behalf (unless
+explicitly run with ``--allow-unsigned`` for bench testing): a frame without a
+device signature is dropped.
+
+Outbound commands are queued with a time-to-live; commands older than
+``COMMAND_TTL_SECONDS`` are discarded instead of being replayed later.
 """
 
 import sys
@@ -31,13 +36,18 @@ except ImportError:
     from src.security import get_device_key
 
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:5000/api/telemetry"
+GATEWAY_TOKEN_HEADER = "X-Aegis-Gateway-Token"
 
-DEFAULT_DEVICE_KEY = get_device_key("ESP32_001")
+# Commands older than this are dropped rather than written to the bus (debug report F3).
+COMMAND_TTL_SECONDS = float(os.environ.get("AEGIS_COMMAND_TTL_S", "5"))
 
-import threading
-import collections
+import threading  # noqa: E402
+import collections  # noqa: E402
 
+# One stop event per gateway run: stop_gateway() sets the *current* run's event, and a
+# new run gets a fresh event, so an old thread can never be revived (debug report F4).
 _gateway_stop_event = threading.Event()
+_gateway_stop_event.set()
 _active_port = None
 _command_queue = queue.Queue()
 _raw_packet_buffer = collections.deque(maxlen=150)
@@ -52,6 +62,20 @@ def stop_gateway():
     global _gateway_state
     _gateway_stop_event.set()
     _gateway_state = "DISCONNECTED"
+
+
+def is_connected() -> bool:
+    """True when a gateway run is active and its transport is connected."""
+    return (not _gateway_stop_event.is_set()) and _gateway_state == "CONNECTED"
+
+
+def is_mock_active() -> bool:
+    """True while the software simulator (not real hardware) is feeding telemetry."""
+    return (
+        (not _gateway_stop_event.is_set())
+        and bool(_active_port)
+        and str(_active_port).upper().startswith(("SIM", "MOCK"))
+    )
 
 
 def get_active_port():
@@ -140,16 +164,51 @@ def find_esp32_ports():
 
 
 def send_command(payload_dict):
-    """Enqueues a command to be written to the serial port, guaranteeing cryptographic integrity."""
-    if isinstance(payload_dict, dict):
-        if not payload_dict.get("signature"):
-            target_device = (
-                payload_dict.get("target_device") or payload_dict.get("device_id") or "ESP32_001"
+    """Sign (with the target device's key) and enqueue a command for the serial bus.
+
+    Broadcast commands (target ``ALL``) are sent unsigned until protocol v1 adds a bus key
+    (restructure plan P2.1). Raises ``ValueError`` if a unicast target has no key.
+    """
+    if not isinstance(payload_dict, dict):
+        raise TypeError("command must be a dict")
+    cmd = {k: v for k, v in payload_dict.items() if not k.startswith("_")}
+    target_device = cmd.get("target_device") or cmd.get("device_id") or "ALL"
+    if not cmd.get("signature") and target_device != "ALL":
+        key = get_device_key(target_device)
+        if not key:
+            raise ValueError(f"No HMAC key provisioned for {target_device}; command not sent.")
+        cmd["signature"] = sign_message({k: v for k, v in cmd.items() if k != "signature"}, key)
+    cmd["_enqueued_at"] = time.time()
+    _command_queue.put(cmd)
+    return cmd
+
+
+def pop_ready_commands(now=None):
+    """Drain the queue, returning unexpired commands with internal fields removed."""
+    now = time.time() if now is None else now
+    ready = []
+    while True:
+        try:
+            cmd = _command_queue.get_nowait()
+        except queue.Empty:
+            break
+        age = now - float(cmd.get("_enqueued_at", now))
+        if age > COMMAND_TTL_SECONDS:
+            print(
+                f"[Gateway] Dropping expired command ({age:.1f}s old): {cmd.get('command') or cmd.get('action')}"
             )
-            key = get_device_key(target_device)
-            to_sign = {k: v for k, v in payload_dict.items() if k != "signature"}
-            payload_dict["signature"] = sign_message(to_sign, key)
-    _command_queue.put(payload_dict)
+            continue
+        ready.append({k: v for k, v in cmd.items() if not k.startswith("_")})
+    return ready
+
+
+def purge_command_queue():
+    """Discard everything queued (used when a new gateway run starts)."""
+    while True:
+        try:
+            _command_queue.get_nowait()
+        except queue.Empty:
+            return
 
 
 def get_recent_raw_packets(limit=50):
@@ -170,8 +229,15 @@ def log_raw_wire_packet(line: str, parsed: bool = True, target_id: str = "ESP32_
 
 
 def canonicalize_payload(payload: dict) -> dict:
+    """The one canonical form used for signing AND verification (see docs/01-architecture/protocols.md).
+
+    Sensor values -> strings with 2 decimals; ``timestamp`` -> 3 decimals (or the original
+    string if it is not numeric, e.g. ISO-8601); ``None`` values are omitted.
+    """
     canonical = {}
     for k, v in payload.items():
+        if v is None:
+            continue
         if k in (
             "temperature",
             "pressure",
@@ -193,6 +259,8 @@ def canonicalize_payload(payload: dict) -> dict:
 
 
 def sign_message(payload: dict, key: str) -> str:
+    if not key:
+        raise ValueError("Cannot sign: no HMAC key")
     canonical_payload = canonicalize_payload(payload)
     canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
     return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -515,7 +583,7 @@ def mock_serial_stream(mode):
             packet["hall"] = dev["hall_base"]
         if "curr" in active_sensors:
             packet["curr"] = dev["curr_base"]
-        packet["signature"] = "BAD_HMAC_SIGNATURE_TAMPERED_000011112222333344445555666677778888"
+        packet["_tampered"] = True
     elif attack == "thermal_drift":
         # Stealth thermal drift: Creeps temperature upward progressively to test rolling deviation / variance
         _thermal_drift_offsets[dev_id] = _thermal_drift_offsets.get(dev_id, 0.0) + 0.65
@@ -540,7 +608,6 @@ def mock_serial_stream(mode):
         packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
         packet["vib"] = dev["vib_base"]
         packet["rssi"] = -98.0
-        packet["is_anomaly"] = True
     else:
         # Normal baseline telemetry
         active_sensors = dev["sensors"]
@@ -561,7 +628,7 @@ def mock_serial_stream(mode):
             "system": "Aegis Master Concentrator",
             "type": "BUS_TOPOLOGY",
             "status": "ONLINE",
-            "version": "2.5.2",
+            "version": "simulator",
             "slave_count": len(_sim_devices),
             "slaves": [d["id"] for d in _sim_devices],
             "sensors": {
@@ -572,7 +639,83 @@ def mock_serial_stream(mode):
         }
         return json.dumps(topo_frame) + "\n"
 
-    return json.dumps(packet) + "\n"
+    return json.dumps(_sign_simulated_packet(packet)) + "\n"
+
+
+_SIM_KEY_MAP = {
+    "temp": "temperature",
+    "pres": "pressure",
+    "vib": "vibration",
+    "hall": "hall_effect",
+    "curr": "current",
+}
+_warned_unkeyed_sim_devices = set()
+
+
+def _sign_simulated_packet(packet: dict) -> dict:
+    """Emit a frame exactly as a provisioned device would: long field names + its own HMAC.
+
+    The simulator plays the role of the field devices, so it signs with each device's own
+    key (never one shared key -- debug report F1). The ``hmac_tamper`` drill emits a
+    deliberately corrupted signature.
+    """
+    tampered = packet.pop("_tampered", False)
+    frame = {_SIM_KEY_MAP.get(k, k): v for k, v in packet.items()}
+    if tampered:
+        frame["signature"] = "BAD_HMAC_SIGNATURE_TAMPERED_" + "0" * 36
+        return frame
+    key = get_device_key(frame["device_id"])
+    if not key:
+        if frame["device_id"] not in _warned_unkeyed_sim_devices:
+            _warned_unkeyed_sim_devices.add(frame["device_id"])
+            print(
+                f"[Simulator] No key provisioned for {frame['device_id']}; its frames will be rejected."
+            )
+        return frame
+    frame["signature"] = sign_message(frame, key)
+    return frame
+
+
+FORWARDED_FIELDS = (
+    "temperature",
+    "pressure",
+    "vibration",
+    "hall_effect",
+    "current",
+    "humidity",
+    "rssi",
+)
+
+
+def build_forward_payload(
+    raw_data: dict, allow_unsigned: bool = False, bench_key=None, default_device_id=None
+):
+    """Build the JSON body sent to /api/telemetry from a parsed frame.
+
+    Returns ``None`` for frames without a device signature: the gateway is not a signing
+    authority (debug report S6). ``allow_unsigned`` exists only for bench testing with
+    sensors that cannot sign; it signs with ``bench_key`` or the device's own key.
+    """
+    device_id = raw_data.get("device_id") or default_device_id
+    if not device_id:
+        return None
+    payload = {"device_id": device_id}
+    if "timestamp" in raw_data:
+        payload["timestamp"] = raw_data["timestamp"]
+    for k in FORWARDED_FIELDS:
+        if k in raw_data:
+            payload[k] = raw_data[k]
+    if raw_data.get("signature"):
+        payload["signature"] = raw_data["signature"]
+        return payload
+    if not allow_unsigned:
+        return None
+    key = bench_key or get_device_key(device_id)
+    if not key:
+        return None
+    payload.setdefault("timestamp", time.time())
+    payload["signature"] = sign_message(payload, key)
+    return payload
 
 
 def start_gateway(
@@ -583,12 +726,25 @@ def start_gateway(
     hmac_key=None,
     url=DEFAULT_GATEWAY_URL,
     mock=False,
+    allow_unsigned=False,
+    gateway_token=None,
+    initial_commands=None,
 ):
-    global _active_port, _gateway_state
-    import time
+    """Run the gateway loop until stop_gateway() is called.
 
-    _gateway_stop_event.clear()
+    ``hmac_key`` is only used together with ``allow_unsigned`` (bench testing).
+    ``gateway_token`` is sent as the ``X-Aegis-Gateway-Token`` header; defaults to the
+    ``AEGIS_GATEWAY_TOKEN`` environment variable. ``initial_commands`` are queued right
+    after DISCOVER on every (re)start, e.g. ISOLATE re-sync for quarantined nodes.
+    """
+    global _active_port, _gateway_state, _gateway_stop_event
+
+    stop_event = threading.Event()
+    _gateway_stop_event = stop_event
+    purge_command_queue()
     _active_port = (port if port else "SIM_CLUSTER") if mock else port
+    token = gateway_token or os.environ.get("AEGIS_GATEWAY_TOKEN", "")
+    post_headers = {"Content-Type": "application/json", GATEWAY_TOKEN_HEADER: token}
 
     default_dev_id = device_id or ("ESP32_001" if mode == "plc" else "ESP32_002")
 
@@ -623,7 +779,7 @@ def start_gateway(
         except Exception as e:
             print(f"[Gateway] Could not connect to COM port {port}: {e}")
             ser = None
-            _gateway_state = "RECONNECTING" if not _gateway_stop_event.is_set() else "DISCONNECTED"
+            _gateway_state = "RECONNECTING" if not stop_event.is_set() else "DISCONNECTED"
             return False
 
     if not mock:
@@ -642,6 +798,7 @@ def start_gateway(
                 }
             )
     else:
+        _try_connect()  # simulator: marks the run CONNECTED
         send_command(
             {
                 "command": "DISCOVER",
@@ -651,7 +808,13 @@ def start_gateway(
             }
         )
 
-    while not _gateway_stop_event.is_set():
+    for cmd in initial_commands or []:
+        try:
+            send_command(dict(cmd, timestamp=time.time()))
+        except ValueError as err:
+            print(f"[Gateway] Initial command skipped: {err}")
+
+    while not stop_event.is_set():
         try:
             # Auto-reconnect if physical serial connection was lost or interrupted
             if not mock and (ser is None or not ser.is_open):
@@ -659,13 +822,12 @@ def start_gateway(
                 _gateway_state = "RECONNECTING"
                 if not _try_connect():
                     for _ in range(10):
-                        if _gateway_stop_event.is_set():
+                        if stop_event.is_set():
                             break
                         time.sleep(0.2)
                     continue
 
-            while not _command_queue.empty():
-                cmd = _command_queue.get_nowait()
+            for cmd in pop_ready_commands():
                 if not mock and ser and ser.is_open:
                     ser.write((json.dumps(cmd) + "\n").encode("utf-8"))
                     ser.flush()
@@ -675,7 +837,7 @@ def start_gateway(
 
             if mock:
                 line = mock_serial_stream(mode)
-                if _gateway_stop_event.is_set():
+                if stop_event.is_set():
                     break
             else:
                 line = ser.readline().decode("utf-8", errors="ignore")
@@ -718,39 +880,19 @@ def start_gateway(
                     k: raw_data[k] for k in detected_sensors
                 }
 
-            payload = {
-                "device_id": target_device_id,
-            }
-            if "timestamp" in raw_data:
-                payload["timestamp"] = raw_data["timestamp"]
-
-            for k in (
-                "temperature",
-                "pressure",
-                "vibration",
-                "hall_effect",
-                "current",
-                "humidity",
-                "rssi",
-            ):
-                if k in raw_data:
-                    payload[k] = raw_data[k]
-
-            reported_fields = [k for k in raw_data.keys()]
-            print(
-                f"[Gateway DEBUG] [{target_device_id}] Fields: {reported_fields} (Detected {len(detected_sensors)}/5 sensors)"
+            payload = build_forward_payload(
+                raw_data,
+                allow_unsigned=allow_unsigned,
+                bench_key=hmac_key,
+                default_device_id=default_dev_id,
             )
+            if payload is None:
+                print(
+                    f"[Gateway] [{target_device_id}] Dropped unsigned frame (device signature required)."
+                )
+                continue
 
-            if "signature" in raw_data and raw_data["signature"]:
-                payload["signature"] = raw_data["signature"]
-            else:
-                if "timestamp" not in payload:
-                    payload["timestamp"] = time.time()
-                target_key = hmac_key if hmac_key else get_device_key(target_device_id)
-                payload["signature"] = sign_message(payload, target_key)
-
-            headers = {"Content-Type": "application/json"}
-            resp = requests.post(url, json=payload, headers=headers, timeout=3)
+            resp = requests.post(url, json=payload, headers=post_headers, timeout=3)
 
             if resp.status_code == 200:
                 print(f"[Gateway] [{target_device_id}] Success -> {raw_data}")
@@ -765,7 +907,7 @@ def start_gateway(
 
         except Exception as e:
             print(f"[Gateway] Telemetry acquisition exception: {e}")
-            if _gateway_stop_event.is_set():
+            if stop_event.is_set():
                 break
             if not mock and ser is not None:
                 try:
@@ -781,8 +923,10 @@ def start_gateway(
             print(f"[Gateway] COM port {port} closed safely.")
         except Exception as e:
             print(f"[Gateway] Error closing COM port: {e}")
-    _active_port = None
-    _gateway_state = "DISCONNECTED"
+    # Only reset shared state if no newer gateway run has started in the meantime.
+    if _gateway_stop_event is stop_event:
+        _active_port = None
+        _gateway_state = "DISCONNECTED"
     print("[Gateway] Shutdown complete.")
 
 
@@ -800,7 +944,14 @@ if __name__ == "__main__":
         help="Machine Profile Profile",
     )
     parser.add_argument("--device-id", type=str, default=None, help="Device ID override")
-    parser.add_argument("--key", type=str, default=None, help="HMAC Pre-Shared Key")
+    parser.add_argument(
+        "--key", type=str, default=None, help="Bench-test HMAC key (only with --allow-unsigned)"
+    )
+    parser.add_argument(
+        "--allow-unsigned",
+        action="store_true",
+        help="BENCH TESTING ONLY: sign frames from sensors that cannot sign themselves",
+    )
     parser.add_argument(
         "--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis REST Telemetry Ingest URL"
     )
@@ -817,4 +968,5 @@ if __name__ == "__main__":
         hmac_key=args.key,
         url=args.url,
         mock=args.mock,
+        allow_unsigned=args.allow_unsigned,
     )

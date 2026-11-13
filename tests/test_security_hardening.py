@@ -118,8 +118,11 @@ def test_actuator_commands_hmac_signing():
     }
     send_command(unsigned_cmd)
 
-    assert not _command_queue.empty()
-    queued = _command_queue.get_nowait()
+    from serial_gateway import pop_ready_commands
+
+    ready = pop_ready_commands()
+    assert len(ready) == 1
+    queued = ready[0]
     assert "signature" in queued
     assert len(queued["signature"]) == 64  # SHA-256 hex digest length
 

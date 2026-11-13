@@ -21,10 +21,10 @@ Before flashing, uncomment exactly **ONE** macro in `esp32_slave_sensor.ino`:
 
 | Node Macro to Uncomment | Node ID | Industrial Unit Monitored | Pre-Shared HMAC-SHA256 Key |
 |---|---|---|---|
-| `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | Catalytic Reactor 01 | `aegis_shared_esp32_001_secret_key_v2` |
-| `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | Centrifugal Pump 02 | `aegis_shared_esp32_002_secret_key_v2` |
-| `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | Cooling Cryo 03 | `aegis_shared_esp32_003_secret_key_v2` |
-| `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | Turbine Generator 04 | `aegis_shared_esp32_004_secret_key_v2` |
+| `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | Catalytic Reactor 01 | `AEGIS_KEY_ESP32_001` (from `aegis_secrets.h`) |
+| `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | Centrifugal Pump 02 | `AEGIS_KEY_ESP32_002` (from `aegis_secrets.h`) |
+| `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | Cooling Cryo 03 | `AEGIS_KEY_ESP32_003` (from `aegis_secrets.h`) |
+| `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | Turbine Generator 04 | `AEGIS_KEY_ESP32_004` (from `aegis_secrets.h`) |
 
 ---
 
