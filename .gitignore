@@ -47,3 +47,8 @@ firmware/**/aegis_secrets.h
 tests/simulator_devices.json
 tests/host_identity.key
 tests/setup_token.txt
+tests/redteam_token.txt
+
+# Red-team drill runtime artifacts (written to the data dir at run time)
+redteam_token.txt
+redteam_runtime.json

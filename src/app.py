@@ -149,6 +149,9 @@ def csrf_protect():
     if request.path == "/api/telemetry":
         return  # authenticated by gateway token + per-device HMAC instead
 
+    if request.path.startswith("/api/redteam/"):
+        return  # localhost-only + one-time drill token instead (see _redteam_guard)
+
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
         token = (
             request.form.get("csrf_token")
@@ -2546,6 +2549,87 @@ def get_subsystems_financial():
         db.close()
 
 
+# --------------------------------------------------------------------- red team ---
+# The portable USB attack harness drives the physical-process stages through these.
+# They are machine-to-machine (no operator session), so they are CSRF-exempt and
+# guarded two ways instead: the caller must be on the loopback interface AND present
+# the one-time drill token from the data directory (only a program on this same
+# machine can read it). See src/redteam.py and tools/redteam/aegis_redteam.py.
+REDTEAM_TOKEN_HEADER = "X-Aegis-Redteam-Token"
+
+
+def _redteam_guard():
+    """Return an error ``(json, status)`` tuple if the red-team call is not allowed, else None."""
+    import redteam
+
+    remote = request.remote_addr or ""
+    if remote not in ("127.0.0.1", "::1", "localhost"):
+        return jsonify({"success": False, "error": "Red-team drills are localhost-only."}), 403
+    token = request.headers.get(REDTEAM_TOKEN_HEADER, "") or (
+        (request.get_json(silent=True) or {}).get("token") if request.is_json else ""
+    )
+    if not redteam.check_token(token):
+        return jsonify({"success": False, "error": "Invalid or missing red-team drill token."}), 401
+    return None
+
+
+@app.route("/api/redteam/plan", methods=["GET"])
+@limiter.exempt
+def api_redteam_plan():
+    guard = _redteam_guard()
+    if guard is not None:
+        return guard
+    import redteam
+
+    return jsonify({"success": True, "campaign": redteam.CAMPAIGN})
+
+
+@app.route("/api/redteam/inject", methods=["POST"])
+@limiter.exempt
+def api_redteam_inject():
+    guard = _redteam_guard()
+    if guard is not None:
+        return guard
+    import redteam
+
+    body = request.get_json(silent=True) or {}
+    attack = str(body.get("attack", "")).strip()
+    if not attack:
+        return jsonify({"success": False, "error": "Missing 'attack'."}), 400
+    try:
+        result = redteam.run_physical_attack(attack, body.get("device_id"))
+    except Exception as e:
+        print(f"[RedTeam Inject Error] {e}")
+        return jsonify({"success": False, "error": "Red-team injection failed."}), 500
+    return jsonify({"success": result.get("ok", False), "result": result})
+
+
+@app.route("/api/redteam/reset", methods=["POST"])
+@limiter.exempt
+def api_redteam_reset():
+    guard = _redteam_guard()
+    if guard is not None:
+        return guard
+    import redteam
+
+    return jsonify({"success": True, "result": redteam.reset()})
+
+
+@app.route("/api/redteam/status", methods=["GET"])
+@limiter.exempt
+def api_redteam_status():
+    guard = _redteam_guard()
+    if guard is not None:
+        return guard
+    import loss_engine
+
+    db = SessionLocal()
+    try:
+        return jsonify({"success": True, "incident": loss_engine.assess(db)})
+    finally:
+        db.close()
+
+
 @app.route("/api/devices/locations", methods=["GET"])
 @limiter.exempt
 @login_required
@@ -3013,7 +3097,9 @@ def health():
         db = SessionLocal()
         db.query(User).first()
         db.close()
-        return jsonify({"status": "healthy", "components": {"database": "connected"}}), 200
+        return jsonify(
+            {"status": "healthy", "service": "aegis-ics", "components": {"database": "connected"}}
+        ), 200
     except Exception as e:
         print(f"[Health Check Error] {e}")
         return jsonify({"status": "unhealthy", "error": "Database connection check failed."}), 500
@@ -3031,4 +3117,10 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     host = os.environ.get("HOST", "127.0.0.1")
     print(f"[*] Starting Aegis ICS Web Gateway on http://{host}:{port}")
+    try:
+        import redteam
+
+        redteam.write_runtime_info(port)
+    except Exception:
+        pass
     app.run(host=host, port=port, debug=False)

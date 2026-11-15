@@ -243,6 +243,12 @@ def main():
 
     _flask_server, actual_port = _create_flask_server(port, host=target_host)
     os.environ["FLASK_PORT"] = str(actual_port)
+    try:
+        import redteam
+
+        redteam.write_runtime_info(actual_port)
+    except Exception as exc:  # never block startup on the drill convenience file
+        logger.debug("Could not publish red-team runtime info: %s", exc)
 
     flask_thread = threading.Thread(
         target=_flask_server.serve_forever,
