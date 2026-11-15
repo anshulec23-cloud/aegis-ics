@@ -347,7 +347,7 @@ def train_random_forest(metrics_dict: dict):
         "recall_nominal": float(rec[0]),
         "confusion_matrix": cm.tolist(),
         "feature_importances": feat_imps,
-        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": thresholds.tolist()},
+        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": [float(t) if np.isfinite(t) else None for t in thresholds]},
         "n_train": len(X_train),
         "n_test": len(X_test),
         "inference_latency_ms": inf_latency,
@@ -538,7 +538,7 @@ def train_neural_safety_policy(metrics_dict: dict):
         "loss_final": float(avg_loss),
         "inference_latency_torch_ms": float(torch_latency_ms),
         "inference_latency_numpy_ms": float(numpy_latency_ms),
-        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": thresholds.tolist()},
+        "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "thresholds": [float(t) if np.isfinite(t) else None for t in thresholds]},
         "n_train": len(X_train),
         "n_test": len(X_test),
     }

@@ -2293,6 +2293,24 @@ def api_retrain_model():
         db.close()
 
 
+def _json_safe(obj):
+    """Recursively replace non-finite floats (inf/-inf/nan) with None.
+
+    sklearn's roc_curve sets thresholds[0] to +inf; json.load accepts it, but jsonify then
+    emits the literal token ``Infinity``, which is invalid JSON and makes browsers throw a
+    SyntaxError when parsing /api/model/status. Sanitize before serializing.
+    """
+    import math
+
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 @app.route("/api/model/status", methods=["GET"])
 @limiter.exempt
 @login_required
@@ -2306,7 +2324,7 @@ def api_model_status():
         if os.path.exists(metrics_path):
             try:
                 with open(metrics_path, "r") as mf:
-                    metrics = json.load(mf)
+                    metrics = _json_safe(json.load(mf))
             except Exception:
                 pass
         try:

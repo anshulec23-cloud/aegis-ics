@@ -125,6 +125,27 @@ def _enroll(dev):
     registry.approve(dev, user_id=None)
 
 
+def test_model_status_endpoint_returns_valid_json_with_classifier_card():
+    """Regression: training_metrics.json carries +inf ROC thresholds; the endpoint must still
+    emit valid JSON (no bare `Infinity`) and include the attack-classifier card."""
+    from app import app
+    from database import SessionLocal, User
+
+    db = SessionLocal()
+    admin_id = db.query(User).filter_by(username="admin").first().id
+    db.close()
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess.update(user_id=admin_id, username="admin", location="T", csrf_token="t")
+    res = client.get("/api/model/status")
+    assert res.status_code == 200
+    body = res.get_data(as_text=True)
+    assert "Infinity" not in body and "NaN" not in body
+    data = res.get_json()  # raises if invalid JSON
+    assert data["success"] is True
+    assert data["attack_classifier"]["available"] is True
+
+
 def test_redteam_injection_is_named_by_classifier_and_priced():
     import loss_engine
     import redteam
