@@ -707,7 +707,10 @@ def test_multi_device_cluster_endpoints():
 
 
 # --- 11. Red Team Attack Simulation Suite Tests ---
-def test_attack_simulation_suite():
+def test_attack_simulation_suite(monkeypatch, tmp_path):
+    """Drills target simulated slaves only; refused when the simulator isn't running."""
+    import serial_gateway
+    import simulator
     from app import app
 
     app.config["TESTING"] = True
@@ -721,11 +724,31 @@ def test_attack_simulation_suite():
 
     headers = {"X-CSRF-Token": "test_csrf_attack"}
 
+    # No simulator running -> refused (drills never touch real hardware).
+    refused = client.post(
+        "/api/simulate/attack",
+        json={"device_id": "ESP32_002", "attack_type": "stuxnet"},
+        headers=headers,
+    )
+    assert refused.status_code == 409
+
+    bus = simulator.SimulatedBus(str(tmp_path), 1)
+    sim_id = bus.devices[0].id
+    monkeypatch.setattr(serial_gateway, "_sim_bus", bus)
+    monkeypatch.setattr(serial_gateway, "is_mock_active", lambda: True)
+
     # Test injecting each valid attack vector
-    for attack in ["stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike"]:
+    for attack in [
+        "stuxnet",
+        "hmac_tamper",
+        "thermal_drift",
+        "fdi_spike",
+        "replay",
+        "sensor_fault",
+    ]:
         res = client.post(
             "/api/simulate/attack",
-            json={"device_id": "ESP32_002", "attack_type": attack},
+            json={"device_id": sim_id, "attack_type": attack},
             headers=headers,
         )
         assert res.status_code == 200
@@ -736,7 +759,7 @@ def test_attack_simulation_suite():
     # Test invalid attack vector
     res_bad = client.post(
         "/api/simulate/attack",
-        json={"device_id": "ESP32_002", "attack_type": "unknown_exploit"},
+        json={"device_id": sim_id, "attack_type": "unknown_exploit"},
         headers=headers,
     )
     assert res_bad.status_code == 200

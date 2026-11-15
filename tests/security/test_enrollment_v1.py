@@ -384,3 +384,55 @@ def test_setpoint_route_waits_for_device_ack(monkeypatch):
     finally:
         serial_gateway.stop_gateway()
         thread.join(timeout=5)
+
+
+def test_simulated_device_keeps_key_and_trip_state_across_restart(tmp_path):
+    """The simulator mirrors firmware NVS: key, host sequence and trip state survive a reboot."""
+    bus = simulator.SimulatedBus(str(tmp_path), 1)
+    dev = bus.devices[0]
+    host_priv, host_pub = enrollment.generate_keypair()
+    key = enrollment.derive_session_key(host_priv, dev.pub, dev.id, dev.pub, host_pub)
+    assert dev.on_welcome(protocol.build_welcome(dev.id, host_pub, key))["result"] == "OK"
+    assert dev.on_command(protocol.build_cmd(dev.id, 1, "ISOLATE", {}, key))["result"] == "OK"
+
+    rebooted = simulator.SimulatedBus(str(tmp_path), 1).devices[0]
+    assert (rebooted.id, rebooted.key, rebooted.tripped, rebooted.last_host_seq) == (
+        dev.id,
+        key,
+        True,
+        1,
+    )
+    assert rebooted.boot != dev.boot  # new boot id on power-up
+    # The old command can't be replayed against the rebooted device.
+    assert (
+        rebooted.on_command(protocol.build_cmd(dev.id, 1, "REARM", {}, key))["result"] == "REPLAY"
+    )
+
+
+def test_quarantined_device_is_retripped_when_it_reenrolls(monkeypatch):
+    import app as app_module
+
+    priv, key = _enroll("ESP32_Q00001")
+    db = SessionLocal()
+    db.query(DeviceState).filter_by(device_id="ESP32_Q00001").first().is_isolated = True
+    db.commit()
+    db.close()
+    monkeypatch.setattr(serial_gateway, "is_connected", lambda: True)
+    ack = protocol.sign(
+        {
+            "v": 1,
+            "type": "ACK",
+            "id": "ESP32_Q00001",
+            "boot": 3,
+            "seq": 1,
+            "ack": 0,
+            "result": "OK",
+        },
+        key,
+    )
+    assert app_module.handle_device_frame(ack)[1] == 200
+    queued = serial_gateway.pop_ready_commands()
+    assert any(
+        f.get("type") == "CMD" and f.get("cmd") == "ISOLATE" and f.get("id") == "ESP32_Q00001"
+        for f in queued
+    )

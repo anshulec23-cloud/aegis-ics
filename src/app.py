@@ -636,7 +636,32 @@ def _ingest_authenticated(device_id: str, fields: dict, stored_ts: float, faults
         db.close()
 
 
+_audit_throttle: dict = {}
+AUDIT_THROTTLE_S = 60.0
+
+
+def _audit_throttled(device_id: str, action: str, details: str) -> None:
+    """Record a security event at most once per device/action per minute (no log flooding)."""
+    now = time.time()
+    with _ingest_lock:
+        last = _audit_throttle.get((device_id, action), 0.0)
+        if now - last < AUDIT_THROTTLE_S:
+            return
+        _audit_throttle[(device_id, action)] = now
+    db = SessionLocal()
+    try:
+        db.add(AuditLog(user_id=None, action=action, location="FIELD_BUS", details=details[:255]))
+        db.commit()
+    finally:
+        db.close()
+
+
 def _signature_failure(device_id: str, now: float) -> None:
+    _audit_throttled(
+        device_id,
+        "SIGNATURE_REJECTED",
+        f"Rejected frame(s) with an invalid HMAC signature from {device_id}.",
+    )
     failures = _record_signature_failure(device_id, now)
     print(
         f"[Server] Invalid signature from {device_id} ({failures}/{SIG_FAILURE_THRESHOLD} in window)"
@@ -686,11 +711,29 @@ def handle_device_frame(frame: dict) -> tuple[bool, int, str]:
             _signature_failure(device_id, time.time())
             return False, 401, "Rejected: invalid signature."
         if reason == "replay":
+            _audit_throttled(
+                device_id,
+                "REPLAY_REJECTED",
+                f"Rejected replayed frame(s) from {device_id} (boot/seq already seen).",
+            )
             return False, 409, "Rejected: replayed frame (boot/seq already seen)."
         return False, 400, "Rejected: malformed sequence fields."
 
     if ftype == "ACK":
         registry.handle_ack(frame)
+        if frame.get("ack") == 0 and frame.get("result") == "OK":
+            # A device that (re-)enrolls while quarantined is tripped again immediately:
+            # it may have lost its trip state (flash wiped / replaced board).
+            db = SessionLocal()
+            try:
+                state = db.query(DeviceState).filter_by(device_id=device_id).first()
+                quarantined = bool(state and state.is_isolated)
+            finally:
+                db.close()
+            if quarantined:
+                send_device_command(
+                    device_id, "ISOLATE", reason="quarantine re-sync after enrollment"
+                )
         return True, 200, "ACK recorded."
 
     fields = protocol.telemetry_fields(frame)
@@ -1990,6 +2033,20 @@ def simulate_attack_endpoint():
     try:
         import serial_gateway
 
+        # Drills only ever run on the software simulator, never on real field devices.
+        bus = serial_gateway.get_simulated_bus()
+        if not serial_gateway.is_mock_active() or bus is None:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Drills need the software simulator: connect SOFTWARE EMULATOR in Station 06.",
+                }
+            ), 409
+        if bus.device(device_id) is None:
+            return jsonify(
+                {"success": False, "error": f"{device_id} is not a simulated device."}
+            ), 409
+
         res = serial_gateway.inject_attack(device_id, attack_type)
         if res.get("success"):
             db = SessionLocal()
@@ -2075,7 +2132,19 @@ def get_audit_logs():
 
         def determine_severity(action: str) -> str:
             act = (action or "").upper()
-            if any(w in act for w in ("VIOLATION", "ATTACK", "BLOCKED", "FAILED", "QUARANTINE")):
+            if any(
+                w in act
+                for w in (
+                    "VIOLATION",
+                    "ATTACK",
+                    "BLOCKED",
+                    "FAILED",
+                    "QUARANTINE",
+                    "REPLAY",
+                    "SIGNATURE_REJECTED",
+                    "KEY_CHANGED",
+                )
+            ):
                 return "CRITICAL"
             elif any(
                 w in act for w in ("SETPOINT", "ISOLAT", "RECONNECT", "DISCONNECT", "WARNING")
@@ -2679,7 +2748,19 @@ def get_data():
 
     def _audit_sev(action: str) -> str:
         act = (action or "").upper()
-        if any(w in act for w in ("VIOLATION", "ATTACK", "BLOCKED", "FAILED", "QUARANTINE")):
+        if any(
+            w in act
+            for w in (
+                "VIOLATION",
+                "ATTACK",
+                "BLOCKED",
+                "FAILED",
+                "QUARANTINE",
+                "REPLAY",
+                "SIGNATURE_REJECTED",
+                "KEY_CHANGED",
+            )
+        ):
             return "CRITICAL"
         elif any(w in act for w in ("SETPOINT", "ISOLAT", "RECONNECT", "DISCONNECT", "WARNING")):
             return "WARNING"

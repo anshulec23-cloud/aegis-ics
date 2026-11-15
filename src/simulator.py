@@ -38,7 +38,16 @@ PROFILES = [
 ]
 SENSORS = ["temperature", "pressure", "vibration", "hall_effect", "current"]
 FIRMWARE = "sim-2.6"
-VALID_ATTACKS = {"stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike", "ddos", "sensor_fault"}
+VALID_ATTACKS = {
+    "stuxnet",
+    "hmac_tamper",
+    "thermal_drift",
+    "fdi_spike",
+    "ddos",
+    "sensor_fault",
+    "replay",
+}
+ATTACK_ALIASES = {"injection": "fdi_spike", "tamper": "hmac_tamper"}
 
 # Red-team drill state, keyed by simulated device id.
 _active_attacks: Dict[str, str] = {}
@@ -48,8 +57,7 @@ _attack_lock = threading.Lock()
 
 def inject_attack(device_id: str, attack_type: str) -> dict:
     """Activate an attack vector on a simulated device (drill only)."""
-    if attack_type == "injection":
-        attack_type = "fdi_spike"
+    attack_type = ATTACK_ALIASES.get(attack_type, attack_type)
     if attack_type not in VALID_ATTACKS:
         return {
             "success": False,
@@ -82,21 +90,38 @@ def get_active_attacks() -> dict:
 
 
 class SimDevice:
-    def __init__(self, device_id: str, private_hex: str, profile: dict):
+    """One simulated slave. ``nvs`` mirrors what the real firmware keeps in flash across
+    reboots: identity, session key, last host sequence, trip state and setpoints."""
+
+    def __init__(self, device_id: str, nvs: dict, profile: dict, persist=None):
         self.id = device_id
-        self.priv = enrollment.private_from_hex(private_hex)
+        self.priv = enrollment.private_from_hex(nvs["priv"])
         self.pub = enrollment.public_hex(self.priv)
         self.profile = profile
-        self.boot = secrets.randbits(31)
+        self._persist = persist or (lambda: None)
+        self.boot = secrets.randbits(31)  # new boot id on every (simulated) power-up
         self.seq = 0
-        self.key: Optional[str] = None
-        self.last_host_seq = 0
-        self.tripped = False
-        self.sp_t: Optional[float] = None
-        self.sp_p: Optional[float] = None
+        self.key: Optional[str] = nvs.get("key")
+        self.last_host_seq = int(nvs.get("host_seq", 0))
+        self.tripped = bool(nvs.get("tripped", False))
+        self.sp_t: Optional[float] = nvs.get("sp_t")
+        self.sp_p: Optional[float] = nvs.get("sp_p")
         self.temp = profile["temp"]
         self.pres = profile["pres"]
         self.last_hello = 0.0
+        self.last_frame: Optional[dict] = (
+            None  # last signed TEL, re-sent verbatim by the replay drill
+        )
+
+    def nvs(self) -> dict:
+        return {
+            "priv": enrollment.private_to_hex(self.priv),
+            "key": self.key,
+            "host_seq": self.last_host_seq,
+            "tripped": self.tripped,
+            "sp_t": self.sp_t,
+            "sp_p": self.sp_p,
+        }
 
     # --- frames -----------------------------------------------------------------
     def _next_seq(self) -> int:
@@ -126,6 +151,8 @@ class SimDevice:
             drift = _drift.get(self.id, 0.0)
         if attack == "ddos" and random.random() < 0.6:
             return None  # frames lost on a saturated bus
+        if attack == "replay" and self.last_frame is not None:
+            return dict(self.last_frame)  # captured frame re-transmitted: host must reject it
 
         p = self.profile
         # First-order tracking of applied setpoints (what a real control loop would do).
@@ -184,6 +211,8 @@ class SimDevice:
         signed = protocol.sign(frame, self.key)
         if attack == "hmac_tamper":
             signed["sig"] = "0" * 64
+        else:
+            self.last_frame = signed
         return signed
 
     def _ack(self, ack_seq: int, result: str, reason: str = "") -> dict:
@@ -211,6 +240,7 @@ class SimDevice:
             return None
         self.key = key
         self.last_host_seq = 0
+        self._persist()
         print(f"[Simulator] {self.id}: enrolled (session key derived)")
         return self._ack(0, "OK")
 
@@ -225,7 +255,11 @@ class SimDevice:
         if cmd_seq <= self.last_host_seq:
             return self._ack(cmd_seq, "REPLAY", "sequence already used")
         self.last_host_seq = cmd_seq
-        cmd, args = frame.get("cmd"), frame.get("args") or {}
+        reply = self._apply(cmd_seq, frame.get("cmd"), frame.get("args") or {})
+        self._persist()
+        return reply
+
+    def _apply(self, cmd_seq: int, cmd, args: dict) -> dict:
         if cmd == "ISOLATE" or cmd == "SHUTDOWN":
             self.tripped = True
             return self._ack(cmd_seq, "OK", "relay tripped")
@@ -279,22 +313,37 @@ class SimulatedBus:
                 stored = json.load(fh)
         except (OSError, ValueError):
             stored = {}
+        # Older files stored just the private key per device.
+        stored = {k: (v if isinstance(v, dict) else {"priv": v}) for k, v in stored.items()}
         ids = list(stored)
         while len(ids) < count:
             new_id = "ESP32_" + secrets.token_hex(3).upper()
             if new_id not in stored:
-                stored[new_id] = enrollment.private_to_hex(enrollment.generate_keypair()[0])
+                stored[new_id] = {
+                    "priv": enrollment.private_to_hex(enrollment.generate_keypair()[0])
+                }
                 ids.append(new_id)
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(stored, fh, indent=2)
-        except OSError as exc:
-            print(f"[Simulator] Could not persist simulator identities: {exc}")
-        return [
-            SimDevice(dev_id, stored[dev_id], PROFILES[i % len(PROFILES)])
+
+        devices: List[SimDevice] = []
+        lock = threading.Lock()
+
+        def persist():
+            with lock:
+                snapshot = dict(stored)
+                snapshot.update({d.id: d.nvs() for d in devices})
+                try:
+                    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                        json.dump(snapshot, fh, indent=2)
+                except OSError as exc:
+                    print(f"[Simulator] Could not persist simulator state: {exc}")
+
+        devices.extend(
+            SimDevice(dev_id, stored[dev_id], PROFILES[i % len(PROFILES)], persist)
             for i, dev_id in enumerate(ids[:count])
-        ]
+        )
+        persist()
+        return devices
 
     def device(self, device_id: str) -> Optional[SimDevice]:
         return next((d for d in self.devices if d.id == device_id), None)

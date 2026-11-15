@@ -18,6 +18,14 @@ import logging
 import threading
 from werkzeug.serving import make_server
 
+# Service/server mode writes stdout to a file or journald: flush every line so security
+# events (rejected frames, quarantines) appear immediately instead of sitting in a buffer.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
+
 
 logging.basicConfig(
     level=logging.INFO,

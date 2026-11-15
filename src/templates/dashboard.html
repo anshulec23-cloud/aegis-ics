@@ -59,6 +59,10 @@
             <div class="bg-[#050608] px-2.5 py-1 rounded border border-[#1c2333] text-slate-300 text-xs font-mono tabular-numbers">
                 <span id="utc-clock">00:00:00 UTC</span>
             </div>
+            <!-- Pending device enrollment badge (zero-touch enrollment, ADR 0006) -->
+            <button id="pending-devices-badge" onclick="switchStation(5)" class="hidden px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold animate-pulse">
+                <span id="pending-devices-count">0</span> DEVICE(S) AWAITING APPROVAL
+            </button>
             <!-- Logout Button -->
             <a href="/logout" class="px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold transition-colors">
                 LOGOUT
@@ -232,46 +236,10 @@
                     <canvas id="telemetryChart"></canvas>
                 </div>
 
+                <!-- One card per field node, created dynamically for however many slaves are enrolled. -->
                 <div id="chart-view-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-                                ESP32_001 (Reactor 01)
-                            </span>
-                            <span id="grid-val-001" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_001"></canvas></div>
-                    </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-                                ESP32_002 (Pump 02)
-                            </span>
-                            <span id="grid-val-002" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_002"></canvas></div>
-                    </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                                ESP32_003 (Cryo 03)
-                            </span>
-                            <span id="grid-val-003" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_003"></canvas></div>
-                    </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                                ESP32_004 (Turbine 04)
-                            </span>
-                            <span id="grid-val-004" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_004"></canvas></div>
+                    <div id="node-grid-empty" class="col-span-full text-xs font-mono text-slate-500 p-4 border border-dashed border-[#1c2333] rounded">
+                        No field devices yet. Connect the gateway in Station 06 and approve the devices it discovers.
                     </div>
                 </div>
             </div>
@@ -341,59 +309,9 @@
                             </linearGradient>
                         </defs>
 
-                        <!-- Grid -->
-                        <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
-                            <line x1="0" y1="130" x2="1000" y2="130"/>
-                            <line x1="0" y1="260" x2="1000" y2="260"/>
-                            <line x1="0" y1="390" x2="1000" y2="390"/>
-                        </g>
-
-                        <!-- Piping Connectors (Cobalt / Ice Blue) -->
-                        <g stroke="#38bdf8" stroke-width="3" fill="none" opacity="0.85">
-                            <path d="M 230 180 L 400 180 L 400 120 L 520 120" stroke-dasharray="6 4"/>
-                            <path d="M 680 140 L 760 140 L 760 260 L 680 260" stroke-dasharray="6 4"/>
-                            <path d="M 480 380 L 320 380 L 320 280 L 230 280" stroke-dasharray="6 4" stroke="#60a5fa"/>
-                            <path d="M 680 380 L 780 380 L 780 440 L 200 440 L 200 320" stroke-dasharray="6 4" stroke="#818cf8"/>
-                        </g>
-
-                        <!-- Node 1: Catalytic Reactor -->
-                        <g id="twin-node-ESP32_001" onclick="selectTwinNode('ESP32_001')" class="cursor-pointer group">
-                            <rect x="70" y="110" width="160" height="210" rx="10" fill="url(#reactorGrad)" stroke="#38bdf8" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="150" y="145" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CATALYTIC REACTOR</text>
-                            <text x="150" y="165" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="11">NODE: ESP32_001</text>
-                            <rect x="90" y="190" width="120" height="26" rx="4" fill="#050608" stroke="#1c2333"/>
-                            <text id="twin-t1" x="150" y="208" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="12">T: 25.0 C</text>
-                            <rect x="90" y="224" width="120" height="26" rx="4" fill="#050608" stroke="#1c2333"/>
-                            <text id="twin-p1" x="150" y="242" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="12">P: 4.0 bar</text>
-                            <circle id="twin-status-001" cx="150" cy="285" r="7" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 2: Centrifugal Pump -->
-                        <g id="twin-node-ESP32_002" onclick="selectTwinNode('ESP32_002')" class="cursor-pointer group">
-                            <rect x="520" y="320" width="160" height="120" rx="10" fill="url(#reactorGrad)" stroke="#60a5fa" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="600" y="350" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CENTRIFUGAL PUMP</text>
-                            <text x="600" y="368" text-anchor="middle" fill="#60a5fa" font-family="monospace" font-size="11">NODE: ESP32_002</text>
-                            <text id="twin-t2" x="600" y="398" text-anchor="middle" fill="#60a5fa" font-family="monospace" font-size="12">VIB: 1.2 g</text>
-                            <circle id="twin-status-002" cx="600" cy="420" r="6" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 3: Cryo Exchanger -->
-                        <g id="twin-node-ESP32_003" onclick="selectTwinNode('ESP32_003')" class="cursor-pointer group">
-                            <rect x="480" y="220" width="160" height="85" rx="10" fill="url(#reactorGrad)" stroke="#818cf8" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="560" y="248" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CRYO EXCHANGER</text>
-                            <text x="560" y="266" text-anchor="middle" fill="#818cf8" font-family="monospace" font-size="11">NODE: ESP32_003</text>
-                            <text id="twin-t3" x="560" y="290" text-anchor="middle" fill="#818cf8" font-family="monospace" font-size="11">CRYO: NOMINAL</text>
-                            <circle id="twin-status-003" cx="625" cy="235" r="5" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 4: Main Turbine Generator -->
-                        <g id="twin-node-ESP32_004" onclick="selectTwinNode('ESP32_004')" class="cursor-pointer group">
-                            <rect x="520" y="60" width="160" height="120" rx="10" fill="url(#reactorGrad)" stroke="#f472b6" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="600" y="90" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">MAIN TURBINE GEN</text>
-                            <text x="600" y="108" text-anchor="middle" fill="#f472b6" font-family="monospace" font-size="11">NODE: ESP32_004</text>
-                            <text id="twin-t4" x="600" y="138" text-anchor="middle" fill="#f472b6" font-family="monospace" font-size="12">RPM: 2200</text>
-                            <circle id="twin-status-004" cx="600" cy="160" r="6" fill="#38bdf8"/>
-                        </g>
+                        <!-- Nodes are rendered from live device data by renderTwin(); the layout grows with the number of slaves. -->
+                        <g id="twin-nodes"></g>
+                        <text id="twin-empty" x="500" y="260" text-anchor="middle" fill="#64748b" font-family="monospace" font-size="14">No enrolled field devices yet</text>
                     </svg>
                 </div>
             </div>
@@ -428,12 +346,7 @@
 
                     <div class="space-y-1.5">
                         <label class="block text-xs font-mono text-slate-300">TARGET MICROCONTROLLER / PLC:</label>
-                        <select id="control-device-select" onchange="onControlDeviceChange()" class="subway-input w-full">
-                            <option value="ESP32_001">ESP32_001 — Catalytic Reactor Unit (Tier-1)</option>
-                            <option value="ESP32_002">ESP32_002 — Centrifugal Feed Pump (Tier-2)</option>
-                            <option value="ESP32_003">ESP32_003 — Cryogenic Exchanger (Tier-2)</option>
-                            <option value="ESP32_004">ESP32_004 — Turbine Generator (Tier-1)</option>
-                        </select>
+                        <select id="control-device-select" onchange="onControlDeviceChange()" class="subway-input w-full"></select>
                     </div>
 
                     <div class="space-y-2 bg-[#050608] p-3.5 rounded border border-[#1c2333]">
@@ -528,10 +441,19 @@
                         RED TEAM ADVERSARIAL DRILL SANDBOX
                     </h2>
                 </div>
-                <button onclick="resetAttackVectors()" class="subway-btn subway-btn-primary text-xs">
-                    RESTORE NOMINAL BASELINE
-                </button>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-mono text-slate-400" for="drill-device-select">TARGET (SIMULATOR):</label>
+                    <select id="drill-device-select" class="subway-input text-xs"></select>
+                    <button onclick="resetAttackVectors()" class="subway-btn subway-btn-primary text-xs">
+                        RESTORE NOMINAL BASELINE
+                    </button>
+                </div>
             </div>
+            <p class="text-xs font-mono text-slate-400">
+                Drills run against the software simulator (Station 06 &rarr; SOFTWARE EMULATOR). The attack is injected into a
+                simulated slave and everything after that is real: detection, trust scoring, quarantine and audit entries come from
+                the live pipeline. Drills are refused on real hardware.
+            </p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div class="subway-card p-5 space-y-3">
@@ -667,6 +589,37 @@
                 </div>
                 <div id="gateway-connection-pill" class="subway-badge subway-badge-warning">
                     SCANNING BUS...
+                </div>
+            </div>
+
+            <!-- Field device enrollment (zero-touch, one-click approval: ADR 0006) -->
+            <div class="subway-card p-5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#1c2333] pb-3">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">FIELD DEVICE ENROLLMENT</h3>
+                    <span class="text-[11px] font-mono text-slate-400">HOST FINGERPRINT: <span id="host-fingerprint" class="text-white">--</span></span>
+                </div>
+                <p class="text-xs text-slate-400">
+                    Slaves discovered on the bus appear here as <span class="text-amber-300">PENDING</span>. Compare the fingerprint with the one the
+                    device prints on its USB console, then approve it: the device and this host derive a shared key (X25519) and the
+                    device starts streaming signed telemetry. Nothing to configure, no keys to copy.
+                </p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="text-slate-400 border-b border-[#1c2333]">
+                            <tr>
+                                <th class="py-2 pr-3">DEVICE</th>
+                                <th class="py-2 pr-3">NAME</th>
+                                <th class="py-2 pr-3">STATUS</th>
+                                <th class="py-2 pr-3">FINGERPRINT</th>
+                                <th class="py-2 pr-3">SENSORS</th>
+                                <th class="py-2 pr-3">LAST SEEN</th>
+                                <th class="py-2">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registry-tbody">
+                            <tr><td colspan="7" class="py-4 text-slate-500">No devices discovered yet.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -980,7 +933,8 @@
         let monteCarloChart = null;
 
         let currentDevices = {};
-        let selectedDeviceId = 'ESP32_001';
+        let selectedDeviceId = null;
+        let lastDevices = [];
 
         // Test compatibility stubs
         function setCRTTheme(theme) {}
@@ -1200,10 +1154,45 @@
                 });
             }
 
-            const subNodeColors = ['#38bdf8', '#3b82f6', '#fb923c', '#f472b6', '#c084fc'];
-            ['ESP32_001', 'ESP32_002', 'ESP32_003', 'ESP32_004'].forEach(id => {
-                const canvas = document.getElementById('nodeChart_' + id);
-                if (canvas && window.Chart) {
+            // Activate default split layout
+            setChartDisplayMode('split');
+        }
+
+        // Per-node charts are created on demand, one per field device (any number of slaves).
+        const subNodeColors = ['#38bdf8', '#3b82f6', '#fb923c', '#f472b6', '#c084fc'];
+        const nodeValueEls = {};
+        const nodeNames = {};
+
+        function ensureNodeChart(id) {
+            if (!id || nodeCharts[id] || !window.Chart) return nodeCharts[id];
+            const grid = document.getElementById('chart-view-grid');
+            if (!grid) return null;
+            const empty = document.getElementById('node-grid-empty');
+            if (empty) empty.remove();
+
+            const card = document.createElement('div');
+            card.className = 'bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors';
+            const head = document.createElement('div');
+            head.className = 'flex justify-between items-center text-xs font-mono mb-2';
+            const title = document.createElement('span');
+            title.className = 'font-bold text-white flex items-center gap-1.5 truncate max-w-[160px]';
+            title.textContent = nodeNames[id] ? `${id} (${nodeNames[id]})` : id;
+            const val = document.createElement('span');
+            val.className = 'text-blue-400 font-mono text-[10px] truncate max-w-[130px]';
+            val.textContent = 'WAITING';
+            head.appendChild(title);
+            head.appendChild(val);
+            const holder = document.createElement('div');
+            holder.className = 'h-32';
+            const canvas = document.createElement('canvas');
+            holder.appendChild(canvas);
+            card.appendChild(head);
+            card.appendChild(holder);
+            grid.appendChild(card);
+            nodeValueEls[id] = { val, title };
+
+            {
+                {
                     nodeCharts[id] = new Chart(canvas, {
                         type: 'line',
                         data: {
@@ -1235,10 +1224,8 @@
                         }
                     });
                 }
-            });
-
-            // Activate default split layout
-            setChartDisplayMode('split');
+            }
+            return nodeCharts[id];
         }
 
         function setChartDisplayMode(mode) {
@@ -1331,7 +1318,7 @@
                     if (data.telemetry_by_node) {
                         Object.keys(data.telemetry_by_node).forEach(nid => {
                             const logs = data.telemetry_by_node[nid];
-                            if (nodeCharts[nid] && Array.isArray(logs) && logs.length > 0) {
+                            if (Array.isArray(logs) && logs.length > 0 && ensureNodeChart(nid)) {
                                 const nc = nodeCharts[nid];
                                 nc.data.labels = logs.map(l => new Date((l.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString());
                                 nc.data.datasets[0].data = logs.map(l => l.temperature !== undefined && l.temperature !== null ? l.temperature : null);
@@ -1342,7 +1329,7 @@
                                 nc.update('none');
 
                                 const lastP = logs[logs.length - 1];
-                                const valEl = document.getElementById('grid-val-' + nid.replace('ESP32_', ''));
+                                const valEl = nodeValueEls[nid] && nodeValueEls[nid].val;
                                 if (valEl && lastP) {
                                     const tempStr = lastP.temperature !== undefined && lastP.temperature !== null ? `${lastP.temperature.toFixed(1)}°C` : '--';
                                     const presStr = lastP.pressure !== undefined && lastP.pressure !== null ? `${lastP.pressure.toFixed(1)}b` : '--';
@@ -1381,7 +1368,7 @@
                     telemetryChart.update('none');
                 }
 
-                if (p.device_id && nodeCharts[p.device_id] && !isForensicScrubActive) {
+                if (p.device_id && !isForensicScrubActive && ensureNodeChart(p.device_id)) {
                     const nc = nodeCharts[p.device_id];
                     const timeLabel = new Date((p.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
                     nc.data.labels.push(timeLabel);
@@ -1398,7 +1385,7 @@
                     nc.update('none');
 
                     // Update live indicator in grid card header
-                    const valEl = document.getElementById('grid-val-' + p.device_id.replace('ESP32_', ''));
+                    const valEl = nodeValueEls[p.device_id] && nodeValueEls[p.device_id].val;
                     if (valEl) {
                         const tempStr = p.temperature !== undefined && p.temperature !== null ? `${p.temperature.toFixed(1)}°C` : '--';
                         const presStr = p.pressure !== undefined && p.pressure !== null ? `${p.pressure.toFixed(1)}b` : '--';
@@ -1446,6 +1433,7 @@
         }
 
         function updateHeartbeat(hb) {
+            if (hb && hb.pending_devices !== undefined) updatePendingBadge(hb.pending_devices);
             if (hb.isolated && hb.isolated.length > 0) {
                 document.getElementById('st-beacon-0').className = 'station-status-beacon alert';
             } else {
@@ -1548,18 +1536,15 @@
                         const controlSelect = document.getElementById('control-device-select');
                         if (container) container.innerHTML = '';
 
-                        // Synchronize control select dropdown with detected devices
-                        if (controlSelect) {
-                            const existingIds = Array.from(controlSelect.options).map(o => o.value);
-                            res.devices.forEach(d => {
-                                if (!existingIds.includes(d.device_id)) {
-                                    const opt = document.createElement('option');
-                                    opt.value = d.device_id;
-                                    opt.innerText = `${d.device_id} — ${d.name} (${d.criticality || 'STANDARD'})`;
-                                    controlSelect.appendChild(opt);
-                                }
-                            });
-                        }
+                        lastDevices = res.devices;
+                        syncDeviceSelects(res.devices);
+                        renderTwin(res.devices);
+                        res.devices.forEach(d => {
+                            nodeNames[d.device_id] = d.name;
+                            if (nodeValueEls[d.device_id]) {
+                                nodeValueEls[d.device_id].title.textContent = d.name && d.name !== d.device_id ? `${d.device_id} (${d.name})` : d.device_id;
+                            }
+                        });
 
                         res.devices.forEach(dev => {
                             currentDevices[dev.device_id] = dev;
@@ -1636,7 +1621,11 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
                 body: JSON.stringify({ device_id: devId })
-            }).then(() => {
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) alert(res.error || 'Command failed.');
+                else if (res.details) console.info(res.details);
                 refreshDevicesList();
                 fetchAuditLogs();
                 refreshRiskView();
@@ -1682,40 +1671,46 @@
             if (sel) selectedDeviceId = sel.value;
         }
 
+        // Sends temperature and pressure setpoints to the selected device. For protocol-v1 devices
+        // the server returns only after the device has acknowledged (or rejected) the command.
+        function postSetpoint(devId, type, value) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            return fetch('/api/setpoint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({ type, value, target_device: devId })
+            }).then(r => r.json().then(body => ({ ok: r.ok, body })));
+        }
+
         function updateSetpoint() {
             const temp = parseFloat(document.getElementById('temp-setpoint-slider').value);
             const pres = parseFloat(document.getElementById('pres-setpoint-slider').value);
             const devId = document.getElementById('control-device-select').value;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!devId) {
+                alert('No target device selected. Approve a field device first (Station 06).');
+                return;
+            }
+            Promise.all([postSetpoint(devId, 'set_temp', temp), postSetpoint(devId, 'set_pressure', pres)])
+                .then(results => {
+                    const lines = results.map(({ ok, body }, i) => {
+                        const label = i === 0 ? `TEMPERATURE ${temp.toFixed(1)} C` : `PRESSURE ${pres.toFixed(2)} bar`;
+                        return ok ? `[OK] ${label}: ${body.details}` : `[BLOCKED] ${label}: ${body.error}`;
+                    });
+                    alert(lines.join('\n\n'));
+                    fetchAuditLogs();
+                })
+                .catch(e => alert('Error dispatching command: ' + e));
+        }
 
-            fetch('/api/setpoint', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId, temperature: temp, pressure: pres, setpoint: temp })
-            })
-            .then(r => r.json())
-            .then(res => {
-                if (res.status === 'APPROVED' || res.status === 'SUCCESS') {
-                    alert('SUPERVISORY COMMAND APPROVED & DISPATCHED.');
-                } else {
-                    alert('SAFETY ENFORCER REJECTED: ' + (res.reason || res.status || 'Envelope violation'));
-                }
-            })
-            .catch(e => alert('Error dispatching command: ' + e));
+        function isDeviceIsolated(devId) {
+            const d = lastDevices.find(x => x.device_id === devId);
+            return !!(d && d.is_isolated);
         }
 
         function toggleIsolation() {
             const devId = document.getElementById('control-device-select').value;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/device/isolate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId })
-            }).then(() => {
-                refreshDevicesList();
-                refreshRiskView();
-                refreshTopology();
-            });
+            if (!devId) return;
+            manualIsolate(devId, !isDeviceIsolated(devId));
         }
 
         function emergencyShutdown() {
@@ -1743,7 +1738,7 @@
         function openTrustModal(devId) {
             document.getElementById('modal-device-id').innerText = devId;
             document.getElementById('trust-modal').classList.remove('hidden');
-            fetch(`/api/device/${devId}/trust_breakdown`)
+            fetch(`/api/device/${encodeURIComponent(devId)}/trust_breakdown`)
                 .then(r => r.json())
                 .then(data => {
                     const info = data.data || data;
@@ -1799,30 +1794,27 @@
 
         function toggleModalIsolation() {
             const devId = document.getElementById('modal-device-id').innerText;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/device/isolate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId })
-            }).then(() => {
-                closeTrustModal();
-                refreshDevicesList();
-                fetchAuditLogs();
-                refreshRiskView();
-                refreshTopology();
-            });
+            closeTrustModal();
+            manualIsolate(devId, !isDeviceIsolated(devId));
         }
 
         function injectAttackVector(type) {
+            const devId = document.getElementById('drill-device-select').value;
+            if (!devId) {
+                alert('Start the software simulator in Station 06 and approve its devices first.');
+                return;
+            }
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/simulate-attack', {
+            fetch('/api/simulate/attack', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ attack_type: type, target_device: 'ESP32_001', duration: 30 })
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({ attack_type: type, device_id: devId })
             })
             .then(r => r.json())
-            .then(() => {
-                alert(`ATTACK VECTOR [${type.toUpperCase()}] INJECTED INTO TELEMETRY BUS.`);
+            .then(res => {
+                alert(res.success
+                    ? `DRILL [${type.toUpperCase()}] ACTIVE ON ${devId}. Watch Station 01/02 and the audit log for the live response.`
+                    : `Drill refused: ${res.error}`);
                 fetchAuditLogs();
                 refreshRiskView();
             })
@@ -1978,9 +1970,14 @@
                 body: JSON.stringify({ port: port, baud: baud, mock_mode: port === 'MOCK' })
             })
             .then(r => r.json())
-            .then(() => {
+            .then(res => {
+                if (!res.success) {
+                    alert('Gateway connection failed: ' + (res.error || 'unknown error'));
+                    return;
+                }
                 document.getElementById('gateway-connection-pill').className = 'subway-badge subway-badge-nominal';
                 document.getElementById('gateway-connection-pill').innerText = 'CONNECTED: ' + port;
+                setTimeout(refreshRegistry, 1500);
                 fetchAuditLogs();
                 refreshModelStatus();
                 streamUartPackets();
@@ -2187,6 +2184,178 @@
             openTrustModal(devId);
         }
 
+        function syncDeviceSelects(devices) {
+            ['control-device-select', 'drill-device-select'].forEach(selId => {
+                const sel = document.getElementById(selId);
+                if (!sel) return;
+                const previous = sel.value;
+                const ids = devices.map(d => d.device_id);
+                Array.from(sel.options).forEach(o => { if (!ids.includes(o.value)) o.remove(); });
+                const existing = Array.from(sel.options).map(o => o.value);
+                devices.forEach(d => {
+                    if (!existing.includes(d.device_id)) {
+                        const opt = document.createElement('option');
+                        opt.value = d.device_id;
+                        sel.appendChild(opt);
+                    }
+                    const opt = Array.from(sel.options).find(o => o.value === d.device_id);
+                    opt.textContent = d.name && d.name !== d.device_id ? `${d.device_id} — ${d.name}` : d.device_id;
+                });
+                if (previous && ids.includes(previous)) sel.value = previous;
+                if (selId === 'control-device-select') selectedDeviceId = sel.value || null;
+            });
+        }
+
+        // Digital twin: one tile per device, laid out in rows of four (grows with the cluster).
+        function renderTwin(devices) {
+            const svg = document.getElementById('plant-twin-svg');
+            const group = document.getElementById('twin-nodes');
+            const empty = document.getElementById('twin-empty');
+            if (!svg || !group) return;
+            const NS = 'http://www.w3.org/2000/svg';
+            while (group.firstChild) group.removeChild(group.firstChild);
+            if (empty) empty.style.display = devices.length ? 'none' : '';
+            const cols = 4, w = 210, h = 130, gx = 40, gy = 30, ox = 35, oy = 30;
+            const rows = Math.max(1, Math.ceil(devices.length / cols));
+            svg.setAttribute('viewBox', `0 0 1000 ${Math.max(520, oy * 2 + rows * (h + gy))}`);
+            const fmt = (v, d, u) => (v === null || v === undefined) ? '--' : `${Number(v).toFixed(d)}${u}`;
+            devices.forEach((d, i) => {
+                const x = ox + (i % cols) * (w + gx), y = oy + Math.floor(i / cols) * (h + gy);
+                const color = d.is_isolated ? '#f87171' : (d.is_active ? '#38bdf8' : '#64748b');
+                const g = document.createElementNS(NS, 'g');
+                g.setAttribute('class', 'cursor-pointer');
+                g.addEventListener('click', () => selectTwinNode(d.device_id));
+                const rect = document.createElementNS(NS, 'rect');
+                Object.entries({ x, y, width: w, height: h, rx: 10, fill: '#121927', stroke: color, 'stroke-width': 2 })
+                    .forEach(([k, v]) => rect.setAttribute(k, v));
+                g.appendChild(rect);
+                const lines = [
+                    [d.name && d.name !== d.device_id ? d.name : 'FIELD NODE', '#ffffff', 13, 'bold'],
+                    [`NODE: ${d.device_id}`, color, 11, 'normal'],
+                    [`T ${fmt(d.latest_temp, 1, ' C')}   P ${fmt(d.latest_pres, 2, ' bar')}`, '#cbd5e1', 11, 'normal'],
+                    [`V ${fmt(d.latest_vib, 2, ' g')}   RPM ${fmt(d.latest_hall, 0, '')}`, '#cbd5e1', 11, 'normal'],
+                    [d.is_isolated ? 'ISOLATED' : `${d.status || ''} ${fmt(d.trust_percentage, 0, '%')}`, color, 11, 'bold'],
+                ];
+                lines.forEach(([text, fill, size, weight], li) => {
+                    const t = document.createElementNS(NS, 'text');
+                    Object.entries({ x: x + w / 2, y: y + 26 + li * 22, 'text-anchor': 'middle', fill, 'font-family': 'monospace', 'font-size': size, 'font-weight': weight })
+                        .forEach(([k, v]) => t.setAttribute(k, v));
+                    t.textContent = text;
+                    g.appendChild(t);
+                });
+                group.appendChild(g);
+            });
+        }
+
+        // ---- Field device enrollment (Station 06) ----
+        // Names being typed survive the periodic table refresh.
+        const registryNameDrafts = {};
+
+        function refreshRegistry() {
+            fetch('/api/registry')
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) return;
+                    updatePendingBadge(res.pending_count);
+                    const fp = document.getElementById('host-fingerprint');
+                    if (fp) fp.textContent = res.host_fingerprint || '--';
+                    const tbody = document.getElementById('registry-tbody');
+                    if (!tbody) return;
+                    const focused = document.activeElement;
+                    const focusId = focused && tbody.contains(focused) && focused.dataset ? focused.dataset.deviceId : null;
+                    tbody.innerHTML = '';
+                    if (!res.devices.length) {
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
+                        td.colSpan = 7;
+                        td.className = 'py-4 text-slate-500';
+                        td.textContent = 'No devices discovered yet. Connect the gateway above; slaves announce themselves automatically.';
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                        return;
+                    }
+                    const statusClass = { pending: 'text-amber-300', approved: 'text-emerald-400', revoked: 'text-red-400' };
+                    res.devices.forEach(d => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-b border-[#1c2333]/50';
+                        const cell = (text, cls) => {
+                            const td = document.createElement('td');
+                            td.className = 'py-2 pr-3 ' + (cls || 'text-slate-300');
+                            td.textContent = text;
+                            tr.appendChild(td);
+                            return td;
+                        };
+                        cell(d.device_id, 'text-white font-bold');
+                        const nameTd = cell('');
+                        const nameInput = document.createElement('input');
+                        nameInput.className = 'subway-input text-xs py-0.5 w-40';
+                        nameInput.placeholder = 'e.g. Boiler feed pump';
+                        nameInput.dataset.deviceId = d.device_id;
+                        nameInput.value = registryNameDrafts[d.device_id] !== undefined ? registryNameDrafts[d.device_id] : (d.name || '');
+                        nameInput.maxLength = 80;
+                        nameInput.addEventListener('input', () => { registryNameDrafts[d.device_id] = nameInput.value; });
+                        nameTd.appendChild(nameInput);
+                        const confirmed = d.status === 'approved' && !d.enrollment_confirmed ? ' (KEY DELIVERY PENDING)' : '';
+                        cell(d.status.toUpperCase() + confirmed, (statusClass[d.status] || '') + ' font-bold');
+                        cell(d.fingerprint || '--', 'text-slate-300');
+                        cell((d.sensors || []).join(', ') || '--', 'text-slate-400');
+                        cell(d.last_seen ? new Date(d.last_seen * 1000).toLocaleTimeString() : '--', 'text-slate-400');
+                        const actions = cell('', '');
+                        const button = (label, cls, handler) => {
+                            const b = document.createElement('button');
+                            b.className = 'subway-btn text-[10px] py-0.5 px-2 mr-1 ' + cls;
+                            b.textContent = label;
+                            b.addEventListener('click', handler);
+                            actions.appendChild(b);
+                        };
+                        const id = d.device_id;
+                        if (d.status === 'pending') {
+                            button('APPROVE', 'subway-btn-nominal', () => registryAction(id, 'approve', { name: nameInput.value }));
+                            button('REJECT', 'subway-btn-danger', () => registryAction(id, 'reject'));
+                        } else if (d.status === 'approved') {
+                            button('RENAME', '', () => registryAction(id, 'rename', { name: nameInput.value }));
+                            button('REVOKE', 'subway-btn-danger', () => {
+                                if (confirm(`Revoke ${id}? Its key is erased and its relay is tripped.`)) registryAction(id, 'reject');
+                            });
+                        } else {
+                            button('FORGET', '', () => registryAction(id, 'forget'));
+                        }
+                        tbody.appendChild(tr);
+                    });
+                    if (focusId) {
+                        const again = tbody.querySelector(`input[data-device-id="${CSS.escape(focusId)}"]`);
+                        if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function registryAction(deviceId, action, body) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch(`/api/registry/${encodeURIComponent(deviceId)}/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify(body || {})
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) alert(res.error || 'Action failed.');
+                else delete registryNameDrafts[deviceId];
+                refreshRegistry();
+                refreshDevicesList();
+                fetchAuditLogs();
+            })
+            .catch(e => alert('Registry action failed: ' + e));
+        }
+
+        function updatePendingBadge(count) {
+            const badge = document.getElementById('pending-devices-badge');
+            const num = document.getElementById('pending-devices-count');
+            if (!badge || !num) return;
+            num.textContent = count || 0;
+            badge.classList.toggle('hidden', !count);
+        }
+
         setInterval(() => {
             const now = new Date();
             const clock = document.getElementById('utc-clock');
@@ -2195,8 +2364,11 @@
             }
         }, 1000);
 
+        setInterval(refreshRegistry, 3000);
+
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
+            refreshRegistry();
             fetchFullData();          // Seed charts and tables immediately!
             fetchAuditLogs();         // Load audit history immediately!
             refreshModelStatus();     // Load ML model status
