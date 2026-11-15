@@ -15,6 +15,7 @@ The version number lives in exactly one place: `src/version.py`.
 - Firmware: polling master bridge (no bus collisions), verified commands with ACKs, SETPOINT PWM actuation, sensor fault reporting, NVS trip state (boots tripped), task watchdog, factory reset, `AEGIS_SELFTEST`.
 - Protocol-v1 simulator for `AEGIS_SIM_DEVICES` slaves, with persisted device state and real enrollment; new `replay` and `sensor_fault` drills.
 - Tests: `test_enrollment_v1.py`, `test_firmware_contract.py`, shared known-answer vectors.
+- CI workflow `firmware.yml` compiles the slave (normal and `AEGIS_SELFTEST`) and master sketches with arduino-cli on ESP32 core 3.x.
 
 ### Fixed
 - Dashboard setpoint panel never worked (wrong payload); red-team buttons always failed (wrong field name); isolation toggle could only isolate; connect showed success on failure.

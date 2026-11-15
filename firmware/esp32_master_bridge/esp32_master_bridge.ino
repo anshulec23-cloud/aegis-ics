@@ -1,7 +1,7 @@
 /**
  * =============================================================================================
  * Aegis ICS — Master Bridge Firmware (protocol v1, polled RS-485 bus)
- * Target : ESP32 / ESP32-WROOM-32 (Arduino-ESP32 core 2.x or 3.x), ArduinoJson 6.x / 7.x
+ * Target : ESP32 / ESP32-WROOM-32 (Arduino-ESP32 core 2.x or 3.x), ArduinoJson 7.x
  *
  * Role: a transparent, *scheduling* relay between the Aegis host (USB serial) and any number
  * of slave nodes on a half-duplex RS-485 bus. The bridge holds no keys and makes no security
@@ -29,7 +29,7 @@
 #define STATUS_LED_PIN        2
 
 #define BAUD                  115200
-#define LINE_MAX              768
+#define AEGIS_LINE_MAX              768
 #define MAX_SLAVES            32
 #define POLL_REPLY_TIMEOUT_MS 120   // a TEL frame (~350 B) takes ~31 ms at 115200 baud
 #define CMD_REPLY_TIMEOUT_MS  250
@@ -54,11 +54,11 @@ struct Slave {
 Slave slaves[MAX_SLAVES];
 int poll_cursor = 0;
 
-char host_queue[HOST_QUEUE_LEN][LINE_MAX];
+char host_queue[HOST_QUEUE_LEN][AEGIS_LINE_MAX];
 int q_head = 0, q_count = 0;
 
-char bus_buf[LINE_MAX]; size_t bus_len = 0;
-char host_buf[LINE_MAX]; size_t host_len = 0;
+char bus_buf[AEGIS_LINE_MAX]; size_t bus_len = 0;
+char host_buf[AEGIS_LINE_MAX]; size_t host_len = 0;
 
 uint32_t last_discovery_ms = 0, last_topology_ms = 0, last_poll_ms = 0;
 bool discovery_requested = true;
@@ -78,7 +78,7 @@ static bool read_line(Stream &s, char *buf, size_t &len) {
         char c = (char)s.read();
         if (c == '\r') continue;
         if (c == '\n') { buf[len] = '\0'; bool has = len > 0; len = 0; return has; }
-        if (len < LINE_MAX - 1) buf[len++] = c; else len = 0;
+        if (len < AEGIS_LINE_MAX - 1) buf[len++] = c; else len = 0;
     }
     return false;
 }
@@ -108,10 +108,10 @@ static void note_slave(const char *id) {
 static void forward_bus_line(char *line) {
     Serial.println(line);
     if (line[0] != '{') return;
-    StaticJsonDocument<256> filter;
+    JsonDocument filter;
     filter["id"] = true;
     filter["device_id"] = true;
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, line, DeserializationOption::Filter(filter))) return;
     const char *id = doc["id"] | (doc["device_id"] | "");
     note_slave(id);
@@ -129,7 +129,7 @@ static int listen_bus(uint32_t timeout_ms, int max_lines) {
         }
         if (read_line(Serial, host_buf, host_len)) {   // keep the host side responsive
             if (q_count < HOST_QUEUE_LEN) {
-                strncpy(host_queue[(q_head + q_count) % HOST_QUEUE_LEN], host_buf, LINE_MAX - 1);
+                strncpy(host_queue[(q_head + q_count) % HOST_QUEUE_LEN], host_buf, AEGIS_LINE_MAX - 1);
                 q_count++;
             }
         }
@@ -139,12 +139,12 @@ static int listen_bus(uint32_t timeout_ms, int max_lines) {
 }
 
 static void emit_topology() {
-    StaticJsonDocument<2048> doc;
+    JsonDocument doc;
     doc["system"] = "Aegis Master Concentrator";
     doc["type"] = "BUS_TOPOLOGY";
     doc["status"] = "ONLINE";
     doc["version"] = BRIDGE_VERSION;
-    JsonArray list = doc.createNestedArray("slaves");
+    JsonArray list = doc["slaves"].to<JsonArray>();
     int n = 0;
     for (int i = 0; i < MAX_SLAVES; i++) {
         if (!slaves[i].used) continue;
@@ -166,10 +166,10 @@ static void expire_slaves() {
 // ------------------------------------------------------------------- host frames ---
 static void handle_host_line(const char *line) {
     if (line[0] != '{') return;
-    StaticJsonDocument<256> filter;
+    JsonDocument filter;
     filter["type"] = true;
     filter["command"] = true;
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, line, DeserializationOption::Filter(filter))) return;
     const char *type = doc["type"] | "";
     const char *legacy = doc["command"] | "";
@@ -184,9 +184,9 @@ static void handle_host_line(const char *line) {
 
 static void drain_host_queue() {
     while (q_count > 0) {
-        char line[LINE_MAX];
-        strncpy(line, host_queue[q_head], LINE_MAX - 1);
-        line[LINE_MAX - 1] = '\0';
+        char line[AEGIS_LINE_MAX];
+        strncpy(line, host_queue[q_head], AEGIS_LINE_MAX - 1);
+        line[AEGIS_LINE_MAX - 1] = '\0';
         q_head = (q_head + 1) % HOST_QUEUE_LEN;
         q_count--;
         handle_host_line(line);
@@ -229,7 +229,7 @@ void loop() {
     uint32_t now = millis();
 
     if (read_line(Serial, host_buf, host_len) && q_count < HOST_QUEUE_LEN) {
-        strncpy(host_queue[(q_head + q_count) % HOST_QUEUE_LEN], host_buf, LINE_MAX - 1);
+        strncpy(host_queue[(q_head + q_count) % HOST_QUEUE_LEN], host_buf, AEGIS_LINE_MAX - 1);
         q_count++;
     }
     drain_host_queue();   // host commands take priority over routine polling

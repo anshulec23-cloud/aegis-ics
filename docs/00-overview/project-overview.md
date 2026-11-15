@@ -25,7 +25,7 @@ Classic ICS intrusion detection is passive: it alerts after a bad command has al
 | Device onboarding | Automatic discovery of any number of slaves, one-click approval, X25519 key agreement (v2.6) |
 | Telemetry signing / replay protection | Per-device keys, boot/seq replay protection (v2.6) |
 | Quarantine | Works; survives restarts; devices re-tripped on reconnect/re-enrollment |
-| Setpoints / commands to hardware | Signed, verified on the device, acknowledged (v2.6 firmware; compile-check pending) |
+| Setpoints / commands to hardware | Signed, verified on the device, acknowledged (v2.6 firmware compiles cleanly; not yet run on hardware) |
 | ML models | Trained on synthetic data only |
 | Tests | 126 tests with all security controls on, including an end-to-end simulator run |
 | Packaging | Windows exe, Linux ELF, `.deb`, tarball scripts |

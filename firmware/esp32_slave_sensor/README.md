@@ -19,4 +19,4 @@ One image for **every** slave: no per-node configuration, no compiled-in keys.
 | 2 | Status LED (on = tripped) |
 | 0 (BOOT) | Hold at power-up ~3 s = factory reset (erase identity + key) |
 
-Build: Arduino IDE or `arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32_slave_sensor` (ESP32 core 2.x/3.x, ArduinoJson 6/7). Add `-DAEGIS_SELFTEST` to run the shared known-answer crypto test at boot. Full guide: [`../README.md`](../README.md).
+Build: Arduino IDE or `arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32_slave_sensor` (ESP32 core 3.x, ArduinoJson 7). Add `-DAEGIS_SELFTEST` to run the shared known-answer crypto test at boot. Full guide: [`../README.md`](../README.md).

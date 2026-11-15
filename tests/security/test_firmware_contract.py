@@ -41,8 +41,8 @@ def _function_body(src, signature):
 
 def _doc_keys(body):
     keys = []
-    for m in re.finditer(r'doc\["(\w+)"\]\s*=|doc\.createNestedArray\("(\w+)"\)', body):
-        key = m.group(1) or m.group(2)
+    for m in re.finditer(r'doc\["(\w+)"\]\s*(?:=|\.to<)', body):
+        key = m.group(1)
         if key not in keys and key != "sig":
             keys.append(key)
     return keys

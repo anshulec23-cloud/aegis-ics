@@ -1,0 +1,37 @@
+name: firmware
+
+on:
+  push:
+    branches: ["main", "master"]
+    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+  pull_request:
+    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        sketch: [esp32_slave_sensor, esp32_master_bridge]
+        flags: [""]
+        include:
+          - sketch: esp32_slave_sensor
+            flags: "-DAEGIS_SELFTEST"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 core and ArduinoJson
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install ArduinoJson
+      - name: Compile ${{ matrix.sketch }} ${{ matrix.flags }}
+        run: >
+          arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default
+          --build-property "compiler.cpp.extra_flags=${{ matrix.flags }}"
+          firmware/${{ matrix.sketch }}

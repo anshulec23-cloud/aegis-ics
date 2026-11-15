@@ -1,6 +1,6 @@
 # Firmware — `firmware/`
 
-Arduino-framework C++ for ESP32-WROOM-32 (core 2.x or 3.x). Libraries: ArduinoJson 6/7, mbedTLS and Preferences (both bundled with the core). Wiring, building and the bench checklist are in [`firmware/README.md`](../../../firmware/README.md).
+Arduino-framework C++ for ESP32-WROOM-32. Libraries: ArduinoJson 7, mbedTLS and Preferences (both bundled with the core). Compile-verified on **ESP32 core 3.3.12 + ArduinoJson 7.4.3**. The `#else` branches for core 2.x (LEDC / watchdog APIs) are kept but not compiled in CI. Wiring, building and the bench checklist are in [`firmware/README.md`](../../../firmware/README.md).
 
 ## Slave sensor node — `esp32_slave_sensor.ino`
 
@@ -36,4 +36,6 @@ A scheduling relay with **no keys**. It polls known slaves round-robin (40 ms ga
 
 - The host/firmware contract is pinned by `tests/security/test_firmware_contract.py`: sorted canonical keys, verify-before-act, SETPOINT args, trip restore order, shared vectors, bus discipline, and no faked readings.
 - The crypto is verified on the host with the shared known-answer vector. On hardware, run the `AEGIS_SELFTEST` build.
-- ⚠️ The firmware hasn't been compiled in the project's CI yet (there's no ESP32 toolchain there). Adding `arduino-cli compile` to CI is the next step ([RESTRUCTURE_PLAN](../../08-roadmap/RESTRUCTURE_PLAN.md) P2.x).
+- **Compiled 2026-11-15** with arduino-cli 1.6.0, `esp32:esp32@3.3.12`, ArduinoJson 7.4.3, FQBN `esp32:esp32:esp32`, with no warnings in project code. Slave: 361 KB flash (27%), 24.6 KB RAM (7%); with `AEGIS_SELFTEST`: 362 KB. Master: 288 KB flash (21%), 31 KB RAM (9%).
+- CI compiles both sketches (plus the self-test variant) on every firmware change: `.github/workflows/firmware.yml`.
+- ⚠️ **Not yet run on hardware.** Flash the `AEGIS_SELFTEST` build once to confirm the on-chip crypto matches the host vector, then do the bench checklist in `firmware/README.md`.

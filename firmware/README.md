@@ -153,8 +153,8 @@ Full spec: [`docs/01-architecture/protocols.md`](../docs/01-architecture/protoco
 ## 6. Building and flashing
 
 **Arduino IDE 2.x**
-1. Boards Manager → install **esp32 by Espressif Systems** (core 2.x or 3.x).
-2. Library Manager → install **ArduinoJson** (6.x or 7.x).
+1. Boards Manager → install **esp32 by Espressif Systems** (core 3.x; verified with 3.3.12).
+2. Library Manager → install **ArduinoJson** 7.x.
 3. Open `esp32_slave_sensor/esp32_slave_sensor.ino` → board **ESP32 Dev Module** → Upload. Repeat for every slave (same sketch).
 4. Open `esp32_master_bridge/esp32_master_bridge.ino` → Upload to the master.
 

@@ -19,7 +19,7 @@ Every finding has a regression test in [`tests/security/test_debug_findings.py`]
 | **Open: Phase 4 (ML/research)** | S10, F6, R3, R4, R5, R6 |
 | **Open: Phase 5** | S14 (updater opt-out for air-gapped installs) |
 
-Verification: `python -m pytest tests` → **126 passed, 1 xfailed** (F6). An end-to-end browser run of a fresh install (first-run setup, 6 simulated slaves, approval, ACKed setpoint/isolate/rearm, tamper and replay drills, restart) confirmed the behaviour. The firmware fixes (S3, F2, F5, F7) are verified by static contract tests and shared crypto vectors but **haven't been compiled or run on hardware** in this environment.
+Verification: `python -m pytest tests` → **126 passed, 1 xfailed** (F6). An end-to-end browser run of a fresh install (first-run setup, 6 simulated slaves, approval, ACKed setpoint/isolate/rearm, tamper and replay drills, restart) confirmed the behaviour. The firmware fixes (S3, F2, F5, F7) are verified by static contract tests and shared crypto vectors, and both sketches **compile cleanly** (ESP32 core 3.3.12, ArduinoJson 7.4.3; also in CI). They **haven't been run on hardware** yet.
 
 The findings below describe the code **as it was at v2.5.3** (git tag `v2.5.3-baseline`).
 

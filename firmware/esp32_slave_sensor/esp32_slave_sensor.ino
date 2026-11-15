@@ -2,7 +2,7 @@
  * =============================================================================================
  * Aegis ICS — Slave Sensor Node Firmware (protocol v1, zero-touch enrollment)
  * Target : ESP32 / ESP32-WROOM-32 (Arduino-ESP32 core 2.x or 3.x)
- * Libs   : ArduinoJson 6.x or 7.x, mbedTLS (bundled with the ESP32 core), Preferences (NVS)
+ * Libs   : ArduinoJson 7.x, mbedTLS (bundled with the ESP32 core), Preferences (NVS)
  *
  * ONE image for every slave. Nothing is configured per node and no key is compiled in:
  *   - Device ID derived from the chip's eFuse MAC        ->  "ESP32_A1B2C3"
@@ -48,7 +48,7 @@
 
 #define FIRMWARE_VERSION    "2.6.0"
 #define BUS_BAUD            115200
-#define LINE_MAX            640
+#define AEGIS_LINE_MAX            640
 #define USB_FREE_RUN_MS     1000   // telemetry period when wired directly to the host over USB
 #define POLL_SILENCE_MS     5000   // no POLL for this long => not on a polled RS-485 bus
 #define CONTROL_PERIOD_MS   500
@@ -68,6 +68,8 @@ HardwareSerial rs485(2);
 Preferences nvs;
 
 // ---------------------------------------------------------------------------- state ---
+struct Reading { bool ok; float value; };  // declared first: Arduino generates prototypes early
+
 char device_id[16];
 uint8_t dev_priv[32];
 uint8_t dev_pub[32];
@@ -84,10 +86,10 @@ volatile uint32_t hall_pulses = 0;
 float rpm = 0.0f;
 uint32_t last_rpm_ms = 0, last_poll_ms = 0, last_usb_tel_ms = 0, last_control_ms = 0;
 
-char rs485_buf[LINE_MAX]; size_t rs485_len = 0;
-char usb_buf[LINE_MAX];   size_t usb_len = 0;
+char rs485_buf[AEGIS_LINE_MAX]; size_t rs485_len = 0;
+char usb_buf[AEGIS_LINE_MAX];   size_t usb_len = 0;
 
-void IRAM_ATTR on_hall_pulse() { hall_pulses++; }
+void IRAM_ATTR on_hall_pulse() { hall_pulses = hall_pulses + 1; }
 
 // --------------------------------------------------------------------------- utils ---
 static int rng(void *, unsigned char *out, size_t len) {
@@ -246,12 +248,12 @@ static void bus_send(const char *line) {
 // Serialise a JsonDocument whose keys were inserted in sorted order (canonical form),
 // sign it, append "sig" and transmit.
 static void send_signed(JsonDocument &doc) {
-    char canonical[LINE_MAX];
+    char canonical[AEGIS_LINE_MAX];
     serializeJson(doc, canonical, sizeof(canonical));
     char sig[65];
     sign_hex(session_key, canonical, sig);
     doc["sig"] = sig;
-    char wire[LINE_MAX + 80];
+    char wire[AEGIS_LINE_MAX + 80];
     serializeJson(doc, wire, sizeof(wire));
     bus_send(wire);
 }
@@ -260,23 +262,23 @@ static void fmt2(char *out, size_t n, float v) { snprintf(out, n, "%.2f", v); }
 
 // ------------------------------------------------------------------------- frames ---
 static void send_hello() {
-    StaticJsonDocument<512> doc;           // keys in sorted order
+    JsonDocument doc;           // keys in sorted order
     doc["boot"] = boot_id;
     doc["enrolled"] = enrolled;
     doc["fw"] = FIRMWARE_VERSION;
     doc["id"] = device_id;
     doc["pub"] = dev_pub_hex;
-    JsonArray s = doc.createNestedArray("sensors");
+    JsonArray s = doc["sensors"].to<JsonArray>();
     s.add("temperature"); s.add("pressure"); s.add("vibration"); s.add("hall_effect"); s.add("current");
     doc["type"] = "HELLO";
     doc["v"] = 1;
-    char wire[LINE_MAX];
+    char wire[AEGIS_LINE_MAX];
     serializeJson(doc, wire, sizeof(wire));
     bus_send(wire);
 }
 
 static void send_ack(uint32_t ack_seq, const char *result, const char *reason) {
-    StaticJsonDocument<384> doc;           // sorted: ack, boot, id, reason, result, seq, type, v
+    JsonDocument doc;           // sorted: ack, boot, id, reason, result, seq, type, v
     doc["ack"] = ack_seq;
     doc["boot"] = boot_id;
     doc["id"] = device_id;
@@ -287,8 +289,6 @@ static void send_ack(uint32_t ack_seq, const char *result, const char *reason) {
     doc["v"] = 1;
     send_signed(doc);
 }
-
-struct Reading { bool ok; float value; };
 
 static Reading read_adc(int pin, float scale) {
     int raw = analogRead(pin);
@@ -309,10 +309,10 @@ static void send_telemetry() {
     if (!enrolled) { send_hello(); return; }
     sample_sensors();
     char t[16], p[16], v[16], c[16], h[16], st[16], sp[16];
-    StaticJsonDocument<640> doc;           // keys inserted in sorted order (canonical)
+    JsonDocument doc;           // keys inserted in sorted order (canonical)
     doc["boot"] = boot_id;
     if (r_curr.ok) { fmt2(c, sizeof c, r_curr.value); doc["current"] = c; }
-    JsonArray faults = doc.createNestedArray("faults");
+    JsonArray faults = doc["faults"].to<JsonArray>();
     if (!r_curr.ok) faults.add("current");
     if (!r_pres.ok) faults.add("pressure");
     if (!r_temp.ok) faults.add("temperature");
@@ -384,7 +384,7 @@ static bool verify_frame_signature(JsonDocument &doc, const char *key_hex) {
     sig[64] = '\0';
     if (strlen(sig) != 64 || !key_hex || strlen(key_hex) != 64) return false;
     doc.remove("sig");
-    char canonical[LINE_MAX];
+    char canonical[AEGIS_LINE_MAX];
     serializeJson(doc, canonical, sizeof(canonical));
     char expected[65];
     sign_hex(key_hex, canonical, expected);
@@ -454,7 +454,7 @@ static void handle_command(JsonDocument &doc) {
 
 static void handle_line(char *line, bool from_usb) {
     if (line[0] != '{') return;
-    StaticJsonDocument<768> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, line)) return;
     const char *type = doc["type"] | "";
     const char *target = doc["id"] | "";
@@ -475,7 +475,7 @@ static bool read_line(Stream &s, char *buf, size_t &len) {
         char c = (char)s.read();
         if (c == '\r') continue;
         if (c == '\n') { buf[len] = '\0'; bool has = len > 0; len = 0; return has; }
-        if (len < LINE_MAX - 1) buf[len++] = c; else len = 0; // overflow: drop the line
+        if (len < AEGIS_LINE_MAX - 1) buf[len++] = c; else len = 0; // overflow: drop the line
     }
     return false;
 }
