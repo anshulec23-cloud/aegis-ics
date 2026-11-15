@@ -22,12 +22,12 @@ Classic ICS intrusion detection is passive: it alerts after a bad command has al
 | Area | Status |
 |---|---|
 | Dashboard, API, simulator | Works end-to-end in software |
-| Telemetry signing | Implemented; key management and replay protection missing |
-| Quarantine | Works; can be triggered by unauthenticated requests |
-| Setpoint dispatch to hardware | **Not working** (protocol mismatch) |
-| Command authentication on devices | **Not implemented** |
+| Device onboarding | Automatic discovery of any number of slaves, one-click approval, X25519 key agreement (v2.6) |
+| Telemetry signing / replay protection | Per-device keys, boot/seq replay protection (v2.6) |
+| Quarantine | Works; survives restarts; devices re-tripped on reconnect/re-enrollment |
+| Setpoints / commands to hardware | Signed, verified on the device, acknowledged (v2.6 firmware; compile-check pending) |
 | ML models | Trained on synthetic data only |
-| Tests | 69 tests; security controls disabled during tests |
+| Tests | 126 tests with all security controls on, including an end-to-end simulator run |
 | Packaging | Windows exe, Linux ELF, `.deb`, tarball scripts |
 
 Details: [Debug report](../07-reports/DEBUG_REPORT.md). Path forward: [Restructure plan](../08-roadmap/RESTRUCTURE_PLAN.md).

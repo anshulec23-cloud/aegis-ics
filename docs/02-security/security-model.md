@@ -46,10 +46,10 @@ This page answers four questions: what we protect, what we trust, which controls
 | ID | Gap | Boundary | Status (v2.6) |
 |---|---|---|---|
 | S1 | Unauthenticated ingestion endpoint could quarantine nodes and trip relays | B3/B4 | Fixed |
-| S2 | Device keys in source; shared fallback key | B1 | Fixed (keys still compiled into firmware from a git-ignored header; NVS provisioning is P2.6) |
-| S3 | Firmware ignores command signatures | B1 | **Open**, Phase 2 |
+| S2 | Device keys in source; shared fallback key | B1 | Fixed: per-device X25519 enrollment, keys only in NVS and the registry |
+| S3 | Firmware ignores command signatures | B1 | Fixed: firmware verifies HMAC + host sequence before acting (v2.6 firmware) |
 | S4 | Default operator passwords | B4 | Fixed |
-| S5 | No replay protection for firmware frames | B1 | Partial: duplicate-frame cache; sequence numbers in protocol v1 (P2.1) |
+| S5 | No replay protection for firmware frames | B1 | Fixed for v1 (boot/seq both directions); legacy v0 keeps the duplicate-frame cache |
 | S6 | Gateway signed unsigned frames | B2 | Fixed |
 | S7 | Stored XSS in the dashboard | B4 | Fixed (CSP still allows inline script until Phase 3) |
 | S8 | COM reconnect cleared quarantine | B4 | Fixed |

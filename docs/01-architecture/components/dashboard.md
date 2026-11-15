@@ -28,9 +28,12 @@ Hash routing (`#station-N`) is handled by `checkHashRoute()`.
 - Every mutating `fetch` sends `X-CSRF-Token` (rendered into the page by Jinja).
 - The time scrubber slices the in-memory buffer and pauses live updates until "return to live".
 
+## Dynamic views (v2.6)
+Node charts (Station 01), the digital twin (Station 02), the device dropdowns (Stations 03/04) and the enrollment table (Station 06) are all built from live API data, so they handle any number of slaves. A header badge shows devices awaiting approval (from `/api/registry` and the SSE heartbeat). All server strings go through `escapeHtml` or `textContent`; handlers are attached with `addEventListener`, not built from data.
+
 ## Known issues
-- ⚠️ `innerHTML` with server data that isn't escaped (device cards, subsystem table, audit table): stored XSS (debug report S7).
 - No build step, no modules, no tests; global functions only.
+- The "combined" waveform chart mixes every device into one series.
 - Tailwind is shipped as a full prebuilt CSS file (large).
 
 ## Target state

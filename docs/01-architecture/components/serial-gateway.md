@@ -1,50 +1,27 @@
 # Serial gateway — `src/serial_gateway.py`
 
 ## Responsibility
-- Open a serial port (pyserial), read newline frames, auto-reconnect.
-- Parse frames (JSON / CSV / key:value) and register bridge topology and node announcements.
-- Sign unsigned frames and HTTP-POST them to `/api/telemetry`.
-- Drain the outbound **command queue** to UART.
-- Provide a **mock cluster simulator** (`mock=True`, port `MOCK*`/`SIM*`) and a red-team **attack injector**.
-- Keep in-memory state for the dashboard: raw packet ring buffer (150), active nodes, master-bridge info, gateway state.
+- Own the transport: a real serial port (pyserial, auto-reconnect) or the protocol-v1 **simulator** (`SimulatedBus`, `mock=True`).
+- Read lines and route them. Protocol-v1 frames (`HELLO`/`TEL`/`ACK`) go to the in-process handler `app.handle_device_frame` (or are POSTed to `/api/telemetry` when running as a separate process). Legacy v0 frames go to `app.process_telemetry`. Bridge `BUS_TOPOLOGY` frames update the topology view.
+- Write queued frames to the bus: signed v1 `CMD`/`WELCOME` frames from the registry, plus `DISCOVER`. Frames older than the TTL are dropped and their `command_log` rows marked `EXPIRED`.
+- Keep dashboard state: raw packet ring buffer, active nodes, gateway health.
+- Never sign frames on a device's behalf (unsigned v0 frames are dropped unless `--allow-unsigned`).
 
-## Public functions
-| Function | Used by | Purpose |
-|---|---|---|
-| `start_gateway(port, baud, mode, device_id, hmac_key, url, mock)` | `/api/com_ports/connect` (thread), CLI | blocking main loop |
-| `stop_gateway()` | connect/disconnect routes | sets the module-global stop event |
-| `send_command(dict)` | all control routes | sign if needed, enqueue |
-| `sign_message`, `canonicalize_payload` | app, tests | HMAC helpers |
-| `parse_serial_line(line)` | loop, tests | frame decoder |
-| `get_active_nodes`, `get_gateway_health`, `get_gateway_state`, `get_active_port`, `get_master_bridge_info`, `get_recent_raw_packets` | read APIs, SSE | state snapshots |
-| `find_esp32_ports()` | `/api/com_ports` | flags CP210x/CH340/FTDI-like ports |
-| `inject_attack`, `reset_attacks`, `clear_device_attack`, `get_active_attacks` | red-team routes, analytics | simulator attack vectors: `stuxnet`, `hmac_tamper`, `thermal_drift`, `fdi_spike` (alias `injection`), `ddos` |
-| `get_device_locations()` | `/api/devices/locations` | hard-coded plant coordinates |
+## Key functions
+| Function | Purpose |
+|---|---|
+| `start_gateway(port, baud, mock, url, gateway_token, on_connect, sim_devices, ...)` | main loop; `on_connect` lets the app re-sync quarantine after every (re)connect |
+| `stop_gateway()` / `is_connected()` / `is_mock_active()` | lifecycle; each run has its own stop event |
+| `send_frame(frame, command_log_id)` | enqueue a signed v1 frame |
+| `send_command(dict)` | enqueue a legacy v0 command (signed with the device's key) |
+| `pop_ready_commands()` | drain unexpired items (tests / tooling) |
+| `set_frame_handler(v1, v0)` | registered by `app.py` for in-process delivery |
+| `get_simulated_bus()` | the active `SimulatedBus` (drills, tests) |
+| `get_active_nodes()`, `get_gateway_health()`, `get_recent_raw_packets()` | dashboard state |
 
-## Main loop
-```
-connect (or mock) → enqueue DISCOVER
-loop until stop_event:
-    reconnect if port closed
-    drain _command_queue → ser.write(json + "\n")
-    line = mock_serial_stream() | ser.readline()   # readline timeout = 1 s; mock sleeps 0.5 s
-    frame = parse_serial_line(line)
-    bridge / announce frame → update topology, continue
-    update _active_nodes
-    if no signature: payload["signature"] = sign(payload, hmac_key or device key)
-    requests.post(url, json=payload, timeout=3)
-```
+## Simulator (`src/simulator.py`)
+Plays the master plus `AEGIS_SIM_DEVICES` slaves. Each simulated slave has its own X25519 identity and persists its "NVS" (identity, session key, host sequence, trip state, setpoints) in `<data dir>/simulator_devices.json`. It follows the same rules as the firmware: HELLO until enrolled, verified commands, signed ACKs, boot/seq, setpoint tracking, trip behaviour. Red-team drills (`inject_attack`) alter what one simulated slave sends (`stuxnet`, `hmac_tamper`, `replay`, `thermal_drift`, `fdi_spike`, `ddos`, `sensor_fault`); detection is left to the real pipeline.
 
-## Simulator
-Round-robins the four nodes from `_sim_devices`, each with baselines matching `train_model.py` zones. Every seventh iteration it emits a `BUS_TOPOLOGY` frame. Attack vectors replace the packet values (e.g. `stuxnet`: vibration 4.9–6 g, RPM 3250–3550, temp +8–15 °C, spoofed normal pressure).
-
-## Concurrency
-- Module globals: `_gateway_stop_event`, `_active_port`, `_command_queue`, `_raw_packet_buffer`, `_active_nodes`, `_master_bridge_info`, `_gateway_state`, `_active_attacks`.
-- `_buffer_lock` guards the packet buffer, nodes and bridge info, but not `_gateway_state`, `_active_port` or the attack dicts.
-- ⚠️ Restart race: the connect route calls `stop_gateway()`, sleeps 0.2 s and starts a new thread that clears the **same** event, so the old thread may never stop (debug report F4).
-
-## Known issues
-F1 (single HMAC key for all nodes), F3 (stale command queue), F4 (thread race), S6 (host signs unsigned frames), F15 (fake locations).
-
-## Target state
-Separate `transport` (serial/mock), `codec` (versioned protocol), `command_bus` (TTL, seq, ACK tracking), `simulator` (own module, own DB flag). It runs as its own process, or as an asyncio task, and hands frames to the ingest service directly instead of over HTTP loopback.
+## Known limitations
+- The transport loop is synchronous (one thread); a slow handler delays reading. Moving to asyncio or a worker process is in restructure plan Phase 3.
+- The serial port read timeout is 0.2 s; command latency is bounded by that plus the master's polling cycle.

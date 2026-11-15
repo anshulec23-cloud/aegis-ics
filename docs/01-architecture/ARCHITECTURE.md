@@ -10,6 +10,7 @@
 
 Aegis ICS is a **cyber-physical security gateway** for a small industrial cell. It sits between field devices (ESP32 sensor nodes on an RS-485 bus) and human operators, and it does five things:
 
+0. **Discovers and enrolls** any number of field nodes automatically: a new slave shows up as pending, and an operator approves it with one click (X25519 key agreement, [ADR 0006](../adr/0006-zero-touch-enrollment.md)).
 1. **Ingests** sensor telemetry (temperature, pressure, vibration, RPM, current) from field nodes.
 2. **Authenticates** each frame with a per-device HMAC-SHA256 signature.
 3. **Scores** each node continuously: rule thresholds plus a Random Forest classifier feed a 4-factor trust score.
@@ -134,6 +135,10 @@ Per-component deep dives: [`components/`](components/).
 ---
 
 ## 5. Key flows
+
+### 5.0 Device onboarding (v2.6)
+
+A new slave answers the master's discovery window with `HELLO` and is stored in the `devices` registry as **pending**. After an operator approves it in Station 06, the host and the device each derive the same session key (X25519 + HKDF-SHA256). The host sends `WELCOME`, the device confirms with a signed `ACK`, and from then on every frame in both directions is signed and sequence-numbered. Full sequence diagram: [protocols §3](protocols.md#3-enrollment-adr-0006). Protocol-v1 frames take the path `gateway → app.handle_device_frame → registry.authenticate_frame → _ingest_authenticated`. The legacy v0 path described below remains for old firmware.
 
 ### 5.1 Telemetry ingestion (the hot path)
 
@@ -276,13 +281,26 @@ erDiagram
                     string device_id UK
                     bool is_isolated
                     datetime updated_at }
+    devices { int id PK
+              string device_id UK
+              string status
+              string public_key
+              string hmac_key
+              int host_seq
+              int last_boot
+              int last_seq }
+    command_log { int id PK
+                  string device_id
+                  int seq
+                  string command
+                  string status }
     rules { int id PK
             string key UK
             float value
             string description }
 ```
 
-`telemetry_logs.device_id` and `device_states.device_id` are logically related but have **no foreign key**. No `devices` registry table exists; the "known" node list is hard-coded in five places.
+`telemetry_logs.device_id`, `device_states.device_id` and `devices.device_id` are logically related but have **no foreign keys** yet. The set of known nodes comes from the registry, legacy provisioned keys, state rows and telemetry (`app._known_device_ids()`); there are no hard-coded node lists anymore.
 
 ---
 
@@ -352,9 +370,9 @@ Build and packaging: [`../05-operations/build-pipeline.md`](../05-operations/bui
 
 1. **God module:** `app.py` mixes HTTP, business logic, ML wrapper and persistence.
 2. **Loopback HTTP inside one process:** the gateway posts to its own Flask server. That means extra latency, and the ingestion endpoint has to stay unauthenticated.
-3. **No device registry:** the device list is hard-coded in `app.py`, `database.py`, `trust_engine.py`, `analytics.py` and `serial_gateway.py`.
-4. **Simulator and production share the same tables and code paths.**
-5. **Fire-and-forget commands:** no ACK, no TTL, no sequence numbers.
-6. **Firmware and host protocol drift:** two independent hand-written implementations, with no shared spec or test vectors.
+3. ~~No device registry~~: fixed in v2.6 (`devices` table, zero-touch enrollment).
+4. **Simulator and production share tables** (rows are flagged `is_simulated`; a separate simulation database is still planned).
+5. ~~Fire-and-forget commands~~: fixed for v1 devices (sequence numbers, TTL, ACKs, `command_log`).
+6. **Two protocol implementations** (Python and C++). They're now tied together by shared known-answer vectors and static contract tests, but not generated from one spec.
 
 All are addressed in [`RESTRUCTURE_PLAN.md`](../08-roadmap/RESTRUCTURE_PLAN.md). Verified bugs: [`DEBUG_REPORT.md`](../07-reports/DEBUG_REPORT.md).

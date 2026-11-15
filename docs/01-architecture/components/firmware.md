@@ -1,38 +1,39 @@
 # Firmware — `firmware/`
 
-Arduino-framework C++ for ESP32-WROOM-32. Libraries: ArduinoJson (v6 API: `StaticJsonDocument`), mbedTLS (bundled with the ESP32 core). Detailed wiring and flashing guides: [`firmware/README.md`](../../../firmware/README.md) and the per-sketch READMEs.
-
-## Master bridge — `esp32_master_bridge.ino`
-| Item | Value |
-|---|---|
-| Links | USB `Serial` 115200 to host; `rs485` (UART2) on RX16/TX17, DE/RE GPIO4 |
-| Slave table | up to N entries: id, sensor flags, last_seen; timeout 8 s |
-| Upstream | forwards every `{…}` line from RS-485 verbatim; parses it to update the slave table |
-| Downstream | `DISCOVER`/`GET_TOPOLOGY` → broadcast `{"command":"DISCOVER"}` + topology; `SHUTDOWN`+`ALL` → broadcast + `COMMAND_ACK`; anything else → broadcast verbatim |
-| Heartbeat | `BUS_TOPOLOGY` every 3 s |
+Arduino-framework C++ for ESP32-WROOM-32 (core 2.x or 3.x). Libraries: ArduinoJson 6/7, mbedTLS and Preferences (both bundled with the core). Wiring, building and the bench checklist are in [`firmware/README.md`](../../../firmware/README.md).
 
 ## Slave sensor node — `esp32_slave_sensor.ino`
-Select the node at compile time with `#define NODE_CONFIG_ESP32_00x`. That sets `DEVICE_ID`, `PRE_SHARED_HMAC_KEY` and the baseline values.
+
+**One image for every slave.** There's nothing to configure per node and no key in the source.
+
+| Concern | Implementation |
+|---|---|
+| Identity | `ESP32_` + last 3 bytes of the eFuse MAC; X25519 key pair generated with the hardware RNG on first boot and stored in NVS (`priv`, `pub`) |
+| Enrollment | `HELLO` on discovery/poll while unenrolled; on `WELCOME`: `derive_session_key()` (X25519 + HKDF-SHA256), verify the frame, store `key` in NVS, `ACK ack=0` |
+| Telemetry | `send_telemetry()`: signed `TEL` with `boot`/`seq`; keys inserted in sorted order; values as 2-decimal strings |
+| Commands | `handle_command()`: verify HMAC, then `seq > host_seq` (NVS), then apply, then signed `ACK` |
+| Setpoints | stored in NVS; proportional control of heater (GPIO 26) / pump (GPIO 27) PWM; zero output while tripped or when the feedback sensor is faulted; device envelope 0–60 °C / 0–8 bar |
+| Faults | raw ADC ≤ 50 or ≥ 4090 means the sensor is omitted and named in `faults[]` |
+| Fail-safe | trip state restored from NVS **first** in `setup()`; 8 s task watchdog; BOOT button at power-up = factory reset |
+| Bus | transmits on RS-485 only when addressed (`POLL`, `CMD`, `WELCOME`, `DISCOVER` with a random 0–300 ms slot); free-runs on USB only when no master has polled it for 5 s |
+| Self-test | `-DAEGIS_SELFTEST` runs the shared known-answer vector at boot and prints PASS/FAIL |
 
 | Pin | Function |
 |---|---|
-| 34 | Temperature ADC (LM35) |
-| 35 | Pressure ADC (0.5–4.5 V transducer) |
-| 32 | Vibration ADC |
-| 33 | Hall-effect pulse interrupt (A3144) |
-| 36 | Current ADC (ACS712) |
-| 25 | Actuator / trip relay (HIGH = energised) |
-| 2 | Status LED |
 | 16/17/4 | RS-485 RX/TX/DE-RE |
+| 34, 35, 32, 36 | Temperature, pressure, vibration, current ADC |
+| 33 | Hall pulse interrupt |
+| 25 | Trip relay (HIGH = energised) |
+| 26, 27 | Heater / pump PWM |
+| 2 | Status LED (on = tripped) |
+| 0 | BOOT button (factory reset) |
 
-Loop (non-blocking): read commands from RS-485 and USB → compute RPM every 1 s → every 500 ms read the ADCs, build the canonical string, HMAC-sign it, transmit on RS-485 (DE high) and mirror to USB.
+## Master bridge — `esp32_master_bridge.ino`
 
-## Known issues (see [debug report](../../07-reports/DEBUG_REPORT.md))
-- S2: keys compiled into source. S3: commands not authenticated.
-- F2: `SETPOINT` handler doesn't match what the host sends and doesn't actuate anything.
-- F5: free-running transmit on a shared half-duplex bus means collisions.
-- F7: a floating or broken sensor reports a random plausible value.
-- No hardware watchdog. Isolation state isn't persisted: `setup()` drives GPIO25 **HIGH** (energised) on every boot, so a quarantined node that reboots or browns out **re-arms itself** until the host notices and re-sends `ISOLATE`.
+A scheduling relay with **no keys**. It polls known slaves round-robin (40 ms gap, 120 ms reply timeout) and runs a discovery window (450 ms) every 10 s or on the host's `DISCOVER`. Host frames are queued (8 deep) and sent between polls, followed by a 250 ms ACK wait. Up to 32 slaves; a slave silent for 20 s drops off the poll list until it's rediscovered. It sends a `BUS_TOPOLOGY` heartbeat every 3 s.
 
-## Target state
-PlatformIO project (`platformio.ini`) with a shared `protocol.h` generated from the protocol spec, keys provisioned into NVS/eFuse (not source), command verification with sequence numbers, master-polled bus, sensor-fault flags, a hardware watchdog, and Unity unit tests for the canonicaliser using the same test vectors as pytest.
+## Verification status
+
+- The host/firmware contract is pinned by `tests/security/test_firmware_contract.py`: sorted canonical keys, verify-before-act, SETPOINT args, trip restore order, shared vectors, bus discipline, and no faked readings.
+- The crypto is verified on the host with the shared known-answer vector. On hardware, run the `AEGIS_SELFTEST` build.
+- ⚠️ The firmware hasn't been compiled in the project's CI yet (there's no ESP32 toolchain there). Adding `arduino-cli compile` to CI is the next step ([RESTRUCTURE_PLAN](../../08-roadmap/RESTRUCTURE_PLAN.md) P2.x).

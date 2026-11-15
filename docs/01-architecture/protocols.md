@@ -1,114 +1,108 @@
 # Wire protocols
 
-Three links exist:
-
 ```
-slave ESP32 ──RS-485 (115200, half-duplex, MAX485, DE/RE=GPIO4)── master ESP32 ──USB-CDC (115200)── host serial_gateway ──HTTP loopback── Flask
+slave ESP32 ──RS-485 (115200, half-duplex, polled)── master ESP32 ──USB-CDC (115200)── host gateway thread ──in-process── ingestion
 ```
 
-All framing is **newline-delimited UTF-8 JSON**. There is no length prefix, no CRC beyond the HMAC, no sequence number and no ACK.
+All framing is newline-delimited ASCII JSON. **Protocol v1** (v2.6+) is the normal protocol. **Protocol v0** (pre-shared keys compiled into firmware) is still accepted for legacy benches; see §6.
+
+Source of truth: `src/protocol.py` (host and simulator), `src/enrollment.py` (key agreement), `firmware/esp32_slave_sensor` (device). Shared known-answer vectors: `tests/security/protocol_v1_vectors.json`. The contract is enforced by `tests/security/test_enrollment_v1.py` and `test_firmware_contract.py`.
 
 ---
 
-## 1. Telemetry frame (slave → host)
+## 1. Frames (v1)
 
-Emitted by `esp32_slave_sensor.ino` every `TRANSMIT_INTERVAL_MS` (500 ms):
+Every frame carries `"v": 1` and a `type`.
 
-```json
-{"current":4.52,"device_id":"ESP32_001","hall_effect":0.00,"pressure":4.21,"signature":"9f…e1","temperature":26.10,"vibration":1.08}
-```
-
-| Field | Unit | Source pin | Firmware conversion |
+| Type | Direction | Signed | Fields |
 |---|---|---|---|
-| temperature | °C | GPIO34 (LM35) | `raw*0.08` (⚠️ random baseline if raw ≤ 50) |
-| pressure | bar | GPIO35 | `raw*0.002` |
-| vibration | g | GPIO32 | `raw*0.001` |
-| hall_effect | RPM | GPIO33 interrupt | pulses/s × 60 |
-| current | A | GPIO36 (ACS712) | `raw*0.005` |
+| `DISCOVER` | master → bus | – | `{}`: opens a discovery window |
+| `POLL` | master → slave | – | `id`: "your turn to talk" |
+| `HELLO` | slave → host | – | `id`, `pub` (X25519, 64 hex), `fw`, `boot`, `sensors[]`, `enrolled` |
+| `WELCOME` | host → slave | ✓ (new key) | `id`, `hpub` (host X25519 public key) |
+| `TEL` | slave → host | ✓ | `id`, `boot`, `seq`, sensor values, `faults[]`, `tripped`, optional `sp_t`/`sp_p` (applied setpoints) |
+| `CMD` | host → slave | ✓ | `id`, `seq` (host sequence), `cmd`, `args{}` |
+| `ACK` | slave → host | ✓ | `id`, `boot`, `seq`, `ack` (command seq; 0 = WELCOME), `result`, optional `reason` |
 
-When the node is isolated, it reports `pressure=0`, `hall_effect=0`, `current=0.1`.
+Commands: `SETPOINT {param: "temperature"|"pressure", value: "30.00"}`, `ISOLATE`, `REARM`, `SHUTDOWN`, `PING`.
+ACK results: `OK`, `REJECTED` (e.g. outside the device envelope, relay tripped), `BAD_SIG`, `REPLAY`, `UNKNOWN_CMD`.
 
-### Canonical signing string
-
-The signature is computed over the frame **without** `signature`, with:
-- keys sorted alphabetically, compact separators `,` and `:`;
-- sensor values (`temperature, pressure, humidity, rssi, vibration, hall_effect, current`) rendered as **JSON strings** with two decimals;
-- `timestamp` (if present) rendered as a string with three decimals;
-- all other fields unchanged.
-
-Example canonical string for the frame above:
-
-```
-{"current":"4.52","device_id":"ESP32_001","hall_effect":"0.00","pressure":"4.21","temperature":"26.10","vibration":"1.08"}
-```
-
-`signature = hex(HMAC-SHA256(device_key, canonical))`
-
-Implementations: firmware `snprintf` template; host `serial_gateway.canonicalize_payload/sign_message`; server `app.verify_signature._canonicalize`. ⚠️ These are three hand-written copies. `verify_signature` crashes on a non-numeric timestamp, while `canonicalize_payload` stringifies it.
-
-### Alternative input formats accepted by `parse_serial_line`
-
-| Format | Example | Mapping |
-|---|---|---|
-| JSON with short keys | `{"id":"X","temp":25,"pres":3}` | `temp/pres/vib/hall|rpm/curr/hum` → long names |
-| CSV, 5 fields | `25.1,3.2,1.0,1500,4.5` | T,P,V,RPM,I |
-| CSV, 1 or 2 fields | `25.1` / `25.1,3.2` | T / T,P |
-| key:value | `T:25.1,P:3.2` or `temp=25.1` | t,p,v,h,c aliases |
-
-Non-JSON formats carry no `device_id` (default `ESP32_001` in `plc` mode) and no signature. Since v2.6 the gateway **drops** unsigned frames; it isn't a signing authority. For bench work with sensors that can't sign, `serial_gateway.py --allow-unsigned` signs them with the device key. Never use that in production.
-
----
-
-## 2. Bridge and discovery frames (master → host)
-
-| Frame | When | Shape |
-|---|---|---|
-| Boot announcement | bridge start | `{"system":"Aegis Master Concentrator","status":"ONLINE","version":"2.5.2","baud":115200,"bridge_id":"MASTER_BRIDGE_01"}` |
-| `BUS_TOPOLOGY` | every 3 s and on `DISCOVER` | `{"system":…,"type":"BUS_TOPOLOGY","status":"ONLINE","slave_count":N,"slaves":[ids],"sensors":{id:[names]}}` |
-| `COMMAND_ACK` | after `SHUTDOWN` to `ALL` | `{"type":"COMMAND_ACK","status":"BUS_SHUTDOWN",…}` |
-| `NODE_ANNOUNCE` (from slave) | on `DISCOVER`/`SCAN` | `{"type":"NODE_ANNOUNCE","device_id":…,"hardware":"ESP32-WROOM-32","version":…,"is_isolated":bool,"sensors":[…],"sensor_count":n}` |
-
-Slaves are pruned from the bridge's table after 8 s of silence (`SLAVE_TIMEOUT_MS`).
-
----
-
-## 3. Command frame (host → bridge → slaves)
-
-Produced by `app.py` and enqueued with `serial_gateway.send_command()`, which signs with the target device's key (broadcasts to `ALL` stay unsigned until protocol v1 adds a bus key). Commands are only queued while a gateway is connected, and any command older than `AEGIS_COMMAND_TTL_S` (5 s) is dropped instead of being written late.
-
+Example `TEL`:
 ```json
-{"command":"ISOLATE","action":"ISOLATE","device_id":"ESP32_002","target_device":"ESP32_002","timestamp":1763050000.12,"reason":"…","signature":"…"}
+{"boot":2113870950,"current":"4.52","faults":[],"hall_effect":"0.00","id":"ESP32_C1DC7F","pressure":"4.21","seq":118,"sig":"9f…e1","sp_t":"32.00","temperature":"26.10","tripped":false,"type":"TEL","v":1,"vibration":"1.08"}
 ```
 
-| Host sends | Firmware action | Status |
-|---|---|---|
-| `DISCOVER` (target `ALL`) | bridge broadcasts `{"command":"DISCOVER"}`, emits topology; slaves send `NODE_ANNOUNCE` | works |
-| `ISOLATE` | relay GPIO25 LOW, LED on | works (unauthenticated ⚠️) |
-| `REARM` | relay HIGH | works (unauthenticated ⚠️) |
-| `SHUTDOWN` (device or `ALL`) | relay LOW | works (unauthenticated ⚠️) |
-| `setpoint` (`target`,`value`) | none: firmware expects `SETPOINT` + `temperature`/`pressure` keys, and only validates | ⚠️ broken |
-| `ping` | none | ⚠️ server fakes the reply |
+## 2. Canonical form and signatures
 
-Addressing: a slave acts if `target_device`/`device_id` is missing, `ALL`, or equal to its own `DEVICE_ID`.
+```
+canonical = json.dumps(frame_without_sig, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+sig       = hex(HMAC-SHA256(key = session_key_hex_ascii, msg = canonical))
+```
 
----
+To make this byte-identical on the ESP32 (ArduinoJson keeps insertion order):
+- real numbers are **never JSON floats**: they're strings with exactly two decimals (`"26.10"`);
+- integers (`v`, `boot`, `seq`, `ack`) are plain JSON integers; booleans are `true`/`false`;
+- the firmware inserts keys in sorted order;
+- faulted sensors are **omitted** (and listed in `faults`), never sent as `null`.
 
-## 4. Gateway → Flask (loopback HTTP)
+## 3. Enrollment (ADR 0006)
 
-`POST http://127.0.0.1:${FLASK_PORT}/api/telemetry`, JSON body = normalised payload (long field names, `device_id`, optional `timestamp`, `signature`). Responses: `200` accepted, `403` device isolated, `400` bad or expired timestamp, `500` DB error. See [REST API](../03-api/rest-api.md).
+```mermaid
+sequenceDiagram
+    participant S as Slave (new)
+    participant M as Master
+    participant H as Host
+    participant O as Operator
+    M->>S: DISCOVER (every 10 s)
+    S->>M: HELLO {id, pub, sensors}  (random 0-300 ms slot)
+    M->>H: HELLO
+    H->>H: registry: status = pending, fingerprint
+    O->>H: Approve (dashboard, Station 06)
+    H->>H: key = HKDF(X25519(host_priv, dev_pub))
+    H->>M: WELCOME {id, hpub, sig}
+    M->>S: WELCOME
+    S->>S: key = HKDF(X25519(dev_priv, hpub)); verify sig; store in NVS
+    S->>M: ACK {ack: 0, result: OK, sig}
+    M->>H: ACK → registry: enrollment_confirmed
+    loop every poll cycle
+        M->>S: POLL
+        S->>M: TEL (signed)
+        M->>H: TEL → ingestion
+    end
+```
 
----
+Key derivation (`enrollment.derive_session_key`):
+```
+shared = X25519(own_priv, peer_pub)                             32 bytes, RFC 7748
+PRK    = HMAC-SHA256(key = "aegis-ics-v1", msg = shared)
+OKM    = HMAC-SHA256(key = PRK, msg = device_id | "|" | dev_pub | host_pub | 0x01)
+key    = lowercase hex(OKM)                                     64 ASCII chars
+```
+Fingerprint = first 6 bytes of SHA-256(pub), as `XXXX-XXXX-XXXX`. It's shown on the dashboard and printed on the slave's USB console.
 
-## 5. Server-Sent Events (Flask → browser)
+Special cases:
+- An approved device announcing a **different public key** returns to `pending` (`DEVICE_KEY_CHANGED` audit) and must be approved again.
+- An approved device that says `enrolled: false` (lost its key) gets the WELCOME again automatically.
+- A device that confirms enrollment while **quarantined** is immediately sent `ISOLATE`.
 
-`GET /api/stream`, `text/event-stream`, one cycle per second. Events: `telemetry` (array of rows), `heartbeat` (`{time, isolated}`), `topology`, `error`.
+## 4. Replay protection
 
----
+- **Device → host:** each slave picks a random 31-bit `boot` at power-up and increments `seq` for every frame. The host keeps, per device, the current boot, the last seq and the last 32 boot ids. It rejects `seq ≤ last` within a boot and any frame from an earlier boot (409, `REPLAY_REJECTED` audit, at most once a minute per device).
+- **Host → device:** every `CMD` carries the next per-device host `seq` (stored in `devices.host_seq`). The slave stores the last accepted value in NVS and answers `REPLAY` to anything not larger.
+- **Host-side TTL:** queued frames older than `AEGIS_COMMAND_TTL_S` (5 s) are dropped (`command_log.status = EXPIRED`), never sent late.
 
-## 6. Gaps to close (tracked in the restructure plan)
+## 5. Bus discipline (master)
 
-- Add `seq` (monotonic per device) and `ts`/boot-nonce to every frame, and reject replays on both sides.
-- Firmware must verify command HMAC before acting.
-- Command ACK frames (`{"type":"ACK","seq":…,"result":…}`) and host-side timeouts.
-- Bus arbitration: master-polled request/response instead of free-running slave transmit.
-- One machine-readable protocol spec (JSON Schema) plus shared test vectors used by both pytest and a firmware unit test.
+The master polls each known slave in turn and forwards the reply. It opens a discovery window every 10 s, or when the host sends `DISCOVER`. Host frames are put on the bus between polls, and the addressed slave's ACK is forwarded back. Slaves transmit on RS-485 **only** when addressed, so there are no collisions. A slave wired directly to the PC's USB port (no master) streams on USB instead. The master also sends `BUS_TOPOLOGY {slaves[], slave_count}` every 3 s.
+
+## 6. Legacy protocol v0
+
+Frames without `"v"` follow the pre-2.6 format: long-name sensor floats, canonical values formatted to 2 decimals as strings, and an optional `timestamp`. They're verified with a pre-shared key from `DEVICE_KEY_<ID>` or `device_keys.json`. Replay defence for v0 is a 300 s duplicate-signature cache plus a ±60 s timestamp window. v0 commands are fire-and-forget (no ACK). The gateway drops unsigned v0 frames unless run with `--allow-unsigned` (bench only).
+
+## 7. Host ingestion
+
+In-process: the gateway thread calls `app.handle_device_frame` (v1) or `app.process_telemetry` (v0) directly. External gateway process: `POST /api/telemetry` with header `X-Aegis-Gateway-Token` (see [REST API](../03-api/rest-api.md)).
+
+## 8. Server-Sent Events (host → browser)
+
+`GET /api/stream`, one cycle per second: `telemetry` (new rows), `heartbeat` (`time`, `isolated[]`, `pending_devices`), `topology`, `error`.

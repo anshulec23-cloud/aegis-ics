@@ -24,6 +24,7 @@ Fields: `username`, `password`, `csrf_token`; optional location as `location_coo
 ## Telemetry ingestion
 
 ### `POST /api/telemetry` — gateway token + device HMAC (no session, no CSRF)
+Used only when the gateway runs as a separate process; the in-process gateway calls the same handlers directly. Bodies with `"v": 1` are protocol-v1 frames (`HELLO`/`TEL`/`ACK`, see [protocols](../01-architecture/protocols.md)); the rest are legacy v0 telemetry, documented below.
 Header `X-Aegis-Gateway-Token: <AEGIS_GATEWAY_TOKEN>` is required. The in-process gateway sends it automatically.
 ```json
 {"device_id":"ESP32_001","temperature":26.1,"pressure":4.21,"vibration":1.08,
@@ -49,11 +50,11 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| POST | `/api/setpoint` (30/min) 🅦 | `{"type":"set_temp"|"set_pressure","value":number,"target_device":"ESP32_001"}` | 200 `{"success":true,"details":…}` (sent; no device ACK in protocol v0) · 400 invalid · 403 isolated or safety-blocked (`error` holds the reason) · 503 no hardware gateway connected (nothing queued) · 500 enqueue failed |
-| POST | `/api/device/isolate` 🅦 | `{"device_id"}` | sends `ISOLATE` if a gateway is connected; response field `hardware_command_sent` |
+| POST | `/api/setpoint` (30/min) 🅦 | `{"type":"set_temp"|"set_pressure","value":number,"target_device":"ESP32_001"}` v1 devices: returns after the device's ACK. 200 applied (`command.status = ACKED`) · 409 rejected by the device (`command.result`, e.g. outside the device envelope) · 504 sent but not acknowledged. Also: 400 invalid / missing `target_device` · 403 isolated or safety-blocked · 503 no gateway connected (nothing queued). Legacy v0 devices: 200 means sent, no ACK |
+| POST | `/api/device/isolate` 🅦 | `{"device_id"}` sends `ISOLATE`; v1 devices: waits up to 2 s for the ACK (`command.status`). Response field `hardware_command_sent` |
 | POST | `/api/device/rejoin` 🅦 | `{"device_id"}` | sends `REARM` (same field) |
 | POST | `/api/device/shutdown` 🅦 | `{"device_id": "ESP32_00x" | "ALL"}` | sends `SHUTDOWN`; `ALL` isolates every known and provisioned node |
-| POST | `/api/device/ping` 🅦 | `{"device_id"}` | sends a ping frame; `latency_ms` is always `null` (firmware v2.5 doesn't reply) |
+| POST | `/api/device/ping` 🅦 | `{"device_id"}` v1 devices: measured round trip until the device's ACK (`latency_ms`); legacy v0 devices: `null` |
 | POST | `/api/device/clear` 🅦 | `{"device_id" | "ALL"}` | clears simulator attacks + audit entry |
 | POST | `/api/rules/update` 🅦 | any of `temp_min,temp_max,pressure_min,pressure_max` | rejects non-finite values and inverted ranges |
 | GET | `/api/rules` 🅦 | – | `{"rules":{key:value}}` |
@@ -69,7 +70,17 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 | GET | `/api/device/<id>/trust_breakdown` 🅦 | weighted components + packet stats |
 | GET | `/api/cluster/topology` 🅦 | master-bridge info, gateway state, node list with `latest_readings` |
 | GET/POST | `/api/cluster/discover` 🅦 | enqueues `DISCOVER`; returns health + active nodes |
-| GET | `/api/devices/locations` 🅦 | static plant coordinates + isolation flag |
+| GET | `/api/devices/locations` 🅦 auto-layout positions for the digital twin; `latitude`/`longitude` are `null` (no invented GPS) |
+
+## Device registry: zero-touch enrollment (login + CSRF for POST)
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET | `/api/registry` 🅦 | – | `{host_fingerprint, pending_count, devices[]}`; each device: `device_id, name, status (pending/approved/revoked), fingerprint, firmware, sensors[], first_seen, last_seen, approved_at, enrollment_confirmed, relay_tripped` |
+| POST | `/api/registry/<id>/approve` 🅦 | `{"name"?}` | pending → approved; derives the key and sends `WELCOME` (or on the device's next HELLO). 409 if not pending |
+| POST | `/api/registry/<id>/reject` 🅦 | – | pending → revoked; approved → revoked (key erased, `ISOLATE` sent) |
+| POST | `/api/registry/<id>/forget` 🅦 | – | delete a pending/revoked entry so the device can be rediscovered |
+| POST | `/api/registry/<id>/rename` 🅦 | `{"name"}` | display name |
 
 ## Serial gateway (login)
 
@@ -112,7 +123,7 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 
 | Method | Path | Body |
 |---|---|---|
-| POST | `/api/simulate/attack` 🅦 | `{"device_id","attack_type":"stuxnet|hmac_tamper|thermal_drift|fdi_spike|injection|ddos"}` (affects the mock gateway stream) |
+| POST | `/api/simulate/attack` 🅦 | `{"device_id","attack_type":"stuxnet|hmac_tamper|tamper|replay|thermal_drift|fdi_spike|injection|ddos|sensor_fault"}`. Injects into a **simulated** slave; 409 if the simulator isn't running or the device isn't simulated. The live pipeline does the detecting |
 | POST | `/api/simulate/reset` 🅦 | – |
 | POST | `/api/simulate-attack` (30/min) 🅦 | `{"type":"stuxnet|injection|privilege"}`. Writes drill telemetry and `SIMULATED_*` audit rows, all flagged `is_simulated`; doesn't change device state; excluded from PDF reports |
 

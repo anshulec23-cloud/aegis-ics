@@ -46,8 +46,27 @@ Actions emitted by the code: `LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `CHANGE_
 | temperature, pressure, humidity, vibration, hall_effect, current, rssi | FLOAT NULL | units: °C, bar, %RH, g RMS, RPM, A, dBm |
 | is_anomaly | BOOLEAN | rule/RF anomaly; always True for frames from isolated devices. Frames with invalid signatures are no longer stored (v2.6) |
 | is_simulated | BOOLEAN | True for rows written by `/api/simulate-attack` and for all telemetry ingested while the software simulator is the active gateway |
+| faults | VARCHAR(120) | comma-separated sensors the device reported as faulted (v1) |
 
 No retention policy; the table grows unbounded (about 2 rows/s per node with the 500 ms firmware interval).
+
+### `devices` (registry, v2.6, ADR 0006)
+| Column | Type | Notes |
+|---|---|---|
+| device_id | VARCHAR(50) UNIQUE | `ESP32_` + MAC suffix (firmware) or any `[A-Za-z0-9_-]{1,50}` |
+| name | VARCHAR(80) | operator-given display name |
+| status | VARCHAR(16) | `pending` → `approved` → `revoked` |
+| public_key / fingerprint | hex / `XXXX-XXXX-XXXX` | device X25519 key from HELLO |
+| hmac_key | VARCHAR(64) | derived session key (approved only) |
+| firmware, sensors, protocol | | from HELLO |
+| first_seen, last_seen, approved_at, approved_by | | |
+| enrollment_confirmed | BOOLEAN | device ACKed the WELCOME |
+| relay_tripped | BOOLEAN | last trip state reported in TEL |
+| last_boot, last_seq, seen_boots | | device→host replay protection |
+| host_seq | INTEGER | last host→device command sequence |
+
+### `command_log` (v2.6)
+One row per command sent to a v1 device: `device_id, seq, command, args, status (QUEUED/SENT/ACKED/REJECTED/EXPIRED/FAILED), result, user_id, created_at, sent_at, acked_at`.
 
 ### `device_states`
 | Column | Type | Notes |

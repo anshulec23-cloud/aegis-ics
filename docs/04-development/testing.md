@@ -8,6 +8,9 @@
 | `tests/test_multi_slave_discovery.py` | 5 | Bridge topology and node-announce parsing |
 | `tests/test_security_hardening.py` | 4 | Template and static hardening checks |
 | `tests/security/test_debug_findings.py` | 39 | One regression test per [debug-report](../07-reports/DEBUG_REPORT.md) finding, run with all security controls on; findings fixed in later phases are `xfail(strict=True)` |
+| `tests/security/test_enrollment_v1.py` | 13 | Protocol v1 + enrollment: shared known-answer vectors, pending/approve/reject, replay, key change, registry API, end-to-end gateway + simulator with ACKed commands, persistence, re-trip on re-enroll |
+| `tests/security/test_firmware_contract.py` | 8 | Static host/firmware contract: sorted canonical keys, verify-before-act, SETPOINT args, trip restore at boot, shared vectors, bus discipline, no faked readings |
+| `tests/security/protocol_v1_vectors.json` | – | Known-answer vectors shared with the firmware self-test (`AEGIS_SELFTEST`) |
 | `tests/conftest.py` | – | Deletes the test DB at session start; sets test-only admin password, device keys and gateway token |
 | `tests/benchmark_suite.py` | n/a (script) | Latency and attack-simulation benchmarks → `tests/benchmark_results/*.json` |
 | `tests/generate_graphs.py` | n/a (script) | Renders `docs/figures/*.png` from benchmark JSON |
@@ -25,7 +28,7 @@ Since v2.6, `app.config["TESTING"] = True` only disables **rate limiting** (so t
 
 The suite must leave the working tree unchanged (CI runs `git diff --exit-code` after the tests).
 
-Current result: **105 passed, 3 xfailed** (S3, F2, F6, which are open in later phases).
+Current result: **126 passed, 1 xfailed** (F6, the NSPN command-type fix in Phase 4).
 
 ## Target test strategy (restructure plan Phase 1–2)
 ```

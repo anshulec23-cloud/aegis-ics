@@ -6,6 +6,27 @@ The version number lives in exactly one place: `src/version.py`.
 
 ## [Unreleased] — 2.6.0
 
+### Added (restructure plan Phase 2: zero-touch hardware loop)
+- **Automatic discovery and one-click enrollment for any number of slaves** (ADR 0006). One firmware image for every slave: device ID from the MAC, X25519 identity in NVS. New slaves appear as *pending*; approving one derives a per-device session key (X25519 + HKDF-SHA256) that never crosses the bus. Key changes drop a device back to pending.
+- **Protocol v1** (`src/protocol.py`): HELLO/WELCOME/TEL/CMD/ACK with boot/seq replay protection in both directions; device-acknowledged commands tracked in `command_log`; ping reports a measured RTT.
+- **First-run setup screen**: the packaged app opens a "create admin password" page on first launch; headless installs log a one-time setup link. No passwords are ever generated or printed.
+- **Data directory** for all mutable state (`%LOCALAPPDATA%\AegisICS`, XDG, `/var/lib/aegis-ics`, or next to the exe with `aegis_portable`), so packaged builds keep their data.
+- Device registry API (`/api/registry`) and dashboard enrollment panel, plus a header badge for devices awaiting approval.
+- Firmware: polling master bridge (no bus collisions), verified commands with ACKs, SETPOINT PWM actuation, sensor fault reporting, NVS trip state (boots tripped), task watchdog, factory reset, `AEGIS_SELFTEST`.
+- Protocol-v1 simulator for `AEGIS_SIM_DEVICES` slaves, with persisted device state and real enrollment; new `replay` and `sensor_fault` drills.
+- Tests: `test_enrollment_v1.py`, `test_firmware_contract.py`, shared known-answer vectors.
+
+### Fixed
+- Dashboard setpoint panel never worked (wrong payload); red-team buttons always failed (wrong field name); isolation toggle could only isolate; connect showed success on failure.
+- Dashboard node grid, digital twin and device lists were hard-coded to four devices (the twin showed static fake values).
+- A quarantined node that rebooted came back energised; it's now tripped from NVS at boot and re-tripped on reconnect or re-enrollment.
+- Replay and bad-signature rejections are now visible as CRITICAL audit events.
+- Service logs: stdout is line-buffered so security events appear immediately.
+
+### Changed
+- `device_keys.py generate` and `DEVICE_KEY_<ID>` are now only for legacy v0 firmware.
+- `.deb` packaging no longer bundles the developer's database (see packaging notes).
+
 ### Security (restructure plan Phase 1; finding IDs refer to docs/07-reports/DEBUG_REPORT.md)
 - **S1** `/api/telemetry` requires the `X-Aegis-Gateway-Token` header. One invalid signature no longer quarantines a node: it takes 3 within 60 s (`AEGIS_SIG_FAILURE_*`). Frames with invalid signatures are no longer stored.
 - **S2** Removed all hard-coded HMAC keys (Python and firmware) and the shared fallback key. Keys come from `DEVICE_KEY_<ID>` or `device_keys.json` (`python src/device_keys.py generate ...`); firmware includes a git-ignored `aegis_secrets.h`. Unprovisioned devices are rejected (403).
