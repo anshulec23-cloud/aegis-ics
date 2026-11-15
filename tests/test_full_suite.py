@@ -1751,7 +1751,11 @@ def test_terminal_dashboard_routes_and_html_render():
     assert res_login.status_code == 200
     assert b"xp.css" in res_login.data
     assert b"theme-green" in res_login.data
-    assert b"CLASSIFIED INDUSTRIAL FACILITY" in res_login.data or b"VT-220" in res_login.data
+    # XP-clean copy (no terminal/CRT framing).
+    assert b"Operator Sign In" in res_login.data
+    assert b"Aegis Industrial Control System" in res_login.data
+    assert b"VT-220" not in res_login.data
+    assert b"CLASSIFIED INDUSTRIAL FACILITY" not in res_login.data
     assert b"CRT PALETTE:" not in res_login.data
 
     # 2. Dashboard route authenticated

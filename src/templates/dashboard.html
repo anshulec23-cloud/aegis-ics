@@ -330,18 +330,18 @@
             </div>
 
             <div class="subway-card p-4 space-y-4">
-                <div class="overflow-x-auto bg-[#050608] p-4 rounded border border-[#161d2a]">
+                <div class="overflow-x-auto bg-[#050608] p-4 rounded">
                     <svg id="plant-twin-svg" viewBox="0 0 1000 520" class="w-full h-auto min-w-[750px] select-none">
                         <defs>
                             <linearGradient id="reactorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#182030"/>
-                                <stop offset="100%" stop-color="#0f1422"/>
+                                <stop offset="0%" stop-color="#ffffff"/>
+                                <stop offset="100%" stop-color="#dCE8F7"/>
                             </linearGradient>
                         </defs>
 
                         <!-- Nodes are rendered from live device data by renderTwin(); the layout grows with the number of slaves. -->
                         <g id="twin-nodes"></g>
-                        <text id="twin-empty" x="500" y="260" text-anchor="middle" fill="#64748b" font-family="monospace" font-size="14">No enrolled field devices yet</text>
+                        <text id="twin-empty" x="500" y="260" text-anchor="middle" fill="#5a7296" font-family="Tahoma, sans-serif" font-size="14">No enrolled field devices yet</text>
                     </svg>
                 </div>
             </div>
@@ -2554,24 +2554,25 @@
             const fmt = (v, d, u) => (v === null || v === undefined) ? '--' : `${Number(v).toFixed(d)}${u}`;
             devices.forEach((d, i) => {
                 const x = ox + (i % cols) * (w + gx), y = oy + Math.floor(i / cols) * (h + gy);
-                const color = d.is_isolated ? '#f87171' : (d.is_active ? '#38bdf8' : '#64748b');
+                const color = d.is_isolated ? '#a3281a' : (d.is_active ? '#15559e' : '#5a7296');
+                const fillBg = d.is_isolated ? '#fbe5e0' : (d.is_active ? '#eaf2fd' : '#eef1f6');
                 const g = document.createElementNS(NS, 'g');
                 g.setAttribute('class', 'cursor-pointer');
                 g.addEventListener('click', () => selectTwinNode(d.device_id));
                 const rect = document.createElementNS(NS, 'rect');
-                Object.entries({ x, y, width: w, height: h, rx: 10, fill: '#121927', stroke: color, 'stroke-width': 2 })
+                Object.entries({ x, y, width: w, height: h, rx: 6, fill: fillBg, stroke: color, 'stroke-width': 2 })
                     .forEach(([k, v]) => rect.setAttribute(k, v));
                 g.appendChild(rect);
                 const lines = [
-                    [d.name && d.name !== d.device_id ? d.name : 'FIELD NODE', '#ffffff', 13, 'bold'],
+                    [d.name && d.name !== d.device_id ? d.name : 'FIELD NODE', '#0f2a52', 13, 'bold'],
                     [`NODE: ${d.device_id}`, color, 11, 'normal'],
-                    [`T ${fmt(d.latest_temp, 1, ' C')}   P ${fmt(d.latest_pres, 2, ' bar')}`, '#cbd5e1', 11, 'normal'],
-                    [`V ${fmt(d.latest_vib, 2, ' g')}   RPM ${fmt(d.latest_hall, 0, '')}`, '#cbd5e1', 11, 'normal'],
+                    [`T ${fmt(d.latest_temp, 1, ' C')}   P ${fmt(d.latest_pres, 2, ' bar')}`, '#334155', 11, 'normal'],
+                    [`V ${fmt(d.latest_vib, 2, ' g')}   RPM ${fmt(d.latest_hall, 0, '')}`, '#334155', 11, 'normal'],
                     [d.is_isolated ? 'ISOLATED' : `${d.status || ''} ${fmt(d.trust_percentage, 0, '%')}`, color, 11, 'bold'],
                 ];
                 lines.forEach(([text, fill, size, weight], li) => {
                     const t = document.createElementNS(NS, 'text');
-                    Object.entries({ x: x + w / 2, y: y + 26 + li * 22, 'text-anchor': 'middle', fill, 'font-family': 'monospace', 'font-size': size, 'font-weight': weight })
+                    Object.entries({ x: x + w / 2, y: y + 26 + li * 22, 'text-anchor': 'middle', fill, 'font-family': 'Tahoma, sans-serif', 'font-size': size, 'font-weight': weight })
                         .forEach(([k, v]) => t.setAttribute(k, v));
                     t.textContent = text;
                     g.appendChild(t);

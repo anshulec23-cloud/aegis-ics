@@ -7,31 +7,25 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='xp.css') }}">
     <style>
-        .login-card {
-            max-width: 520px;
-            width: 100%;
-            background-color: #0e121a;
-            border: 1px solid #1c2333;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-        }
+        /* Sizing only — colours come from xp.css (.login-card = XP window). */
+        .login-card { max-width: 460px; width: 100%; }
     </style>
 </head>
-<body class="theme-green bg-[#090a0f] text-white flex items-center justify-center min-h-screen p-4">
+<body class="theme-green flex items-center justify-center min-h-screen p-4">
     <div class="login-card p-6 md:p-8 space-y-6">
-        <div class="border-b border-[#1c2333] pb-5 text-center space-y-2">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[11px] tracking-wider uppercase">
-                FIRST-RUN SETUP
+        <div class="border-b pb-5 text-center space-y-2">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[11px] tracking-wide uppercase">
+                First-Run Setup
             </div>
-            <h1 class="text-lg font-bold tracking-tight text-white font-mono">AEGIS ICS // CREATE ADMINISTRATOR</h1>
-            <p class="text-xs font-mono text-slate-400">
+            <h1 class="text-lg font-bold tracking-tight text-white">Create Administrator Account</h1>
+            <p class="text-xs text-slate-400">
                 No operator account exists yet. Choose the password for the <span class="text-white">admin</span> account.
                 There is no default password.
             </p>
         </div>
 
         {% if error %}
-        <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono text-center rounded">{{ error }}</div>
+        <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center rounded">{{ error }}</div>
         {% endif %}
 
         {% if token_ok %}
@@ -39,17 +33,17 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="token" value="{{ token }}">
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="password">NEW ADMIN PASSWORD (min. {{ min_length }} characters):</label>
+                <label class="block text-xs text-slate-300 tracking-wide" for="password">New admin password (min. {{ min_length }} characters)</label>
                 <input class="subway-input w-full" type="password" id="password" name="password" minlength="{{ min_length }}" required autocomplete="new-password" autofocus>
             </div>
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="confirm">CONFIRM PASSWORD:</label>
+                <label class="block text-xs text-slate-300 tracking-wide" for="confirm">Confirm password</label>
                 <input class="subway-input w-full" type="password" id="confirm" name="confirm" minlength="{{ min_length }}" required autocomplete="new-password">
             </div>
-            <button type="submit" class="subway-btn subway-btn-nominal w-full py-2 font-mono text-sm">CREATE ADMIN ACCOUNT &amp; SIGN IN</button>
+            <button type="submit" class="subway-btn subway-btn-nominal w-full py-2 text-sm">Create admin account &amp; sign in</button>
         </form>
         {% else %}
-        <div class="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono rounded space-y-2">
+        <div class="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded space-y-2">
             <p>This page needs the one-time setup link.</p>
             <p>Desktop app: it opens automatically on first launch, so restart the app.</p>
             <p>Server install: open the URL printed in the service log, or read
