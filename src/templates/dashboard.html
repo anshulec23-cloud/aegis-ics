@@ -840,6 +840,43 @@
     <!-- ======================================================================
          DEVICE TRUST BREAKDOWN MODAL
          ====================================================================== -->
+    <!-- Device approval / financial profile modal (zero-touch enrollment) -->
+    <div id="fin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="subway-card max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-[#1c2333] pb-3">
+                <h3 id="fin-modal-title" class="text-sm font-bold text-white font-mono">APPROVE DEVICE</h3>
+                <button onclick="closeFinModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono">
+                Set this node's financial profile. These figures drive the live loss accounting and the
+                NIST incident report, so enter the plant's real equipment value and downtime cost.
+            </p>
+            <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+                <label class="col-span-2 space-y-1"><span class="text-slate-300">DEVICE NAME</span>
+                    <input id="fin-name" class="subway-input w-full" maxlength="80" placeholder="e.g. Catalytic reactor 01"></label>
+                <label class="space-y-1"><span class="text-slate-300">ROLE</span>
+                    <select id="fin-role" class="subway-input w-full" onchange="finApplyRoleDefaults()"></select></label>
+                <label class="space-y-1"><span class="text-slate-300">CRITICALITY</span>
+                    <select id="fin-criticality" class="subway-input w-full"></select></label>
+                <label class="col-span-2 space-y-1"><span class="text-slate-300">ZONE / LOCATION</span>
+                    <input id="fin-zone" class="subway-input w-full" maxlength="80" placeholder="e.g. Reactor bay north"></label>
+                <label class="space-y-1"><span class="text-slate-300">EQUIPMENT VALUE ($)</span>
+                    <input id="fin-equipment_value" type="number" min="0" step="1000" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">DOWNTIME ($ / hr)</span>
+                    <input id="fin-downtime_rate_per_hour" type="number" min="0" step="500" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">CLEANUP / REMEDIATION ($)</span>
+                    <input id="fin-cleanup_cost" type="number" min="0" step="1000" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">REGULATORY EXPOSURE ($)</span>
+                    <input id="fin-regulatory_exposure" type="number" min="0" step="1000" class="subway-input w-full"></label>
+            </div>
+            <div id="fin-error" class="hidden text-[11px] text-red-400 font-mono"></div>
+            <div class="flex justify-end gap-2 pt-1 border-t border-[#1c2333]">
+                <button onclick="closeFinModal()" class="subway-btn text-xs">CANCEL</button>
+                <button id="fin-submit" onclick="submitFinModal()" class="subway-btn subway-btn-nominal text-xs">APPROVE &amp; ENROLL</button>
+            </div>
+        </div>
+    </div>
+
     <div id="trust-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="subway-card max-w-lg w-full p-6 space-y-4">
             <div class="flex justify-between items-center border-b border-[#1c2333] pb-3">
@@ -2310,9 +2347,10 @@
                         };
                         const id = d.device_id;
                         if (d.status === 'pending') {
-                            button('APPROVE', 'subway-btn-nominal', () => registryAction(id, 'approve', { name: nameInput.value }));
+                            button('APPROVE', 'subway-btn-nominal', () => openFinModal('approve', d, nameInput.value));
                             button('REJECT', 'subway-btn-danger', () => registryAction(id, 'reject'));
                         } else if (d.status === 'approved') {
+                            button('EDIT $', '', () => openFinModal('financials', d, nameInput.value));
                             button('RENAME', '', () => registryAction(id, 'rename', { name: nameInput.value }));
                             button('REVOKE', 'subway-btn-danger', () => {
                                 if (confirm(`Revoke ${id}? Its key is erased and its relay is tripped.`)) registryAction(id, 'reject');
@@ -2328,6 +2366,96 @@
                     }
                 })
                 .catch(() => {});
+        }
+
+        // ---- Device approval + financial profile modal ----
+        const FIN_FIELDS = ['equipment_value', 'downtime_rate_per_hour', 'cleanup_cost', 'regulatory_exposure'];
+        let financialRoles = [];
+        let finModalState = { mode: 'approve', deviceId: null };
+
+        function loadRoles() {
+            fetch('/api/registry/roles').then(r => r.json()).then(res => {
+                if (!res.success) return;
+                financialRoles = res.roles;
+                const roleSel = document.getElementById('fin-role');
+                const critSel = document.getElementById('fin-criticality');
+                if (roleSel && !roleSel.options.length) {
+                    res.roles.forEach(r => {
+                        const o = document.createElement('option');
+                        o.value = r.key; o.textContent = r.label;
+                        roleSel.appendChild(o);
+                    });
+                }
+                if (critSel && !critSel.options.length) {
+                    res.criticality.forEach(c => {
+                        const o = document.createElement('option');
+                        o.value = c; o.textContent = c;
+                        critSel.appendChild(o);
+                    });
+                }
+            }).catch(() => {});
+        }
+
+        function finApplyRoleDefaults() {
+            const role = document.getElementById('fin-role').value;
+            const spec = financialRoles.find(r => r.key === role);
+            if (!spec) return;
+            document.getElementById('fin-criticality').value = spec.criticality;
+            FIN_FIELDS.forEach(f => { document.getElementById('fin-' + f).value = spec[f]; });
+        }
+
+        function openFinModal(mode, device, nameDraft) {
+            finModalState = { mode, deviceId: device.device_id };
+            const fin = device.financials || {};
+            document.getElementById('fin-modal-title').textContent =
+                (mode === 'approve' ? 'APPROVE DEVICE // ' : 'FINANCIAL PROFILE // ') + device.device_id;
+            document.getElementById('fin-submit').textContent = mode === 'approve' ? 'APPROVE & ENROLL' : 'SAVE PROFILE';
+            document.getElementById('fin-name').value = nameDraft || device.name || '';
+            document.getElementById('fin-zone').value = fin.zone || '';
+            document.getElementById('fin-role').value = fin.role || 'generic';
+            document.getElementById('fin-criticality').value = fin.criticality || 'TIER-2 HIGH';
+            // Approving a fresh device: prefill money from the role defaults. Editing: show stored values.
+            if (mode === 'approve' && !fin.is_custom) {
+                finApplyRoleDefaults();
+            } else {
+                FIN_FIELDS.forEach(f => { document.getElementById('fin-' + f).value = fin[f] !== undefined ? fin[f] : ''; });
+            }
+            document.getElementById('fin-error').classList.add('hidden');
+            document.getElementById('fin-modal').classList.remove('hidden');
+        }
+
+        function closeFinModal() { document.getElementById('fin-modal').classList.add('hidden'); }
+
+        function submitFinModal() {
+            const err = document.getElementById('fin-error');
+            const financials = { role: document.getElementById('fin-role').value, criticality: document.getElementById('fin-criticality').value, zone: document.getElementById('fin-zone').value };
+            for (const f of FIN_FIELDS) {
+                const v = parseFloat(document.getElementById('fin-' + f).value);
+                if (isNaN(v) || v < 0) {
+                    err.textContent = 'Enter a valid non-negative number for every dollar field.';
+                    err.classList.remove('hidden');
+                    return;
+                }
+                financials[f] = v;
+            }
+            const id = finModalState.deviceId;
+            const name = document.getElementById('fin-name').value;
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const endpoint = finModalState.mode === 'approve'
+                ? `/api/registry/${encodeURIComponent(id)}/approve`
+                : `/api/registry/${encodeURIComponent(id)}/financials`;
+            const body = finModalState.mode === 'approve' ? { name, financials } : financials;
+            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body) })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) { err.textContent = res.error || 'Failed.'; err.classList.remove('hidden'); return; }
+                    delete registryNameDrafts[id];
+                    closeFinModal();
+                    refreshRegistry();
+                    refreshDevicesList();
+                    fetchAuditLogs();
+                })
+                .catch(e => { err.textContent = 'Request failed: ' + e; err.classList.remove('hidden'); });
         }
 
         function registryAction(deviceId, action, body) {
@@ -2368,6 +2496,7 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
+            loadRoles();
             refreshRegistry();
             fetchFullData();          // Seed charts and tables immediately!
             fetchAuditLogs();         // Load audit history immediately!

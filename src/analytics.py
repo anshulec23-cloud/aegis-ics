@@ -19,64 +19,6 @@ except ImportError:
     from src.database import TelemetryLog, AuditLog, DeviceState
 
 
-SUBSYSTEM_PROFILES = {
-    "ESP32_001": {
-        "name": "Catalytic Reactor 01",
-        "zone": "Zone A: High-Exotherm Reaction Unit",
-        "equipment_value": 450000.0,
-        "cleanup_remediation": 120000.0,
-        "base_sle": 570000.0,
-        "downtime_rate_per_hour": 22500.0,
-        "criticality": "TIER-1 CRITICAL",
-        "epa_fines": 250000.0,
-        "nerc_cip_fines": 150000.0,
-    },
-    "ESP32_002": {
-        "name": "Centrifugal Pump 02",
-        "zone": "Zone B: Secondary Feed Booster",
-        "equipment_value": 280000.0,
-        "cleanup_remediation": 60000.0,
-        "base_sle": 340000.0,
-        "downtime_rate_per_hour": 14000.0,
-        "criticality": "TIER-2 HIGH",
-        "epa_fines": 50000.0,
-        "nerc_cip_fines": 100000.0,
-    },
-    "ESP32_003": {
-        "name": "Cooling Cryo 03",
-        "zone": "Zone C: Primary Cryogenic Heat Exchanger",
-        "equipment_value": 190000.0,
-        "cleanup_remediation": 45000.0,
-        "base_sle": 235000.0,
-        "downtime_rate_per_hour": 9500.0,
-        "criticality": "TIER-2 HIGH",
-        "epa_fines": 80000.0,
-        "nerc_cip_fines": 75000.0,
-    },
-    "ESP32_004": {
-        "name": "Turbine Generator 04",
-        "zone": "Zone D: Main Turbine Hall Generation",
-        "equipment_value": 650000.0,
-        "cleanup_remediation": 150000.0,
-        "base_sle": 800000.0,
-        "downtime_rate_per_hour": 31000.0,
-        "criticality": "TIER-1 CRITICAL",
-        "epa_fines": 150000.0,
-        "nerc_cip_fines": 250000.0,
-    },
-}
-
-
-def _registry_name(dev_id: str):
-    try:
-        import registry
-
-        info = registry.device_info(dev_id)
-        return info.get("name") if info else None
-    except Exception:
-        return None
-
-
 def known_device_ids(db) -> List[str]:
     """Devices the plant actually has: state rows, devices with telemetry, enrolled/provisioned keys."""
     ids = {d.device_id for d in db.query(DeviceState).all() if d.device_id}
@@ -90,24 +32,24 @@ def known_device_ids(db) -> List[str]:
     return sorted(ids)
 
 
-def get_subsystem_profile(dev_id: str) -> Dict[str, Any]:
-    """Financial profile for a device. The four legacy demo IDs keep their curated profiles;
-    every other (discovered) node gets the default Tier-2 profile, named after its registry name."""
-    if dev_id in SUBSYSTEM_PROFILES:
-        profile = dict(SUBSYSTEM_PROFILES[dev_id])
-        profile["name"] = _registry_name(dev_id) or profile["name"]
-        return profile
-    return {
-        "name": _registry_name(dev_id) or f"Industrial Node ({dev_id})",
-        "zone": "Auxiliary RS-485 Segment",
-        "equipment_value": 250000.0,
-        "cleanup_remediation": 50000.0,
-        "base_sle": 300000.0,
-        "downtime_rate_per_hour": 12500.0,
-        "criticality": "TIER-2 HIGH",
-        "epa_fines": 75000.0,
-        "nerc_cip_fines": 75000.0,
-    }
+def get_subsystem_profile(dev_id: str, db=None) -> Dict[str, Any]:
+    """Financial profile for a device, from its operator-set profile (``financials.py``).
+
+    Devices now have auto-generated IDs, so there are no hard-coded per-ID figures; each
+    device's money comes from what the operator entered at approval, or role defaults.
+    """
+    import financials
+
+    if db is not None:
+        return financials.profile_for(dev_id, db=db)
+    # No session handy: open a short-lived one so the FAIR engine always sees stored values.
+    from database import SessionLocal
+
+    _db = SessionLocal()
+    try:
+        return financials.profile_for(dev_id, db=_db)
+    finally:
+        _db.close()
 
 
 def calculate_financial_analytics(
@@ -238,13 +180,13 @@ def calculate_financial_analytics(
 
     # Subsystem profiles and downtime rates
     if device_id and device_id != "ALL":
-        target_profile = get_subsystem_profile(device_id)
+        target_profile = get_subsystem_profile(device_id, db)
         base_sle = target_profile["base_sle"]
         downtime_rate = target_profile["downtime_rate_per_hour"]
         max_epa = target_profile["epa_fines"]
         max_nerc = target_profile["nerc_cip_fines"]
     else:
-        plant = [get_subsystem_profile(d) for d in known_device_ids(db)]
+        plant = [get_subsystem_profile(d, db) for d in known_device_ids(db)]
         base_sle = sum(p["base_sle"] for p in plant)
         downtime_rate = sum(p["downtime_rate_per_hour"] for p in plant)
         max_epa = sum(p["epa_fines"] for p in plant)
@@ -255,7 +197,7 @@ def calculate_financial_analytics(
         active_hourly_outage = downtime_rate if is_target_isolated else 0.0
     else:
         active_hourly_outage = sum(
-            get_subsystem_profile(did)["downtime_rate_per_hour"] for did in isolated_ids
+            get_subsystem_profile(did, db)["downtime_rate_per_hour"] for did in isolated_ids
         )
 
     # MTTR Projections (potential liability if 4h, 8h, or 24h outage occurs)
@@ -457,7 +399,7 @@ def get_subsystem_financial_breakdown(db) -> List[Dict[str, Any]]:
 
     results = []
     for did in all_dev_ids:
-        profile = get_subsystem_profile(did)
+        profile = get_subsystem_profile(did, db)
         is_isolated = states.get(did, False)
         results.append(
             {

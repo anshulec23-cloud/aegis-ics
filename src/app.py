@@ -1337,7 +1337,7 @@ def cluster_topology():
                     .first()
                 )
                 trust = compute_device_trust_score(dev_id, db)
-                profile = get_subsystem_profile(dev_id)
+                profile = get_subsystem_profile(dev_id, db)
 
                 # Detect which of the 5 sensors are active on this node
                 gateway_node = active_nodes.get(dev_id, {})
@@ -1550,7 +1550,7 @@ def list_all_devices():
                 .first()
             )
             trust = compute_device_trust_score(dev_id, db)
-            profile = get_subsystem_profile(dev_id)
+            profile = get_subsystem_profile(dev_id, db)
 
             # Detect sensors for this node
             gateway_node = active_nodes.get(dev_id, {})
@@ -1646,8 +1646,15 @@ def registry_approve(device_id):
         return jsonify(
             {"success": False, "error": f"Device is {info['status']}, not pending."}
         ), 409
-    name = bleach.clean(str((request.get_json(silent=True) or {}).get("name", "")))[:80] or None
-    welcome = registry.approve(device_id, session.get("user_id"), name=name)
+    import financials
+
+    payload = request.get_json(silent=True) or {}
+    name = bleach.clean(str(payload.get("name", "")))[:80] or None
+    try:
+        fin = financials.normalize_input(payload.get("financials"))
+    except ValueError as err:
+        return jsonify({"success": False, "error": f"Financial profile: {err}"}), 400
+    welcome = registry.approve(device_id, session.get("user_id"), name=name, financials=fin)
     if welcome is None:
         return jsonify({"success": False, "error": "Approval failed."}), 409
     delivered = serial_gateway.is_connected()
@@ -1705,6 +1712,40 @@ def registry_forget(device_id):
             "details": f"{device_id} removed; it will reappear as pending if it announces again.",
         }
     )
+
+
+@app.route("/api/registry/roles", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def registry_roles():
+    import financials
+
+    return jsonify(
+        {
+            "success": True,
+            "roles": financials.role_choices(),
+            "criticality": financials.CRITICALITY_CHOICES,
+        }
+    )
+
+
+@app.route("/api/registry/<device_id>/financials", methods=["POST"])
+@login_required
+@require_webview_token
+def registry_financials(device_id):
+    import financials
+    import registry
+
+    info, error = _registry_target(device_id)
+    if error:
+        return error
+    try:
+        fin = financials.normalize_input(request.get_json(silent=True) or {})
+    except ValueError as err:
+        return jsonify({"success": False, "error": f"Financial profile: {err}"}), 400
+    registry.set_financials(device_id, fin, session.get("user_id"))
+    return jsonify({"success": True, "device": registry.device_info(device_id)})
 
 
 @app.route("/api/registry/<device_id>/rename", methods=["POST"])

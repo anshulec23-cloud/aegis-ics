@@ -98,6 +98,8 @@ def approved_device_ids() -> List[str]:
 
 
 def _device_dict(d: Device) -> Dict[str, Any]:
+    import financials
+
     return {
         "device_id": d.device_id,
         "name": d.name,
@@ -111,7 +113,44 @@ def _device_dict(d: Device) -> Dict[str, Any]:
         "approved_at": enrollment_ts(d.approved_at),
         "enrollment_confirmed": bool(d.enrollment_confirmed),
         "relay_tripped": d.relay_tripped,
+        "financials": financials.profile_for(d.device_id, device_row=d),
     }
+
+
+def _apply_financials(dev: Device, fin: Optional[Dict[str, Any]]) -> None:
+    """Store a validated financial profile (from ``financials.normalize_input``) on a device."""
+    if not fin:
+        return
+    dev.role = fin.get("role")
+    dev.criticality = fin.get("criticality")
+    dev.zone = fin.get("zone")
+    dev.equipment_value = fin.get("equipment_value")
+    dev.downtime_rate_per_hour = fin.get("downtime_rate_per_hour")
+    dev.cleanup_cost = fin.get("cleanup_cost")
+    dev.regulatory_exposure = fin.get("regulatory_exposure")
+
+
+def set_financials(device_id: str, fin: Dict[str, Any], user_id: Optional[int]) -> bool:
+    """Update a device's financial profile after approval (operator edit)."""
+    db = SessionLocal()
+    try:
+        dev = db.query(Device).filter_by(device_id=device_id).first()
+        if dev is None:
+            return False
+        _apply_financials(dev, fin)
+        db.add(
+            AuditLog(
+                user_id=user_id,
+                action="DEVICE_FINANCIALS_SET",
+                location="REGISTRY",
+                details=f"Financial profile set for {device_id}: role={fin.get('role')}, "
+                f"equipment=${fin.get('equipment_value'):,.0f}, downtime=${fin.get('downtime_rate_per_hour'):,.0f}/h.",
+            )
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
 
 
 def enrollment_ts(dt) -> Optional[float]:
@@ -236,9 +275,13 @@ def handle_hello(frame: Dict[str, Any]) -> Tuple[str, Optional[Dict[str, Any]]]:
 
 
 def approve(
-    device_id: str, user_id: Optional[int], name: Optional[str] = None
+    device_id: str,
+    user_id: Optional[int],
+    name: Optional[str] = None,
+    financials: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Approve a pending device: derive its key and return the WELCOME frame to send."""
+    """Approve a pending device: derive its key, store its financial profile, and return the
+    WELCOME frame to send."""
     db = SessionLocal()
     try:
         dev = db.query(Device).filter_by(device_id=device_id).first()
@@ -255,6 +298,7 @@ def approve(
         dev.host_seq = 0
         if name:
             dev.name = name[:80]
+        _apply_financials(dev, financials)
         if not db.query(DeviceState).filter_by(device_id=device_id).first():
             db.add(DeviceState(device_id=device_id, is_isolated=False))
         db.add(

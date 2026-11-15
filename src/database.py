@@ -72,7 +72,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.execute("PRAGMA busy_timeout=15000")
     cursor.close()
 
 
@@ -164,6 +164,14 @@ class Device(Base):
     seen_boots = Column(Text, nullable=True)  # JSON list of recent boot ids
     # Host -> device command sequence (monotonic per device; the device rejects <= last seen).
     host_seq = Column(Integer, nullable=False, default=0)
+    # Operator-set financial profile (see financials.py). NULL money field = use role defaults.
+    role = Column(String(32), nullable=True)
+    criticality = Column(String(20), nullable=True)
+    zone = Column(String(80), nullable=True)
+    equipment_value = Column(Float, nullable=True)
+    downtime_rate_per_hour = Column(Float, nullable=True)
+    cleanup_cost = Column(Float, nullable=True)
+    regulatory_exposure = Column(Float, nullable=True)
 
 
 class CommandLog(Base):
@@ -230,6 +238,21 @@ def migrate_sqlite_schema():
             ]
             if tel_cols and "faults" not in tel_cols:
                 cursor.execute("ALTER TABLE telemetry_logs ADD COLUMN faults VARCHAR(120)")
+                conn.commit()
+            device_tbl = cursor.execute("PRAGMA table_info('devices')").fetchall()
+            if device_tbl:
+                dev_cols = [row[1] for row in device_tbl]
+                for col, decl in (
+                    ("role", "VARCHAR(32)"),
+                    ("criticality", "VARCHAR(20)"),
+                    ("zone", "VARCHAR(80)"),
+                    ("equipment_value", "FLOAT"),
+                    ("downtime_rate_per_hour", "FLOAT"),
+                    ("cleanup_cost", "FLOAT"),
+                    ("regulatory_exposure", "FLOAT"),
+                ):
+                    if col not in dev_cols:
+                        cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {decl}")
                 conn.commit()
             audit_cols = [
                 row[1] for row in cursor.execute("PRAGMA table_info('audit_logs')").fetchall()

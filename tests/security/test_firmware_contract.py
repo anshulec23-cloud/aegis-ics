@@ -10,9 +10,16 @@ import os
 import re
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-SLAVE = open(os.path.join(ROOT, "firmware", "esp32_slave_sensor", "esp32_slave_sensor.ino"), encoding="utf-8").read()
-MASTER = open(os.path.join(ROOT, "firmware", "esp32_master_bridge", "esp32_master_bridge.ino"), encoding="utf-8").read()
-VECTORS = json.load(open(os.path.join(os.path.dirname(__file__), "protocol_v1_vectors.json"), encoding="utf-8"))
+SLAVE = open(
+    os.path.join(ROOT, "firmware", "esp32_slave_sensor", "esp32_slave_sensor.ino"), encoding="utf-8"
+).read()
+MASTER = open(
+    os.path.join(ROOT, "firmware", "esp32_master_bridge", "esp32_master_bridge.ino"),
+    encoding="utf-8",
+).read()
+VECTORS = json.load(
+    open(os.path.join(os.path.dirname(__file__), "protocol_v1_vectors.json"), encoding="utf-8")
+)
 
 
 def _function_body(src, signature):
@@ -65,7 +72,9 @@ def test_s3_commands_are_verified_before_acting():
     body = _function_body(SLAVE, "static void handle_command(")
     verify_at = body.index("verify_frame_signature")
     replay_at = body.index("seq <= host_seq")
-    first_action = min(body.index(w) for w in ("tripped = true", "tripped = false", "sp_temp = value"))
+    first_action = min(
+        body.index(w) for w in ("tripped = true", "tripped = false", "sp_temp = value")
+    )
     assert verify_at < first_action and replay_at < first_action
     assert '"BAD_SIG"' in body and '"REPLAY"' in body
 
@@ -74,20 +83,34 @@ def test_f2_setpoint_contract_matches_host():
     import protocol
 
     body = _function_body(SLAVE, "static void handle_command(")
-    assert '"SETPOINT"' in body and 'doc["args"]["param"]' in body and 'doc["args"]["value"]' in body
-    frame = protocol.build_cmd("ESP32_0A1B2C", 1, "SETPOINT", {"param": "temperature", "value": "30.00"}, "k" * 64)
+    assert (
+        '"SETPOINT"' in body and 'doc["args"]["param"]' in body and 'doc["args"]["value"]' in body
+    )
+    frame = protocol.build_cmd(
+        "ESP32_0A1B2C", 1, "SETPOINT", {"param": "temperature", "value": "30.00"}, "k" * 64
+    )
     assert set(frame["args"]) == {"param", "value"} and isinstance(frame["args"]["value"], str)
     assert set(protocol.SETPOINT_PARAMS.values()) == {"temperature", "pressure"}
 
 
 def test_trip_state_restored_before_anything_else_on_boot():
     body = _function_body(SLAVE, "void setup()")
-    assert body.index('nvs.getBool("tripped"') < body.index("apply_relay()") < body.index("send_hello()")
+    assert (
+        body.index('nvs.getBool("tripped"')
+        < body.index("apply_relay()")
+        < body.index("send_hello()")
+    )
 
 
 def test_firmware_selftest_uses_the_shared_vectors():
     v = VECTORS["x25519_hkdf"]
-    for value in (v["dev_priv"], v["dev_pub"], v["host_pub"], v["key"], VECTORS["canonical_tel"]["sig"]):
+    for value in (
+        v["dev_priv"],
+        v["dev_pub"],
+        v["host_pub"],
+        v["key"],
+        VECTORS["canonical_tel"]["sig"],
+    ):
         assert value in SLAVE
 
 

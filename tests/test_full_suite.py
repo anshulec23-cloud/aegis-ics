@@ -1148,11 +1148,39 @@ def test_devices_metadata_enrichment():
     devices = data["devices"]
     assert len(devices) >= 4
 
-    dev_map = {d["device_id"]: d for d in devices}
-    assert "Catalytic Reactor 01" in dev_map["ESP32_001"]["name"]
-    assert "Zone A" in dev_map["ESP32_001"]["zone"]
-    assert "TIER-1 CRITICAL" in dev_map["ESP32_001"]["criticality"]
-    assert "Centrifugal Pump 02" in dev_map["ESP32_002"]["name"]
+    # Devices have auto-generated IDs now, so metadata comes from each device's operator-set
+    # financial profile (financials.py), not hard-coded per-ID names.
+    import registry
+    from database import Device, SessionLocal
+
+    db = SessionLocal()
+    try:
+        if not db.query(Device).filter_by(device_id="ESP32_001").first():
+            db.add(Device(device_id="ESP32_001", status="approved"))
+        db.commit()
+    finally:
+        db.close()
+    registry.set_financials(
+        "ESP32_001",
+        {
+            "role": "reactor",
+            "criticality": "TIER-1 CRITICAL",
+            "zone": "Reaction unit A",
+            "equipment_value": 450000.0,
+            "downtime_rate_per_hour": 22500.0,
+            "cleanup_cost": 120000.0,
+            "regulatory_exposure": 400000.0,
+        },
+        user_id=None,
+    )
+    res = client.get("/api/devices", headers=headers)
+    dev_map = {d["device_id"]: d for d in res.get_json()["devices"]}
+    assert dev_map["ESP32_001"]["zone"] == "Reaction unit A"
+    assert dev_map["ESP32_001"]["criticality"] == "TIER-1 CRITICAL"
+    assert dev_map["ESP32_001"]["name"]  # non-empty
+    # Devices without an operator-set profile fall back to sensible defaults (never empty).
+    for dev in devices:
+        assert dev["name"] and dev["zone"] and dev["criticality"]
 
 
 def test_semver_parsing_robustness():

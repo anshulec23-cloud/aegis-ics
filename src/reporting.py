@@ -263,7 +263,7 @@ def generate_incident_report_pdf(db_session, username, location):
         d_state = db_session.query(DeviceState).filter_by(device_id=did).first()
         is_isolated = d_state.is_isolated if d_state else False
         trust_val = get_device_trust_score(did, db_session)
-        profile = get_subsystem_profile(did)
+        profile = get_subsystem_profile(did, db_session)
 
         subsystem_name = profile.get("name", f"Field Node {did}")
         zone_name = profile.get("zone", "Auxiliary Bus")
