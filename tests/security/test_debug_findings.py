@@ -483,27 +483,7 @@ def test_debian_service_not_root_and_not_public():
 # ------------------------------------------- later phases (stay xfail) ---
 
 
-@pytest.mark.xfail(strict=True, reason=PHASE2)
-def test_s3_firmware_verifies_command_signatures():
-    src = open(
-        os.path.join(ROOT, "firmware", "esp32_slave_sensor", "esp32_slave_sensor.ino"),
-        encoding="utf-8",
-    ).read()
-    body = src[src.index("void process_incoming_command") :]
-    assert "verify" in body[: body.index("\n}\n")].lower()
-
-
-@pytest.mark.xfail(strict=True, reason=PHASE2)
-def test_f2_setpoint_command_matches_firmware_contract(monkeypatch):
-    monkeypatch.setattr(serial_gateway, "is_connected", lambda: True)
-    client, headers = _client_logged_in()
-    client.post(
-        "/api/setpoint",
-        json={"type": "set_temp", "value": 30, "target_device": "ESP32_001"},
-        headers=headers,
-    )
-    cmd = serial_gateway.pop_ready_commands()[0]
-    assert cmd["command"] == "SETPOINT" and "temperature" in cmd
+# S3 / F2 (firmware) are covered by tests/security/test_firmware_contract.py.
 
 
 @pytest.mark.xfail(strict=True, reason=PHASE4)

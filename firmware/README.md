@@ -9,9 +9,9 @@ This directory contains production-ready C/C++ firmware sketches and hardware do
 ```text
 firmware/
 ├── esp32_slave_sensor/
-│   └── esp32_slave_sensor.ino   # Edge Slave Node: Multi-sensor acquisition, mbedTLS HMAC-SHA256 & actuator control
+│   └── esp32_slave_sensor.ino   # ONE image for every slave: sensors, X25519 enrollment, signed telemetry, verified commands
 ├── esp32_master_bridge/
-│   └── esp32_master_bridge.ino  # Master Concentrator: RS-485 to USB-UART Gateway Bridge with FIFO flush
+│   └── esp32_master_bridge.ino  # Master: polls the RS-485 bus, discovers new slaves, relays host commands and ACKs
 └── README.md                    # This comprehensive hardware wiring & deployment guide
 ```
 
@@ -55,7 +55,7 @@ The Master ESP32 acts as the physical bridge between the differential RS-485 bus
          Host PC USB
 ```
 
-### 3.2. ESP32 Slave Sensor Node (`ESP32_001` through `ESP32_004`) Wiring
+### 3.2. ESP32 Slave Sensor Node Wiring (same for every slave)
 
 ```text
   ESP32 Slave Sensor Node                      MAX485 Module & Sensors
@@ -69,7 +69,10 @@ The Master ESP32 acts as the physical bridge between the differential RS-485 bus
 │                   GPIO 33 │ (INT) <------- │ Hall Effect A3144 DO (Pullup)     │
 │                   GPIO 36 │ (ADC) <------- │ ACS712 Current Sensor OUT         │
 │                   GPIO 25 │ (OUT) -------> │ Relay IN (Actuator Trip Circuit)  │
+│                   GPIO 26 │ (PWM) -------> │ Heater driver (temp. setpoint)    │
+│                   GPIO 27 │ (PWM) -------> │ Pump driver (pressure setpoint)   │
 │                   GPIO 02 │ (OUT) -------> │ Heartbeat / Isolation Status LED  │
+│           GPIO 00 (BOOT)  │ (IN)  <------- │ Hold at power-up = factory reset  │
 │                      3.3V │ -------------- │ VCC (Transceiver & 3.3V Sensors)  │
 │                       GND │ -------------- │ Common Ground (GND)               │
 │                           │                │   A  (+) ───> RS-485 Line A       │
@@ -106,145 +109,76 @@ The Master ESP32 acts as the physical bridge between the differential RS-485 bus
 
 ---
 
-## 4. Multi-Node Flashing Matrix & Pre-Shared Cryptographic Keys
+## 4. Zero-touch deployment (no per-node configuration, no keys to copy)
 
-> **Since v2.6 the keys are not in the source.** Generate one key per node and the matching header before compiling:
-> ```bash
-> python src/device_keys.py generate ESP32_001 ESP32_002 ESP32_003 ESP32_004 \
->     --out device_keys.json --firmware-header firmware/esp32_slave_sensor/aegis_secrets.h
-> ```
-> `aegis_secrets.h` and `device_keys.json` are git-ignored. Point the host at the same file (`AEGIS_DEVICE_KEYS_FILE`) so it can verify the frames. A template is in `esp32_slave_sensor/aegis_secrets.example.h`.
+Protocol v1 and [ADR 0006](../docs/adr/0006-zero-touch-enrollment.md). Every slave runs the **same binary**:
 
-Each physical node must be flashed with its corresponding node macro in [`firmware/esp32_slave_sensor/esp32_slave_sensor.ino`](esp32_slave_sensor/esp32_slave_sensor.ino).
+1. **Flash** `esp32_slave_sensor` to every slave and `esp32_master_bridge` to the master. Nothing to edit before flashing.
+2. **First boot:** each slave derives its ID from its chip MAC (`ESP32_A1B2C3`), generates an X25519 key pair and stores it in NVS. The USB console prints the ID and a **fingerprint** (`6B7B-0FE8-B1BB`).
+3. **Discovery:** the master opens a discovery window every 10 s. Unenrolled slaves answer with `HELLO` (ID, public key, sensors), and the master adds every ID it hears to its poll list. There's no fixed number of slaves (up to `MAX_SLAVES` = 32 per bridge).
+4. **Approve:** in the dashboard (Station 06 → Field device enrollment) the new slave shows as **PENDING** with the same fingerprint. Compare it, optionally name the device, and click **APPROVE**.
+5. **Key agreement:** the host sends `WELCOME` with its public key. Both sides compute `X25519` + `HKDF-SHA256`, so the key never travels over the bus. The slave verifies the WELCOME, stores the key in NVS and confirms with a signed `ACK`. From then on it answers polls with signed `TEL` frames.
 
-| Node Designation | Subsystem Monitored | Macro to Uncomment in Firmware | Device ID | Pre-Shared HMAC-SHA256 Key |
-|---|---|---|---|---|
-| **Node 1** | Catalytic Reactor 01 | `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | `AEGIS_KEY_ESP32_001` (from `aegis_secrets.h`) |
-| **Node 2** | Centrifugal Pump 02 | `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | `AEGIS_KEY_ESP32_002` (from `aegis_secrets.h`) |
-| **Node 3** | Cooling Cryo 03 | `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | `AEGIS_KEY_ESP32_003` (from `aegis_secrets.h`) |
-| **Node 4** | Turbine Generator 04 | `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | `AEGIS_KEY_ESP32_004` (from `aegis_secrets.h`) |
-
-> [!IMPORTANT]
-> **Cryptographic Parity**:
-> The HMAC keys defined in the firmware match the default keys in `src/security.py`. If you override keys in your host environment using `DEVICE_KEY_ESP32_001`, ensure the same key string is updated in the corresponding firmware macro before flashing.
+Replacing a board: the new board has a new ID/key and appears as a new pending device. Revoke the old one in the dashboard.
+Re-deploying a board elsewhere: **factory reset** by holding BOOT (GPIO 0) at power-up for ~3 s; this erases its identity and key.
 
 ---
 
-## 5. Cryptographic Canonicalization Specification
+## 5. Wire protocol v1 (summary)
 
-Under NIST SP 800-82r3 Zero-Trust, every telemetry packet must be signed using **HMAC-SHA256**. The Python server strictly validates signatures by reconstructing a canonical string with **alphabetical key ordering** and **2-decimal formatted floats**.
+Full spec: [`docs/01-architecture/protocols.md`](../docs/01-architecture/protocols.md). All frames are one JSON line with `"v":1`.
 
-The firmware implements this exact formula:
-```c
-char canonical_str[384];
-snprintf(canonical_str, sizeof(canonical_str),
-    "{\"current\":\"%.2f\",\"device_id\":\"%s\",\"hall_effect\":\"%.2f\",\"pressure\":\"%.2f\",\"temperature\":\"%.2f\",\"vibration\":\"%.2f\"}",
-    current, DEVICE_ID, rpm, pressure, temperature, vibration
-);
-```
+| Frame | Direction | Signed | Purpose |
+|---|---|---|---|
+| `DISCOVER` | master → bus | no | open a discovery window |
+| `POLL {id}` | master → slave | no | "your turn": the slave answers with `TEL` (or `HELLO` if not enrolled) |
+| `HELLO {id, pub, sensors, fw, boot, enrolled}` | slave → host | no | announce / request enrollment |
+| `WELCOME {id, hpub, sig}` | host → slave | yes (new key) | deliver the host key after approval |
+| `TEL {id, boot, seq, <sensors>, faults, tripped, sp_t?, sp_p?, sig}` | slave → host | yes | telemetry |
+| `CMD {id, seq, cmd, args, sig}` | host → slave | yes | `SETPOINT`, `ISOLATE`, `REARM`, `SHUTDOWN`, `PING` |
+| `ACK {id, boot, seq, ack, result, reason?, sig}` | slave → host | yes | result of a command (`OK`, `REJECTED`, `BAD_SIG`, `REPLAY`, `UNKNOWN_CMD`) |
 
-The resulting 64-character SHA-256 hex digest is calculated in hardware via the ESP32's built-in **mbedTLS** cryptographic engine and appended to the wire packet:
-```json
-{
-  "current": 4.50,
-  "device_id": "ESP32_001",
-  "hall_effect": 0.00,
-  "pressure": 4.20,
-  "signature": "6ec06f534887315570075d658c14a2bb3bfa86144e5488429184518bf9776f82",
-  "temperature": 26.00,
-  "vibration": 1.10
-}
-```
+**Canonical signing string:** the frame without `sig`, with keys sorted and no spaces. Real numbers are always strings with two decimals (`"26.10"`), so the ESP32 and Python produce byte-identical JSON. The firmware inserts keys in sorted order, and `tests/security/test_firmware_contract.py` enforces that.
+
+**Replay protection:** each slave picks a random `boot` id at power-up and increments `seq` per frame; the host rejects anything already seen. Host commands carry a per-device `seq` that the slave stores in NVS and never accepts twice.
+
+**Fail-safe behaviour:**
+- Trip state is kept in NVS: a quarantined node **boots tripped**.
+- Floating or shorted sensors (raw ADC ≤ 50 or ≥ 4090) are reported in `faults[]` and omitted, never faked.
+- A task watchdog (8 s) resets a hung node.
+- Setpoints drive the PWM outputs (GPIO 26/27) only while the relay is energised and the feedback sensor is healthy.
 
 ---
 
-## 6. Step-by-Step Flashing Guide
+## 6. Building and flashing
 
-### Method A: Arduino IDE
-1. Open Arduino IDE (version 2.x recommended).
-2. Install the **ESP32 by Espressif Systems** board package (`Tools` -> `Board` -> `Boards Manager` -> search "esp32").
-3. Install the **ArduinoJson** library by Benoit Blanchon (Library Manager -> search "ArduinoJson").
-4. Select `Tools` -> `Board` -> `ESP32 Arduino` -> `ESP32 Dev Module`.
-5. Configuration settings:
-   - **Upload Speed**: `921600`
-   - **CPU Frequency**: `240MHz`
-   - **Flash Frequency**: `80MHz`
-   - **Partition Scheme**: `Default 4MB with spiffs (1.2MB APP)`
-   - **Core Debug Level**: `None` (or `Info` for debugging)
-6. Open `firmware/esp32_master_bridge/esp32_master_bridge.ino` and flash to the Master ESP32.
-7. Open `firmware/esp32_slave_sensor/esp32_slave_sensor.ino`, uncomment the target node (e.g. `NODE_CONFIG_ESP32_001`), and flash to Slave Node 1. Repeat for Nodes 2, 3, and 4.
+**Arduino IDE 2.x**
+1. Boards Manager → install **esp32 by Espressif Systems** (core 2.x or 3.x).
+2. Library Manager → install **ArduinoJson** (6.x or 7.x).
+3. Open `esp32_slave_sensor/esp32_slave_sensor.ino` → board **ESP32 Dev Module** → Upload. Repeat for every slave (same sketch).
+4. Open `esp32_master_bridge/esp32_master_bridge.ino` → Upload to the master.
 
-### Method B: PlatformIO CLI
+**arduino-cli**
 ```bash
-# Flash Master Bridge
-pio run -d firmware/esp32_master_bridge -t upload
-
-# Flash Slave Sensor Node
-pio run -d firmware/esp32_slave_sensor -t upload
+arduino-cli core install esp32:esp32
+arduino-cli lib install ArduinoJson
+arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32_slave_sensor
+arduino-cli upload  --fqbn esp32:esp32:esp32 -p COM5 firmware/esp32_slave_sensor
 ```
+
+**Crypto self-test on real hardware:** compile the slave with `-DAEGIS_SELFTEST` (or add `#define AEGIS_SELFTEST` at the top). At boot the USB console prints `[SELFTEST] protocol v1 key agreement + signature: PASS` if the ESP32 reproduces the host's known-answer vector (`tests/security/protocol_v1_vectors.json`).
 
 ---
 
-## 7. Benchtop Verification & Troubleshooting Checklist
+## 7. Bench checklist
 
-1. **Serial Port Connection**:
-   - Plug the Master ESP32 into the host PC. Note the COM port (e.g. `COM3` on Windows, `/dev/ttyUSB0` on Linux).
-   - In Aegis ICS SCADA UI, select the COM port and click **Connect**.
-2. **Master Heartbeat LED (GPIO 2)**:
-   - Blinks briefly every time a telemetry packet is forwarded from RS-485 to USB Serial.
-3. **Slave Activity**:
-   - Telemetry packets transmit every 500 ms.
-   - If `PIN_ACTUATOR_RELAY` (GPIO 25) is engaged, the relay remains closed (normally open circuit powered).
-   - When an operator clicks **Isolate Node** on the SCADA UI, the supervisory interlock broadcasts an `ISOLATE` command: the relay de-energizes instantly and GPIO 2 turns solid ON.
-4. **Fieldbus Diagnostics**:
-   - If no packets are received: verify lines A and B are not swapped (A to A, B to B).
-   - If packets have framing errors: check that `RS485_BAUD_RATE` is `115200` on both Master and Slaves.
-   - If signatures fail: verify the `DEVICE_KEY_<ID>` in the host `.env` matches `PRE_SHARED_HMAC_KEY` in the firmware.
+| Check | Expected |
+|---|---|
+| Slave USB console after reset | `[AEGIS] ESP32_xxxxxx firmware 2.6.0 fingerprint XXXX-XXXX-XXXX AWAITING APPROVAL relay ENERGISED` |
+| Master USB console | `{"system":"Aegis Master Concentrator",...,"protocol":1}` then `BUS_TOPOLOGY` every 3 s |
+| Dashboard Station 06 | each slave listed as PENDING within ~10 s; fingerprints match the consoles |
+| After APPROVE | slave console prints `[ENROLL] ... Device enrolled.`; telemetry appears in Station 01 |
+| ISOLATE from dashboard | relay drops; dashboard shows the device ACK; node stays tripped after a power cycle |
+| Unplug a sensor | its value disappears and `faults` lists it; the device is flagged anomalous |
 
----
-
-## 8. Dynamic Multi-Slave Auto-Discovery & Topology Protocol
-
-Aegis ICS v2.5.2 introduces autonomous, decentralized multi-slave discovery over RS-485. The Master Concentrator Bridge dynamically discovers and reports attached slaves and their sensor inventories without manual configuration.
-
-### 8.1. Slave Node Dynamic Announcement (`NODE_ANNOUNCE`)
-When a Slave ESP32 powers on or receives a `DISCOVER` probe, it emits a `NODE_ANNOUNCE` frame:
-```json
-{
-  "type": "NODE_ANNOUNCE",
-  "device_id": "ESP32_001",
-  "hardware": "ESP32-WROOM-32",
-  "version": "2.5.2",
-  "is_isolated": false,
-  "sensors": ["temperature", "pressure", "vibration", "current"],
-  "sensor_count": 4
-}
-```
-
-### 8.2. Master Concentrator Bus Topology Report (`BUS_TOPOLOGY`)
-The Master ESP32 aggregates all active slave nodes in an internal RAM registry. Every 3,000 ms (or upon receiving `{"command":"DISCOVER"}` over USB-CDC Serial), the Master bridge transmits a comprehensive bus topology report:
-```json
-{
-  "system": "Aegis Master Concentrator",
-  "type": "BUS_TOPOLOGY",
-  "status": "ONLINE",
-  "version": "2.5.2",
-  "slave_count": 4,
-  "slaves": ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"],
-  "sensors": {
-    "ESP32_001": ["temperature", "pressure", "vibration", "current"],
-    "ESP32_002": ["temperature", "pressure", "vibration", "hall_effect", "current"],
-    "ESP32_003": ["temperature", "pressure", "current"],
-    "ESP32_004": ["temperature", "pressure", "vibration", "hall_effect", "current"]
-  }
-}
-```
-
-### 8.3. Bidirectional Supervisory Actuator Commands
-The host SCADA interface can dispatch targeted or broadcast commands through the Master bridge down to the slave nodes:
-- `DISCOVER` / `SCAN`: Prompts all connected slaves to transmit `NODE_ANNOUNCE` and triggers an immediate `BUS_TOPOLOGY` response.
-- `ISOLATE` / `MICROSEGMENT`: Trips relay (GPIO 25 LOW), illuminates isolation LED, and forces telemetry to a safe de-energized profile.
-- `REARM` / `REJOIN`: Re-energizes relay (GPIO 25 HIGH) and extinguishes alarm LED.
-- `SHUTDOWN`: Executes safe emergency de-energization across an addressed node or the entire bus (`"target_device": "ALL"`).
-- `SETPOINT`: Validates new supervisory process parameters against the hard safety envelope (`[0, 60]°C`, `[0, 8.0] bar`).
-
+A single slave can also be wired straight to the PC over USB (no master): it then streams on USB only, and the host enrolls it the same way.

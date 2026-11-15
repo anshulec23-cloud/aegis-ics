@@ -1,57 +1,22 @@
-# Aegis ICS — Edge Slave Sensor Node Firmware
+# Aegis ICS — Slave Sensor Node Firmware
 
-This directory contains the production C/C++ firmware sketch for the **Aegis ICS Edge Microcontroller Slave Sensor Nodes**.
+One image for **every** slave: no per-node configuration, no compiled-in keys.
 
----
+- **Identity:** device ID from the chip MAC (`ESP32_A1B2C3`); X25519 key pair generated on first boot and kept in NVS.
+- **Enrollment:** answers discovery with `HELLO`. After an operator approves it in the dashboard, it derives its session key from the host's `WELCOME` (X25519 + HKDF-SHA256) and confirms with a signed `ACK`.
+- **Telemetry:** signed `TEL` frames with `boot`/`seq`. Faulted sensors are listed in `faults[]` and omitted; values are never faked.
+- **Commands:** `SETPOINT`, `ISOLATE`, `REARM`, `SHUTDOWN`, `PING`. Each is verified (HMAC + host sequence number), envelope-checked, applied and acknowledged.
+- **Fail-safe:** trip state persists in NVS (boots tripped if it was quarantined); 8 s task watchdog.
+- **Bus discipline:** transmits on RS-485 only when the master addresses it. When wired directly to a PC over USB it streams on USB instead.
 
-## Role & Capabilities
+| Pin | Function |
+|---|---|
+| 16 / 17 / 4 | RS-485 RX / TX / DE+RE |
+| 34 / 35 / 32 / 36 | Temperature / pressure / vibration / current ADC |
+| 33 | Hall pulse input (RPM) |
+| 25 | Trip relay (HIGH = energised) |
+| 26 / 27 | Heater / pump PWM (setpoint actuators) |
+| 2 | Status LED (on = tripped) |
+| 0 (BOOT) | Hold at power-up ~3 s = factory reset (erase identity + key) |
 
-Each slave node interfaces with physical plant transducers, acquires multi-sensor process signals, formats canonical JSON packets, generates cryptographic HMAC-SHA256 signatures via hardware-accelerated **mbedTLS**, and directly drives optocoupler isolation relays.
-
-### Key Capabilities:
-* **Canonical Cryptographic Signing**: Computes deterministic HMAC-SHA256 signatures matching the gateway's alphabetical JSON representation.
-* **Physical Relay Actuation**: Controls an optocoupler relay on **GPIO 25**. Upon receiving an `ISOLATE` supervisory frame, the node instantly trips the relay to mechanically decouple motors or valves.
-* **Non-Blocking Execution**: High-speed ring buffer line state machine ensures uninterrupted telemetry transmission without polling delays.
-
----
-
-## Multi-Node Flashing Configuration Matrix
-
-Before flashing, uncomment exactly **ONE** macro in `esp32_slave_sensor.ino`:
-
-| Node Macro to Uncomment | Node ID | Industrial Unit Monitored | Pre-Shared HMAC-SHA256 Key |
-|---|---|---|---|
-| `#define NODE_CONFIG_ESP32_001` | `ESP32_001` | Catalytic Reactor 01 | `AEGIS_KEY_ESP32_001` (from `aegis_secrets.h`) |
-| `#define NODE_CONFIG_ESP32_002` | `ESP32_002` | Centrifugal Pump 02 | `AEGIS_KEY_ESP32_002` (from `aegis_secrets.h`) |
-| `#define NODE_CONFIG_ESP32_003` | `ESP32_003` | Cooling Cryo 03 | `AEGIS_KEY_ESP32_003` (from `aegis_secrets.h`) |
-| `#define NODE_CONFIG_ESP32_004` | `ESP32_004` | Turbine Generator 04 | `AEGIS_KEY_ESP32_004` (from `aegis_secrets.h`) |
-
----
-
-## Hardware Wiring & Pin Assignments
-
-| Component / Sensor | Pin Function | ESP32 GPIO |
-|---|---|---|
-| **RS-485 Transceiver** | RX2 / TX2 / DE+RE | GPIO 16 (RX), GPIO 17 (TX), GPIO 4 (DIR) |
-| **Temperature Sensor** | Analog LM35 / Thermocouple | GPIO 34 (ADC1_CH6) |
-| **Pressure Transducer** | Industrial 0.5–4.5V Transducer | GPIO 35 (ADC1_CH7) |
-| **Vibration Sensor** | Piezo Film / Accelerometer | GPIO 32 (ADC1_CH4) |
-| **Hall Effect RPM** | A3144 Pulse Counter | GPIO 33 (Hardware Interrupt / Pullup) |
-| **Current Sensor** | ACS712 Hall-Effect Transducer | GPIO 36 (SENSOR_VP) |
-| **Actuator Relay** | Emergency Process Interlock | GPIO 25 (Digital Output) |
-| **Status / Heartbeat LED** | Visual Alarm / Tamper | GPIO 2 (Digital Output) |
-
----
-
-## Flashing Instructions
-
-```bash
-# PlatformIO
-pio run -d firmware/esp32_slave_sensor -t upload
-
-# Arduino IDE
-# 1. Open esp32_slave_sensor.ino
-# 2. Select: ESP32 Dev Module
-# 3. Ensure ArduinoJson and mbedTLS are included
-# 4. Flash to board at 115200 baud
-```
+Build: Arduino IDE or `arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32_slave_sensor` (ESP32 core 2.x/3.x, ArduinoJson 6/7). Add `-DAEGIS_SELFTEST` to run the shared known-answer crypto test at boot. Full guide: [`../README.md`](../README.md).
