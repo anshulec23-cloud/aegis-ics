@@ -107,3 +107,11 @@ Every compiled binary must be validated through the two-phase verification check
 ./dist/linux/AegisICS --check
 # Expected Output: Aegis ICS v2.5.2 [SELF-TEST OK]
 ```
+
+---
+
+## v2.6 packaging notes
+
+- **No database is bundled.** Each installation creates its own database, host identity and session key in its data directory on first run (see [configuration](../04-development/configuration.md#data-directory)). The old specs bundled whatever `aegis_v2.db` was in the developer's checkout, including accounts and telemetry.
+- New modules (`version`, `bootstrap`, `enrollment`, `protocol`, `registry`, `simulator`, `device_keys`) and `cryptography`'s X25519 are listed in the specs' `hiddenimports`.
+- **Verified 2026-11-15** (Windows 11, Python 3.11, PyInstaller 6): `python -m PyInstaller build_scripts/AegisICS.spec` produced a 97 MB `AegisICS.exe`. `--version` and `--check` passed. A headless run on an empty data directory went through first-run setup, simulator discovery, approval of 3 devices, live telemetry, an ACKed setpoint, a measured ping and a PDF report, with no errors. The desktop window (PyWebView) was not exercised in that run.

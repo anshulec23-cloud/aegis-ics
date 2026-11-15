@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-Aegis ICS v2.5.2 — Standalone Executable Specification
+Aegis ICS — Standalone Executable Specification
 ======================================================
 Rebuilt from scratch for self-contained, air-gapped ICS deployment.
 Packages Python runtime, embedded PyWebView, Flask backend, SQLite database,
@@ -34,9 +34,9 @@ datas = [
     (os.path.join(src_dir, 'model'), 'model'),
     (os.path.join(project_root, 'firmware'), 'firmware'),
 ]
-db_path = os.path.join(project_root, 'aegis_v2.db')
-if os.path.exists(db_path):
-    datas.append((db_path, '.'))
+# No database is bundled: every installation creates its own in its data directory on
+# first run (first-run setup screen, device enrollment). Bundling a developer DB would ship
+# their accounts, telemetry and audit history.
 
 # 3. Explicit hidden imports for dynamic imports and runtime dependencies
 hiddenimports = [
@@ -84,6 +84,15 @@ hiddenimports = [
     'tray',
     'trust_engine',
     'train_model',
+    'version',
+    'bootstrap',
+    'device_keys',
+    'enrollment',
+    'protocol',
+    'registry',
+    'simulator',
+    'cryptography',
+    'cryptography.hazmat.primitives.asymmetric.x25519',
 ]
 
 a = Analysis(
