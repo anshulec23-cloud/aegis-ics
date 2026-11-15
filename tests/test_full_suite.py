@@ -1767,6 +1767,10 @@ def test_terminal_dashboard_routes_and_html_render():
     assert b"DEC VT-220" in res_dash.data or b"OPERATING STATION" in res_dash.data
     assert b"REEL-TO-REEL" in res_dash.data or b"FORENSIC TIME SCRUBBER" in res_dash.data
     assert b"PALETTE:" not in res_dash.data
+    # Phase 7: aggregate fused SCADA view (radar/bar switchable) is present on Station 01.
+    assert b"aggregateChart" in res_dash.data
+    assert b"AGGREGATE PLANT VIEW" in res_dash.data
+    assert b"setAggregateMode" in res_dash.data
 
 
 def test_v1_telemetry_staleness_fail_closed():

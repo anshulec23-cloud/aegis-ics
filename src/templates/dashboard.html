@@ -254,6 +254,26 @@
                 </div>
             </div>
 
+            <!-- Aggregate fused SCADA view: all slaves across all sensors, switchable radar/bar -->
+            <div class="subway-card p-4 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                    <span class="font-mono font-bold text-white">AGGREGATE PLANT VIEW &mdash; ALL NODES &times; ALL SENSORS</span>
+                    <div class="inline-flex rounded bg-[#050608] p-0.5 border border-[#1c2333]">
+                        <button id="btn-agg-radar" onclick="setAggregateMode('radar')" class="px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white">RADAR</button>
+                        <button id="btn-agg-bar" onclick="setAggregateMode('bar')" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white">GROUPED BAR</button>
+                    </div>
+                </div>
+                <p class="text-[10px] font-mono text-slate-500">
+                    Every sensor is normalised to its nominal ceiling (100% = envelope limit), so all five transducers fuse onto one
+                    comparable scale. A node pushing past the 100% ring/line is running out of envelope &mdash; the shape of an attack.
+                    Isolated nodes are drawn dashed red.
+                </p>
+                <div class="relative w-full h-72"><canvas id="aggregateChart"></canvas></div>
+                <div id="aggregate-empty" class="hidden text-xs font-mono text-slate-500 p-4 border border-dashed border-[#1c2333] rounded">
+                    No field devices yet. Connect the gateway in Station 06 and approve the devices it discovers.
+                </div>
+            </div>
+
             <!-- Cluster Metric Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="device-cluster-cards"></div>
 
@@ -1701,8 +1721,103 @@
                             if (container) container.appendChild(card);
                         });
                     }
+                    renderAggregateChart();
                 })
                 .catch(err => console.error(err));
+        }
+
+        // ====================================================================
+        // AGGREGATE PLANT VIEW: all nodes x all sensors, fused, switchable radar/bar
+        // ====================================================================
+        let aggregateChart = null;
+        let aggregateMode = 'radar';
+        // Nominal ceiling per sensor (100% = envelope limit) so mixed units fuse onto one scale.
+        const AGG_SENSORS = [
+            { key: 'latest_temp', label: 'Temp', max: 60 },
+            { key: 'latest_pres', label: 'Pressure', max: 8 },
+            { key: 'latest_vib', label: 'Vibration', max: 4 },
+            { key: 'latest_hall', label: 'RPM/Hall', max: 2500 },
+            { key: 'latest_curr', label: 'Current', max: 8 },
+        ];
+        const AGG_PALETTE = ['#15559e', '#2a7a22', '#8a5d00', '#6b3fa0', '#0f766e', '#b45309', '#9d174d', '#1d6a6a'];
+
+        function aggPercent(dev, s) {
+            const v = dev[s.key];
+            if (v === null || v === undefined || isNaN(v)) return 0;
+            return Math.round((v / s.max) * 100);
+        }
+
+        function setAggregateMode(mode) {
+            aggregateMode = mode;
+            const on = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
+            const off = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+            document.getElementById('btn-agg-radar').className = mode === 'radar' ? on : off;
+            document.getElementById('btn-agg-bar').className = mode === 'bar' ? on : off;
+            renderAggregateChart();
+        }
+
+        function renderAggregateChart() {
+            const canvas = document.getElementById('aggregateChart');
+            if (!canvas || !window.Chart) return;
+            const empty = document.getElementById('aggregate-empty');
+            const devices = Object.values(currentDevices).filter(d => d && d.device_id);
+            if (!devices.length) {
+                if (aggregateChart) { aggregateChart.destroy(); aggregateChart = null; }
+                if (empty) empty.classList.remove('hidden');
+                return;
+            }
+            if (empty) empty.classList.add('hidden');
+
+            const labels = AGG_SENSORS.map(s => s.label);
+            let maxVal = 100;
+            const datasets = devices.map((dev, i) => {
+                const base = AGG_PALETTE[i % AGG_PALETTE.length];
+                const iso = !!dev.is_isolated;
+                const data = AGG_SENSORS.map(s => { const p = aggPercent(dev, s); if (p > maxVal) maxVal = p; return p; });
+                return {
+                    label: (dev.name && dev.name !== dev.device_id) ? dev.name : dev.device_id,
+                    data,
+                    borderColor: iso ? '#a3281a' : base,
+                    backgroundColor: aggregateMode === 'radar' ? (base + '22') : base,
+                    borderWidth: iso ? 3 : 1.5,
+                    borderDash: iso ? [5, 3] : [],
+                    pointRadius: aggregateMode === 'radar' ? 2 : 0,
+                    pointBackgroundColor: iso ? '#a3281a' : base,
+                };
+            });
+
+            const ink = '#334155';
+            const grid = '#cbd5e1';
+            if (aggregateChart) aggregateChart.destroy();
+            if (aggregateMode === 'radar') {
+                aggregateChart = new Chart(canvas, {
+                    type: 'radar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { r: {
+                            suggestedMin: 0, suggestedMax: Math.max(150, maxVal + 10),
+                            angleLines: { color: grid }, grid: { color: grid },
+                            pointLabels: { color: ink, font: { size: 11, weight: 'bold' } },
+                            ticks: { color: ink, backdropColor: 'transparent', stepSize: 50, callback: v => v + '%' },
+                        } },
+                        plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12, font: { size: 11 } } } },
+                    },
+                });
+            } else {
+                aggregateChart = new Chart(canvas, {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            x: { ticks: { color: ink, font: { size: 11 } }, grid: { color: grid } },
+                            y: { beginAtZero: true, suggestedMax: Math.max(150, maxVal + 10), ticks: { color: ink, callback: v => v + '%' }, grid: { color: grid } },
+                        },
+                        plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12, font: { size: 11 } } } },
+                    },
+                });
+            }
         }
 
         function manualIsolate(devId, isolate) {
