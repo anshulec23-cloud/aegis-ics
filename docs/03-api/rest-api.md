@@ -127,6 +127,27 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 | POST | `/api/simulate/reset` 🅦 | – |
 | POST | `/api/simulate-attack` (30/min) 🅦 | `{"type":"stuxnet|injection|privilege"}`. Writes drill telemetry and `SIMULATED_*` audit rows, all flagged `is_simulated`; doesn't change device state; excluded from PDF reports |
 
+### Staged campaign — operator (login + CSRF)
+
+Drives the 8-stage adversarial campaign from the dashboard (Station 04). Same stages as the portable USB tool.
+
+| Method | Path | Body |
+|---|---|---|
+| GET | `/api/campaign/plan` 🅦 | – → `{"campaign":[{id,kind,name,expect}×8]}` |
+| POST | `/api/campaign/stage` 🅦 | `{"id","device_id"?}`. Runs one stage: perimeter → in-app loopback self-test; physical → crafted signed telemetry through the live detect/quarantine/loss pipeline. Returns `{result:{defended,action,incident?,detail?,…}}` |
+| POST | `/api/campaign/reset` 🅦 | – clears drills, rejoins quarantined nodes, REARMs |
+
+### Portable USB harness — machine (localhost + one-time drill token, CSRF-exempt)
+
+`X-Aegis-Redteam-Token` header (or `token` in body); caller must be on loopback. Token is written to `<data dir>/redteam_token.txt`; the live base URL to `<data dir>/redteam_runtime.json`. Driven by `tools/redteam/aegis_redteam.py`.
+
+| Method | Path | Body |
+|---|---|---|
+| GET | `/api/redteam/plan` | – → the 8-stage `CAMPAIGN` |
+| POST | `/api/redteam/inject` | `{"attack","device_id"?}`. Injects a physical-process attack as a compromised device; returns `{result:{defended,quarantined,frames_sent,frames_rejected,action,incident,totals,…}}` |
+| POST | `/api/redteam/reset` | – clears drills, rejoins quarantined nodes |
+| GET | `/api/redteam/status` | – → current `loss_engine.assess` snapshot |
+
 ## Meta (public)
 
 | Method | Path | Response |

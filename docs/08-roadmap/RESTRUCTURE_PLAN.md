@@ -17,9 +17,25 @@
 | 0 Foundations | **Done** (2026-11-14) | Git + tag `v2.5.3-baseline`; `src/version.py`; `pyproject.toml`; ruff + pre-commit; CI matrix + `pip-audit`; `tests/security/` regression suite. Deferred: lockfile (0.2) and mypy (0.3), both moving to Phase 3 with the package layout. |
 | 1 Safety and security hotfixes | **Done** (2026-11-14) | All of 1.1–1.11 landed (see [DEBUG_REPORT fix status](../07-reports/DEBUG_REPORT.md#fix-status-updated-2026-11-15-v260dev0--restructure-plan-phases-02)). Deviations: 1.1 warns at startup and rejects frames per device instead of refusing to start, so the desktop app's first-run experience keeps working. 1.2's *forced* password change moves to Phase 3 with the account UI. 1.10 uses a `to_utc_epoch()` read helper rather than a column type change. 105 tests pass, 3 xfail. |
 | 2 Hardware loop (zero-touch) | **Done in software** (2026-11-15) | 2.0–2.8 implemented: first-run setup, data directory, device registry + X25519 enrollment for N slaves, protocol v1 with ACKs and replay protection, polled bus, sensor faults, NVS trip state, v1 simulator, dynamic dashboard. Firmware compiles cleanly (core 3.3.12) and is compiled in CI. Still needed for the exit criteria: run it on hardware (`AEGIS_SELFTEST`, bench checklist, 24 h soak, 2.9 latency measurement). |
-| 3 Restructure | Not started | |
-| 4 ML integrity | Not started | |
+| 3 Restructure | Not started | Split `src/app.py` (~3,200 lines) into a package (blueprints + services + domain). |
+| 4 ML integrity | Not started | Trained offline attack-type classifier feeding the loss engine + NIST report; replaces/augments the trust score. |
 | 5 Production polish | Not started | |
+
+### Product-vision track (owner request, 2026-11-15)
+
+A feature rebuild running alongside the structural phases above (see the product vision in memory / `docs/00-overview`). COM-port only; a non-engineer installs the `.exe`, plugs in hardware, and it works.
+
+| Feature phase | Status | Notes |
+|---|---|---|
+| Per-device financials | **Done** (2026-11-15) | `src/financials.py` role profiles entered at approval; `src/attacks.py` catalog; `src/loss_engine.py` live incident loss (actual / projected / prevented / MTTR / restabilization / regulatory). `/api/financial/incident`. |
+| USB attack-drill harness | **Done** (2026-11-15, commit `59e6744`) | `src/redteam.py` engine: localhost drill token, `run_physical_attack` crafts malicious signed telemetry from a "compromised" device and drives the real detect/quarantine/loss pipeline; 8-stage `CAMPAIGN`; `reset()`. Machine endpoints `/api/redteam/{plan,inject,reset,status}` (localhost + token, CSRF-exempt). App publishes live port + token to the data dir on start (`write_runtime_info`). `tools/redteam/` = stdlib-only portable runner + `run_drill.bat` + README (copy folder to a USB, double-click). Verified end-to-end: 8/8 defended, $427.5k prevented. |
+| Station 04 live campaign view | **Done** (2026-11-15, commit `3ef542e`) | Dashboard front for the harness. Operator endpoints `/api/campaign/{plan,stage,reset}` (login + CSRF); `redteam.run_perimeter_selftest` + `run_stage`. Station 04 rebuilt: Launch/Restore controls, KPI row (defended / downtime cost / catastrophe prevented), 8 live stage rows (PENDING→RUNNING→DEFENDED/BREACH + per-stage financials). Verified in-browser (XP themed). |
+| XP (Luna) reskin | **Foundation done** | `src/static/xp.css`; templates link it. Pending polish: digital-twin SVG tiles still dark (JS-set fills); `login.html`/`setup.html` copy still terminal-flavoured ("DEC VT-220", "TTY-01"). |
+| Aggregate SCADA graph | Not started | One graph per slave + one fused all-sensors graph (switchable radar + grouped bar). |
+| NIST SP 800 report upgrade | Not started | One click → client report: incident timeline, actions + timestamps, full audit trail, sensor DB, ML-driven mitigation with cost/time. |
+| Ship | Not started | Browser-sweep every station, rebuild `.exe`, package for a non-engineer, hand to the hardware engineer for the bench test. |
+
+**Suggested next order:** ML classifier (Phase 4) → aggregate graph → NIST report → XP polish → rebuild `.exe` + handoff. Phase 3 (restructure) can slot in anytime.
 
 ---
 
