@@ -49,8 +49,9 @@ def compute_device_trust_score(
     )
 
     if not logs:
-        known_devices = {"ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"}
-        if device_id in known_devices:
+        from device_keys import provisioned_devices
+
+        if device_id in provisioned_devices():
             return {
                 "device_id": device_id,
                 "trust_score": 0.50,
@@ -211,9 +212,19 @@ def get_trust_breakdown(device_id: str, db_session) -> Dict[str, Any]:
             "type": "High-Speed Alternator",
         },
     }
+    try:
+        import registry
+
+        reg = registry.device_info(device_id) or {}
+    except Exception:
+        reg = {}
     zone_meta = zones.get(
         device_id,
-        {"name": f"Slave Node {device_id}", "zone": "Auxiliary Field Bus", "type": "Field Sensor"},
+        {
+            "name": reg.get("name") or f"Slave Node {device_id}",
+            "zone": "Field bus",
+            "type": "ESP32 field node",
+        },
     )
 
     return {

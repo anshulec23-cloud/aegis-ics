@@ -37,7 +37,9 @@ def configured_admin_password(env: Optional[Mapping[str, str]] = None) -> Option
         return None
     problem = password_problem(configured)
     if problem:
-        print(f"[SECURITY] Ignoring ADMIN_PASSWORD: {problem}. Use the first-run setup page instead.")
+        print(
+            f"[SECURITY] Ignoring ADMIN_PASSWORD: {problem}. Use the first-run setup page instead."
+        )
         return None
     return configured
 

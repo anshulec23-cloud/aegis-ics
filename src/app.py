@@ -7,6 +7,7 @@ import functools
 import threading
 import secrets
 import bleach
+from typing import Optional
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from flask import (
@@ -45,7 +46,7 @@ from analytics import (
     calculate_financial_analytics,
     calculate_monte_carlo_distribution,
     get_subsystem_financial_breakdown,
-    SUBSYSTEM_PROFILES,
+    get_subsystem_profile,
 )
 from reporting import generate_incident_report_pdf
 
@@ -127,9 +128,7 @@ app.config['SESSION_COOKIE_SECURE'] = os.environ.get("FLASK_SESSION_SECURE", "Fa
 GATEWAY_TOKEN = os.environ.get("AEGIS_GATEWAY_TOKEN") or secrets.token_urlsafe(32)
 GATEWAY_TOKEN_HEADER = "X-Aegis-Gateway-Token"
 
-from device_keys import is_valid_device_id, warn_about_missing_keys  # noqa: E402
-
-warn_about_missing_keys()
+from device_keys import is_valid_device_id  # noqa: E402
 
 
 def generate_csrf_token():
@@ -328,7 +327,8 @@ class LocalRFModel:
         # ESP32_004 (Turbine Generator) has a normal operating baseline of 2200.0 RPM, with overspeed trip at 3000.0 RPM.
         # Pump and auxiliary nodes (ESP32_002) have baseline of 1500.0 RPM, with overspeed trip at 2000.0 RPM.
         dev_id_val = str(telemetry.get("device_id", ""))
-        hall_max = 3000.0 if dev_id_val == "ESP32_004" else 2000.0
+        # Global overspeed limit (per-device limits arrive with the device profile editor).
+        hall_max = float(os.environ.get("AEGIS_RPM_MAX", "3000"))
         if hall_val is not None:
             try:
                 if float(hall_val) > hall_max:
@@ -447,7 +447,7 @@ def _parse_timestamp(t_val):
 
 
 def _quarantine_device(db, device_id: str, reason: str) -> None:
-    """Mark a device isolated, audit it, and queue a signed ISOLATE for its relay."""
+    """Mark a device isolated, audit it, and send ISOLATE to its relay."""
     now_utc = datetime.now(timezone.utc)
     state = db.query(DeviceState).filter_by(device_id=device_id).first()
     if not state:
@@ -465,100 +465,120 @@ def _quarantine_device(db, device_id: str, reason: str) -> None:
     )
     db.commit()
     print(f"[SYSTEM] AUTOMATIC ISOLATION TRIGGERED FOR DEVICE {device_id} ({reason})")
-    _dispatch_command(
-        {
-            "command": "ISOLATE",
-            "action": "ISOLATE",
-            "device_id": device_id,
-            "target_device": device_id,
-            "timestamp": time.time(),
-            "reason": reason,
-        }
-    )
+    send_device_command(device_id, "ISOLATE", reason=reason)
 
 
-def _dispatch_command(cmd: dict) -> bool:
-    """Queue a command for the hardware if a gateway is connected. Returns True if queued."""
+V0_COMMAND_NAMES = {"ISOLATE": "ISOLATE", "REARM": "REARM", "SHUTDOWN": "SHUTDOWN", "PING": "ping"}
+
+
+def send_device_command(
+    device_id: str,
+    cmd: str,
+    args: Optional[dict] = None,
+    user_id: Optional[int] = None,
+    wait_ack_s: float = 0.0,
+    reason: Optional[str] = None,
+) -> dict:
+    """Send a command to one device over the gateway.
+
+    Protocol-v1 devices (enrolled via the registry) get a signed ``CMD`` with a fresh host
+    sequence number, tracked in ``command_log``; with ``wait_ack_s`` the call waits for the
+    device's ACK. Legacy v0 devices get the old JSON command. Returns a status dict with
+    ``sent`` plus, for v1, ``command_id`` / ``status`` / ``result``.
+    """
+    import registry
     import serial_gateway
 
     if not serial_gateway.is_connected():
-        print(
-            f"[Server] No gateway connected; {cmd.get('command')} for {cmd.get('device_id')} not sent to hardware."
-        )
-        return False
+        print(f"[Server] No gateway connected; {cmd} for {device_id} not sent to hardware.")
+        return {"sent": False, "status": "NO_GATEWAY"}
+
+    if device_id != "ALL" and registry.is_v1_device(device_id):
+        try:
+            log_id, frame = registry.create_command(device_id, cmd, args, user_id)
+        except ValueError as err:
+            print(f"[Server] Command not sent: {err}")
+            return {"sent": False, "status": "FAILED", "result": str(err)}
+        serial_gateway.send_frame(frame, command_log_id=log_id)
+        if wait_ack_s > 0:
+            outcome = registry.wait_for_ack(log_id, wait_ack_s)
+            if outcome["status"] in ("QUEUED", "SENT"):
+                outcome["status"] = "PENDING_ACK"
+            return {"sent": True, **outcome}
+        return {"sent": True, "command_id": log_id, "status": "SENT", "result": None}
+
+    legacy = {
+        "command": V0_COMMAND_NAMES.get(cmd, cmd),
+        "action": V0_COMMAND_NAMES.get(cmd, cmd),
+        "device_id": device_id,
+        "target_device": device_id,
+        "timestamp": time.time(),
+    }
+    if cmd == "PING":
+        legacy["target"] = device_id
+    if reason:
+        legacy["reason"] = reason
+    if args:
+        legacy.update(args)
     try:
-        serial_gateway.send_command(cmd)
-        return True
+        serial_gateway.send_command(legacy)
+        return {"sent": True, "status": "SENT"}
     except ValueError as err:
         print(f"[Server] Command not sent: {err}")
-        return False
+        return {"sent": False, "status": "FAILED", "result": str(err)}
 
 
-def process_telemetry(payload: dict) -> tuple[bool, int, str]:
-    now = time.time()
-    device_id = payload.get("device_id")
-    if not is_valid_device_id(device_id):
-        return False, 400, "Rejected: invalid device_id."
-    if not get_device_key(device_id):
-        print(f"[Server] Telemetry REJECTED from unprovisioned device: {device_id}")
-        return False, 403, f"Rejected: device {device_id} is not provisioned."
+def _dispatch_command(cmd: dict) -> bool:
+    """Back-compat wrapper used by routes that build v0-style command dicts."""
+    name = str(cmd.get("command") or cmd.get("action") or "").upper()
+    target = cmd.get("device_id") or cmd.get("target_device") or "ALL"
+    if name == "DISCOVER":
+        import serial_gateway
 
-    # 1. Freshness window (applies in every mode, including tests).
-    numeric_ts = None
-    if payload.get("timestamp") is not None:
-        try:
-            numeric_ts = _parse_timestamp(payload["timestamp"])
-        except (ValueError, TypeError):
-            return False, 400, "Rejected: Invalid telemetry timestamp format."
-        skew = abs(now - numeric_ts)
-        if skew > MAX_TIMESTAMP_SKEW_S:
-            return False, 400, f"Rejected: Telemetry timestamp expired (skew={skew:.1f}s)."
+        if not serial_gateway.is_connected():
+            return False
+        serial_gateway.send_command(cmd)
+        return True
+    if target == "ALL" and name == "SHUTDOWN":
+        sent = False
+        for dev in _known_device_ids():
+            sent = send_device_command(dev, "SHUTDOWN")["sent"] or sent
+        return sent
+    return send_device_command(target, name, reason=cmd.get("reason"))["sent"]
 
-    # 2. Authenticate before anything is stored or acted on.
-    if not verify_signature(payload):
-        failures = _record_signature_failure(device_id, now)
-        print(
-            f"[Server] Invalid signature from {device_id} ({failures}/{SIG_FAILURE_THRESHOLD} in window)"
-        )
-        if failures >= SIG_FAILURE_THRESHOLD:
-            db = SessionLocal()
-            try:
-                state = db.query(DeviceState).filter_by(device_id=device_id).first()
-                if not (state and state.is_isolated):
-                    _quarantine_device(
-                        db,
-                        device_id,
-                        f"{failures} invalid HMAC signatures within {SIG_FAILURE_WINDOW_S:.0f}s",
-                    )
-            finally:
-                db.close()
-        return False, 401, "Rejected: invalid signature."
 
-    # 3. Replay protection.
-    if _is_replay(device_id, str(payload.get("signature")), now):
-        return False, 409, "Rejected: duplicate frame (possible replay)."
-
-    import serial_gateway
-
-    is_simulated = serial_gateway.is_mock_active()
-    stored_ts = numeric_ts if numeric_ts is not None else now
-    fields = {
-        k: payload.get(k)
-        for k in (
-            "temperature",
-            "pressure",
-            "humidity",
-            "vibration",
-            "hall_effect",
-            "current",
-            "rssi",
-        )
-    }
+def _known_device_ids() -> list:
+    """Every device the host knows about: approved registry entries, legacy provisioned
+    (env / key file) devices, devices with state rows and devices that sent telemetry.
+    Replaces the old hard-coded ESP32_001..004 lists."""
+    import registry
+    from device_keys import provisioned_devices
 
     db = SessionLocal()
     try:
+        ids = set(registry.approved_device_ids()) | provisioned_devices()
+        ids |= {r.device_id for r in db.query(DeviceState).all() if r.device_id}
+        ids |= {r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]}
+    finally:
+        db.close()
+    return sorted(ids)
+
+
+def _ingest_authenticated(device_id: str, fields: dict, stored_ts: float, faults=None):
+    """Store an authenticated reading, score trust and apply the quarantine policy."""
+    import serial_gateway
+
+    is_simulated = serial_gateway.is_mock_active()
+    faults = [f for f in (faults or []) if isinstance(f, str)][:8]
+    fault_str = ",".join(faults) or None
+    db = SessionLocal()
+    try:
         state = db.query(DeviceState).filter_by(device_id=device_id).first()
-        if state and state.is_isolated:
+        if state is None:
+            state = DeviceState(device_id=device_id, is_isolated=False)
+            db.add(state)
+            db.flush()
+        if state.is_isolated:
             # Keep authenticated post-trip telemetry so operators can verify de-energisation.
             db.add(
                 TelemetryLog(
@@ -566,6 +586,7 @@ def process_telemetry(payload: dict) -> tuple[bool, int, str]:
                     device_id=device_id,
                     is_anomaly=True,
                     is_simulated=is_simulated,
+                    faults=fault_str,
                     **fields,
                 )
             )
@@ -576,13 +597,16 @@ def process_telemetry(payload: dict) -> tuple[bool, int, str]:
                 f"Access Denied: Device {device_id} is quarantined by Zero-Trust microsegmentation policy.",
             )
 
-        ml_anomaly = rf_model.predict_anomaly(payload, db_session=db)
+        payload = dict(fields, device_id=device_id)
+        # A faulted sensor is an anomaly: the plant can't be verified as safe (debug report F7).
+        ml_anomaly = rf_model.predict_anomaly(payload, db_session=db) or bool(faults)
         db.add(
             TelemetryLog(
                 timestamp=stored_ts,
                 device_id=device_id,
                 is_anomaly=ml_anomaly,
                 is_simulated=is_simulated,
+                faults=fault_str,
                 **fields,
             )
         )
@@ -610,6 +634,112 @@ def process_telemetry(payload: dict) -> tuple[bool, int, str]:
         return False, 500, "Database write operation failed."
     finally:
         db.close()
+
+
+def _signature_failure(device_id: str, now: float) -> None:
+    failures = _record_signature_failure(device_id, now)
+    print(
+        f"[Server] Invalid signature from {device_id} ({failures}/{SIG_FAILURE_THRESHOLD} in window)"
+    )
+    if failures >= SIG_FAILURE_THRESHOLD:
+        db = SessionLocal()
+        try:
+            state = db.query(DeviceState).filter_by(device_id=device_id).first()
+            if not (state and state.is_isolated):
+                _quarantine_device(
+                    db,
+                    device_id,
+                    f"{failures} invalid HMAC signatures within {SIG_FAILURE_WINDOW_S:.0f}s",
+                )
+        finally:
+            db.close()
+
+
+def handle_device_frame(frame: dict) -> tuple[bool, int, str]:
+    """Entry point for protocol-v1 frames (in-process from the gateway, or via /api/telemetry).
+
+    HELLO -> registry (discovery / WELCOME); TEL -> authenticated ingestion; ACK -> command log.
+    """
+    import protocol
+    import registry
+    import serial_gateway
+
+    ftype = frame.get("type")
+    device_id = frame.get("id")
+    if not is_valid_device_id(device_id):
+        return False, 400, "Rejected: invalid device id."
+
+    if ftype == "HELLO":
+        outcome, reply = registry.handle_hello(frame)
+        if reply is not None and serial_gateway.is_connected():
+            serial_gateway.send_frame(reply)
+        return outcome != "invalid", 200 if outcome != "invalid" else 400, f"HELLO: {outcome}"
+
+    if ftype not in ("TEL", "ACK"):
+        return False, 400, f"Rejected: unsupported frame type {ftype!r}."
+
+    ok, reason = registry.authenticate_frame(frame)
+    if not ok:
+        if reason == "unknown_device":
+            return False, 403, f"Rejected: device {device_id} is not enrolled."
+        if reason == "bad_sig":
+            _signature_failure(device_id, time.time())
+            return False, 401, "Rejected: invalid signature."
+        if reason == "replay":
+            return False, 409, "Rejected: replayed frame (boot/seq already seen)."
+        return False, 400, "Rejected: malformed sequence fields."
+
+    if ftype == "ACK":
+        registry.handle_ack(frame)
+        return True, 200, "ACK recorded."
+
+    fields = protocol.telemetry_fields(frame)
+    return _ingest_authenticated(device_id, fields, time.time(), frame.get("faults"))
+
+
+def process_telemetry(payload: dict) -> tuple[bool, int, str]:
+    """Protocol-v0 telemetry (legacy firmware with pre-provisioned keys)."""
+    now = time.time()
+    device_id = payload.get("device_id")
+    if not is_valid_device_id(device_id):
+        return False, 400, "Rejected: invalid device_id."
+    if not get_device_key(device_id):
+        print(f"[Server] Telemetry REJECTED from unprovisioned device: {device_id}")
+        return False, 403, f"Rejected: device {device_id} is not provisioned."
+
+    # 1. Freshness window (applies in every mode, including tests).
+    numeric_ts = None
+    if payload.get("timestamp") is not None:
+        try:
+            numeric_ts = _parse_timestamp(payload["timestamp"])
+        except (ValueError, TypeError):
+            return False, 400, "Rejected: Invalid telemetry timestamp format."
+        skew = abs(now - numeric_ts)
+        if skew > MAX_TIMESTAMP_SKEW_S:
+            return False, 400, f"Rejected: Telemetry timestamp expired (skew={skew:.1f}s)."
+
+    # 2. Authenticate before anything is stored or acted on.
+    if not verify_signature(payload):
+        _signature_failure(device_id, now)
+        return False, 401, "Rejected: invalid signature."
+
+    # 3. Replay protection.
+    if _is_replay(device_id, str(payload.get("signature")), now):
+        return False, 409, "Rejected: duplicate frame (possible replay)."
+
+    fields = {
+        k: payload.get(k)
+        for k in (
+            "temperature",
+            "pressure",
+            "humidity",
+            "vibration",
+            "hall_effect",
+            "current",
+            "rssi",
+        )
+    }
+    return _ingest_authenticated(device_id, fields, numeric_ts if numeric_ts is not None else now)
 
 
 def login_required(f):
@@ -865,8 +995,11 @@ def setpoint():
     db = SessionLocal()
 
     target_device = bleach.clean(
-        str(payload.get("target_device") or payload.get("device_id") or "ESP32_001")
+        str(payload.get("target_device") or payload.get("device_id") or "")
     )
+    if not is_valid_device_id(target_device):
+        db.close()
+        return jsonify({"success": False, "error": "A valid target_device is required."}), 400
     state = db.query(DeviceState).filter_by(device_id=target_device).first()
     if state and state.is_isolated:
         db.close()
@@ -923,6 +1056,73 @@ def setpoint():
             }
         ), 503
 
+    import protocol
+    import registry
+
+    if registry.is_v1_device(target_device):
+        outcome = send_device_command(
+            target_device,
+            "SETPOINT",
+            {"param": protocol.SETPOINT_PARAMS[cmd_type], "value": protocol.fmt2(value)},
+            user_id=user_id,
+            wait_ack_s=3.0,
+        )
+        status = outcome.get("status")
+        if status == "REJECTED":
+            db.add(
+                AuditLog(
+                    user_id=user_id,
+                    action="SETPOINT_REJECTED_BY_DEVICE",
+                    location=location,
+                    details=f"{target_device} rejected {cmd_type}={value}: {outcome.get('result')}",
+                )
+            )
+            db.commit()
+            db.close()
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Device rejected the setpoint: {outcome.get('result')}",
+                    "command": outcome,
+                }
+            ), 409
+        if status != "ACKED":
+            db.add(
+                AuditLog(
+                    user_id=user_id,
+                    action="SETPOINT_NOT_CONFIRMED",
+                    location=location,
+                    details=f"{cmd_type}={value} sent to {target_device} but not acknowledged ({status}).",
+                )
+            )
+            db.commit()
+            db.close()
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Setpoint sent but the device did not acknowledge it ({status}).",
+                    "command": outcome,
+                }
+            ), 504
+        db.add(
+            AuditLog(
+                user_id=user_id,
+                action="CHANGE_SETPOINT",
+                location=location,
+                details=f"Changed {cmd_type} to {value} on {target_device} (device ACK seq {outcome.get('seq')}).",
+            )
+        )
+        db.commit()
+        db.close()
+        return jsonify(
+            {
+                "success": True,
+                "details": f"Setpoint {value} applied and acknowledged by {target_device}.",
+                "command": outcome,
+            }
+        )
+
+    # Legacy v0 firmware: fire-and-forget (no acknowledgement in protocol v0).
     command_body = {
         "command": "setpoint",
         "device_id": target_device,
@@ -1078,16 +1278,7 @@ def cluster_topology():
         try:
             t_devs = [r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]]
             s_devs = [r.device_id for r in db.query(DeviceState).all() if r.device_id]
-            all_dev_ids = sorted(
-                list(
-                    set(
-                        t_devs
-                        + s_devs
-                        + list(active_nodes.keys())
-                        + ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
-                    )
-                )
-            )
+            all_dev_ids = sorted(set(_known_device_ids()) | set(active_nodes.keys()))
 
             nodes = []
             now_ts = time.time()
@@ -1103,7 +1294,7 @@ def cluster_topology():
                     .first()
                 )
                 trust = compute_device_trust_score(dev_id, db)
-                profile = SUBSYSTEM_PROFILES.get(dev_id, {})
+                profile = get_subsystem_profile(dev_id)
 
                 # Detect which of the 5 sensors are active on this node
                 gateway_node = active_nodes.get(dev_id, {})
@@ -1173,6 +1364,28 @@ def cluster_topology():
         return jsonify({"success": False, "error": "Failed to retrieve cluster topology."}), 500
 
 
+def _resync_quarantine():
+    """Re-send ISOLATE to every quarantined node (called by the gateway after connecting)."""
+    db = SessionLocal()
+    try:
+        isolated = [d.device_id for d in db.query(DeviceState).filter_by(is_isolated=True).all()]
+    finally:
+        db.close()
+    for dev in isolated:
+        send_device_command(dev, "ISOLATE", reason="quarantine re-sync on gateway connect")
+    return isolated
+
+
+def _install_gateway_frame_handler():
+    """Frames from the in-process gateway go straight to ingestion (ADR 0003); no loopback HTTP."""
+    import serial_gateway
+
+    serial_gateway.set_frame_handler(handle_device_frame, process_telemetry)
+
+
+_install_gateway_frame_handler()
+
+
 def _spawn_gateway_thread(**kwargs):
     """Start serial_gateway.start_gateway on a daemon thread (patched in tests)."""
     import serial_gateway
@@ -1208,30 +1421,20 @@ def connect_com_port():
 
         mock = port.upper().startswith("MOCK") or port.upper().startswith("SIM")
 
-        # Quarantine survives reconnects (debug report S8). Instead of clearing it, the
-        # gateway re-sends ISOLATE to every quarantined node once the link is up, so a
-        # node that rebooted (and re-energised its relay) is tripped again.
         db = SessionLocal()
         isolated = [d.device_id for d in db.query(DeviceState).filter_by(is_isolated=True).all()]
-        resync = [
-            {
-                "command": "ISOLATE",
-                "action": "ISOLATE",
-                "device_id": dev,
-                "target_device": dev,
-                "reason": "quarantine re-sync on gateway connect",
-            }
-            for dev in isolated
-        ]
 
         # Each frame is verified with its own device's key: no shared hmac_key (F1).
+        # Quarantine survives reconnects (S8): once the link is up the gateway calls
+        # _resync_quarantine(), which re-sends ISOLATE to every quarantined node.
+        _install_gateway_frame_handler()
         _spawn_gateway_thread(
             port=port if not mock else None,
             baud=baud,
             mock=mock,
             url=url,
             gateway_token=GATEWAY_TOKEN,
-            initial_commands=resync,
+            on_connect=_resync_quarantine,
         )
 
         audit = AuditLog(
@@ -1290,16 +1493,7 @@ def list_all_devices():
 
         t_devs = [r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]]
         s_devs = [r.device_id for r in db.query(DeviceState).all() if r.device_id]
-        all_dev_ids = sorted(
-            list(
-                set(
-                    t_devs
-                    + s_devs
-                    + list(active_nodes.keys())
-                    + ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
-                )
-            )
-        )
+        all_dev_ids = sorted(set(_known_device_ids()) | set(active_nodes.keys()))
 
         now_ts = time.time()
         results = []
@@ -1313,7 +1507,7 @@ def list_all_devices():
                 .first()
             )
             trust = compute_device_trust_score(dev_id, db)
-            profile = SUBSYSTEM_PROFILES.get(dev_id, {})
+            profile = get_subsystem_profile(dev_id)
 
             # Detect sensors for this node
             gateway_node = active_nodes.get(dev_id, {})
@@ -1363,11 +1557,134 @@ def list_all_devices():
         db.close()
 
 
+# --- Device registry (zero-touch enrollment, ADR 0006) -------------------------------------
+
+
+@app.route("/api/registry", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def registry_list():
+    import registry
+
+    devices = registry.list_devices()
+    return jsonify(
+        {
+            "success": True,
+            "host_fingerprint": registry.host_fingerprint(),
+            "pending_count": sum(1 for d in devices if d["status"] == "pending"),
+            "devices": devices,
+        }
+    )
+
+
+def _registry_target(device_id: str):
+    import registry
+
+    if not is_valid_device_id(device_id):
+        return None, (jsonify({"success": False, "error": "Invalid device id."}), 400)
+    info = registry.device_info(device_id)
+    if info is None:
+        return None, (jsonify({"success": False, "error": "Unknown device."}), 404)
+    return info, None
+
+
+@app.route("/api/registry/<device_id>/approve", methods=["POST"])
+@login_required
+@require_webview_token
+def registry_approve(device_id):
+    import registry
+    import serial_gateway
+
+    info, error = _registry_target(device_id)
+    if error:
+        return error
+    if info["status"] != "pending":
+        return jsonify(
+            {"success": False, "error": f"Device is {info['status']}, not pending."}
+        ), 409
+    name = bleach.clean(str((request.get_json(silent=True) or {}).get("name", "")))[:80] or None
+    welcome = registry.approve(device_id, session.get("user_id"), name=name)
+    if welcome is None:
+        return jsonify({"success": False, "error": "Approval failed."}), 409
+    delivered = serial_gateway.is_connected()
+    if delivered:
+        serial_gateway.send_frame(welcome)
+    return jsonify(
+        {
+            "success": True,
+            "details": f"{device_id} approved."
+            + (
+                ""
+                if delivered
+                else " The key will be delivered when the device next announces itself."
+            ),
+            "device": registry.device_info(device_id),
+        }
+    )
+
+
+@app.route("/api/registry/<device_id>/reject", methods=["POST"])
+@login_required
+@require_webview_token
+def registry_reject(device_id):
+    import registry
+
+    info, error = _registry_target(device_id)
+    if error:
+        return error
+    action = "DEVICE_REVOKED" if info["status"] == "approved" else "DEVICE_REJECTED"
+    registry.reject(device_id, session.get("user_id"), action=action)
+    if action == "DEVICE_REVOKED":
+        send_device_command(device_id, "ISOLATE", reason="device revoked")  # best effort
+    return jsonify(
+        {
+            "success": True,
+            "details": f"{device_id} {'revoked' if action == 'DEVICE_REVOKED' else 'rejected'}.",
+        }
+    )
+
+
+@app.route("/api/registry/<device_id>/forget", methods=["POST"])
+@login_required
+@require_webview_token
+def registry_forget(device_id):
+    import registry
+
+    info, error = _registry_target(device_id)
+    if error:
+        return error
+    if not registry.forget(device_id, session.get("user_id")):
+        return jsonify({"success": False, "error": "Revoke the device before removing it."}), 409
+    return jsonify(
+        {
+            "success": True,
+            "details": f"{device_id} removed; it will reappear as pending if it announces again.",
+        }
+    )
+
+
+@app.route("/api/registry/<device_id>/rename", methods=["POST"])
+@login_required
+@require_webview_token
+def registry_rename(device_id):
+    import registry
+
+    info, error = _registry_target(device_id)
+    if error:
+        return error
+    name = bleach.clean(str((request.get_json(silent=True) or {}).get("name", ""))).strip()[:80]
+    if not name:
+        return jsonify({"success": False, "error": "Name required."}), 400
+    registry.rename(device_id, name, session.get("user_id"))
+    return jsonify({"success": True, "device": registry.device_info(device_id)})
+
+
 @app.route("/api/device/status", methods=["GET"])
 @login_required
 @require_webview_token
 def device_status():
-    device_id = request.args.get("device_id", "ESP32_001")
+    device_id = request.args.get("device_id", "")
     db = SessionLocal()
     state = db.query(DeviceState).filter_by(device_id=device_id).first()
     is_isolated = state.is_isolated if state else False
@@ -1381,7 +1698,7 @@ def device_status():
 @require_webview_token
 def isolate_device_v2():
     payload = request.json or {}
-    device_id = str(payload.get("device_id", "ESP32_001"))
+    device_id = str(payload.get("device_id", ""))
     if not is_valid_device_id(device_id):
         return jsonify({"success": False, "error": "Invalid device_id."}), 400
     db = SessionLocal()
@@ -1404,20 +1721,18 @@ def isolate_device_v2():
     db.commit()
     db.close()
 
-    sent = _dispatch_command(
-        {
-            "command": "ISOLATE",
-            "action": "ISOLATE",
-            "device_id": device_id,
-            "target_device": device_id,
-            "timestamp": time.time(),
-        }
+    outcome = send_device_command(
+        device_id, "ISOLATE", user_id=session.get("user_id"), wait_ack_s=2.0
     )
+    sent = outcome["sent"]
     note = "" if sent else " No gateway connected: ISOLATE will be re-sent when one connects."
+    if outcome.get("status") == "ACKED":
+        note = " Device confirmed: relay tripped."
     return jsonify(
         {
             "success": True,
             "hardware_command_sent": sent,
+            "command": outcome,
             "details": f"Device {device_id} successfully isolated.{note}",
         }
     )
@@ -1428,7 +1743,7 @@ def isolate_device_v2():
 @require_webview_token
 def rejoin_device_v2():
     payload = request.json or {}
-    device_id = str(payload.get("device_id", "ESP32_001"))
+    device_id = str(payload.get("device_id", ""))
     if not is_valid_device_id(device_id):
         return jsonify({"success": False, "error": "Invalid device_id."}), 400
     db = SessionLocal()
@@ -1451,20 +1766,18 @@ def rejoin_device_v2():
     db.commit()
     db.close()
 
-    sent = _dispatch_command(
-        {
-            "command": "REARM",
-            "action": "REARM",
-            "device_id": device_id,
-            "target_device": device_id,
-            "timestamp": time.time(),
-        }
+    outcome = send_device_command(
+        device_id, "REARM", user_id=session.get("user_id"), wait_ack_s=2.0
     )
+    sent = outcome["sent"]
     note = "" if sent else " No gateway connected: relay state unchanged until REARM is sent."
+    if outcome.get("status") == "ACKED":
+        note = " Device confirmed: relay re-energised."
     return jsonify(
         {
             "success": True,
             "hardware_command_sent": sent,
+            "command": outcome,
             "details": f"Device {device_id} successfully rejoined to control loop.{note}",
         }
     )
@@ -1568,19 +1881,21 @@ def ping_device():
     """Send a ping frame. Firmware v2.5 does not answer pings, so no latency is reported
     (the previous fixed 14.2 ms value was fabricated -- debug report F14)."""
     payload = request.json or {}
-    device_id = str(payload.get("device_id", "ESP32_001"))
+    device_id = str(payload.get("device_id", ""))
     if not is_valid_device_id(device_id):
         return jsonify({"success": False, "error": "Invalid device_id."}), 400
     db = SessionLocal()
     try:
-        sent = _dispatch_command(
-            {
-                "command": "ping",
-                "target": device_id,
-                "device_id": device_id,
-                "timestamp": time.time(),
-            }
+        started = time.perf_counter()
+        outcome = send_device_command(
+            device_id, "PING", user_id=session.get("user_id"), wait_ack_s=2.0
         )
+        rtt_ms = (
+            round((time.perf_counter() - started) * 1000.0, 1)
+            if outcome.get("status") == "ACKED"
+            else None
+        )
+        sent = outcome["sent"]
         audit = AuditLog(
             user_id=session.get("user_id"),
             action="DEVICE_PING_SENT",
@@ -1594,10 +1909,12 @@ def ping_device():
                 "success": True,
                 "device_id": device_id,
                 "hardware_command_sent": sent,
-                "latency_ms": None,
+                "latency_ms": rtt_ms,
                 "details": (
-                    f"Ping frame sent to {device_id}. Round-trip time is not measured: "
-                    "firmware v2.5 does not reply to pings (planned for protocol v1)."
+                    f"Ping acknowledged by {device_id} (measured RTT {rtt_ms} ms)."
+                    if rtt_ms is not None
+                    else f"Ping frame sent to {device_id}; no acknowledgement "
+                    "(legacy v0 firmware does not answer pings)."
                     if sent
                     else f"Ping not sent to {device_id}: no hardware gateway connected."
                 ),
@@ -1668,7 +1985,7 @@ def device_trust_breakdown(device_id):
 @require_webview_token
 def simulate_attack_endpoint():
     payload = request.json or {}
-    device_id = bleach.clean(str(payload.get("device_id", "ESP32_001")))
+    device_id = bleach.clean(str(payload.get("device_id", "")))
     attack_type = bleach.clean(str(payload.get("attack_type", "stuxnet")))
     try:
         import serial_gateway
@@ -2203,6 +2520,11 @@ def update_rules():
 def simulate_attack():
     payload = request.json or {}
     attack_type = bleach.clean(str(payload.get("type", "")))
+    requested = str(payload.get("device_id", ""))
+    known = _known_device_ids()
+    drill_device = (
+        requested if is_valid_device_id(requested) else (known[0] if known else "DRILL_NODE")
+    )
 
     db = SessionLocal()
     user_id = session.get("user_id")
@@ -2217,7 +2539,7 @@ def simulate_attack():
         ):
             log = TelemetryLog(
                 timestamp=now_ts - (2 - offset) * 2,
-                device_id="ESP32_001",
+                device_id=drill_device,
                 temperature=t_val,
                 pressure=p_val,
                 humidity=45.0,
@@ -2245,7 +2567,7 @@ def simulate_attack():
         for offset, (t_val, p_val, vib_val) in enumerate([(42.0, 5.0, 3.1), (58.0, 6.2, 7.5)]):
             log = TelemetryLog(
                 timestamp=now_ts - (1 - offset) * 2,
-                device_id="ESP32_001",
+                device_id=drill_device,
                 temperature=t_val,
                 pressure=p_val,
                 humidity=50.0,
@@ -2263,7 +2585,7 @@ def simulate_attack():
             user_id=user_id,
             action="SIMULATED_INJECTION_DETECTED",
             location=location,
-            details="[SIMULATION] Drill: spoofed telemetry with an invalid HMAC would be rejected and, after repeated failures, ESP32_001 quarantined.",
+            details="[SIMULATION] Drill: spoofed telemetry with an invalid HMAC would be rejected and, after repeated failures, the target node quarantined.",
             is_simulated=True,
         )
         db.add(audit)
@@ -2308,7 +2630,7 @@ def get_data():
     telemetry = query.order_by(TelemetryLog.timestamp.desc()).limit(100).all()
 
     # Dedicated per-node telemetry streams for 4-node multi-grid
-    node_ids = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
+    node_ids = _known_device_ids()
     telemetry_by_node = {}
     for nid in node_ids:
         n_query = db.query(TelemetryLog).filter_by(device_id=nid)
@@ -2400,7 +2722,9 @@ def get_data():
 
     target_dev = device_id if (device_id and device_id != "all") else None
     financials = calculate_financial_analytics(db, device_id=target_dev)
-    target_trust_dev = device_id if (device_id and device_id != "all") else "ESP32_001"
+    target_trust_dev = (
+        device_id if (device_id and device_id != "all") else (node_ids[0] if node_ids else None)
+    )
     trust = compute_device_trust_score(target_trust_dev, db)
 
     db.close()
@@ -2459,7 +2783,10 @@ def api_stream():
                 isolated_devs = [
                     d.device_id for d in db.query(DeviceState).filter_by(is_isolated=True).all()
                 ]
-                yield f"event: heartbeat\ndata: {json.dumps({'time': time.time(), 'isolated': isolated_devs})}\n\n"
+                from database import Device as _Device
+
+                pending_count = db.query(_Device).filter_by(status="pending").count()
+                yield f"event: heartbeat\ndata: {json.dumps({'time': time.time(), 'isolated': isolated_devs, 'pending_devices': pending_count})}\n\n"
 
                 try:
                     import serial_gateway
@@ -2503,6 +2830,15 @@ def api_telemetry():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"success": False, "error": "JSON object body required."}), 400
+
+    import protocol
+
+    if protocol.is_v1(payload):
+        success, status_code, message = handle_device_frame(payload)
+        if success:
+            return jsonify({"success": True, "message": message}), status_code
+        return jsonify({"success": False, "error": message}), status_code
+
     device_id = payload.get("device_id")
     if not device_id:
         return jsonify({"success": False, "error": "Missing device_id"}), 400

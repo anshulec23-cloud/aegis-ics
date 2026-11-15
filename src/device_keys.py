@@ -1,19 +1,21 @@
-"""Per-device HMAC key management (replaces the hard-coded keys removed in v2.6).
+"""Per-device HMAC key lookup.
+
+Normal deployments need nothing here: devices enroll themselves and are approved with one
+click (registry.py, ADR 0006), and their keys live in the device registry.
 
 Lookup order for a device's key:
-  1. environment variable ``DEVICE_KEY_<DEVICE_ID>``
-  2. JSON key file ``{"ESP32_001": "<key>", ...}`` at ``AEGIS_DEVICE_KEYS_FILE``,
-     or ``device_keys.json`` in the data directory (next to the SQLite database).
+  1. environment variable ``DEVICE_KEY_<DEVICE_ID>``            (legacy v0 firmware)
+  2. JSON key file at ``AEGIS_DEVICE_KEYS_FILE`` or ``<data dir>/device_keys.json`` (legacy)
+  3. the device registry (zero-touch enrolled, protocol v1)
 
 A device with no key is *unknown*: its frames are rejected and no command can
 be signed for it. There is deliberately no shared fallback key.
 
-Generate keys for a deployment (and the matching firmware header) with::
+The ``generate`` CLI below is only needed for legacy v0 firmware with compiled-in keys::
 
-    python src/device_keys.py generate ESP32_001 ESP32_002 ESP32_003 ESP32_004 \
-        --out device_keys.json --firmware-header firmware/esp32_slave_sensor/aegis_secrets.h
+    python src/device_keys.py generate ESP32_001 --out device_keys.json --firmware-header aegis_secrets.h
 
-Both output files are git-ignored. Keep them out of version control.
+Both output files are git-ignored.
 """
 
 from __future__ import annotations
@@ -76,6 +78,8 @@ def get_device_key(device_id: str) -> Optional[str]:
     if not is_valid_device_id(device_id):
         return None
     key = os.environ.get(f"DEVICE_KEY_{device_id}") or _load_file_keys().get(device_id)
+    if not key:
+        key = _registry_key(device_id)
     if key and len(key) >= MIN_KEY_LENGTH:
         return key
     if key:
@@ -85,20 +89,37 @@ def get_device_key(device_id: str) -> Optional[str]:
     return None
 
 
+def _registry_key(device_id: str) -> Optional[str]:
+    """Key of a device enrolled through the registry (zero-touch enrollment, ADR 0006)."""
+    try:
+        import registry
+
+        return registry.get_key(device_id)
+    except Exception:
+        return None
+
+
 def provisioned_devices() -> set:
+    """Devices with a usable key: legacy env/file provisioning plus registry-approved devices."""
     ids = {k[len("DEVICE_KEY_") :] for k in os.environ if k.startswith("DEVICE_KEY_")}
     ids |= set(_load_file_keys())
+    try:
+        import registry
+
+        ids |= set(registry.approved_device_ids())
+    except Exception:
+        pass
     return {d for d in ids if get_device_key(d)}
 
 
-def warn_about_missing_keys(expected=("ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004")) -> None:
+def warn_about_missing_keys(expected=()) -> None:
+    """Kept for compatibility; devices now enroll themselves, so nothing is required up front."""
     missing = [d for d in expected if not get_device_key(d)]
     if missing:
         print(
-            "[SECURITY] No HMAC key provisioned for: "
+            "[DeviceKeys] No key yet for: "
             + ", ".join(missing)
-            + ". Their telemetry will be rejected. Run `python src/device_keys.py generate ...` "
-            "or set DEVICE_KEY_<ID> (see docs/04-development/configuration.md)."
+            + " (approve them on the dashboard)."
         )
 
 

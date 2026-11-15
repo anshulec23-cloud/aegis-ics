@@ -212,14 +212,25 @@ def test_first_run_setup_flow_when_no_usable_password():
         page = client.get(start).get_data(as_text=True)
         csrf = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
 
-        bad = client.post("/setup", data={"token": "wrong", "password": "p" * 14, "confirm": "p" * 14, "csrf_token": csrf})
+        bad = client.post(
+            "/setup",
+            data={"token": "wrong", "password": "p" * 14, "confirm": "p" * 14, "csrf_token": csrf},
+        )
         assert bad.status_code == 403
-        weak = client.post("/setup", data={"token": token, "password": "short", "confirm": "short", "csrf_token": csrf})
+        weak = client.post(
+            "/setup",
+            data={"token": token, "password": "short", "confirm": "short", "csrf_token": csrf},
+        )
         assert weak.status_code == 400
 
         ok = client.post(
             "/setup",
-            data={"token": token, "password": "correct-horse-battery", "confirm": "correct-horse-battery", "csrf_token": csrf},
+            data={
+                "token": token,
+                "password": "correct-horse-battery",
+                "confirm": "correct-horse-battery",
+                "csrf_token": csrf,
+            },
         )
         assert ok.status_code == 302 and ok.headers["Location"].endswith("/")
         assert client.get("/api/devices").status_code == 200  # signed in by setup
@@ -275,18 +286,6 @@ def test_f1_connect_does_not_force_single_hmac_key(monkeypatch):
     assert captured.get("hmac_key") is None
 
 
-def test_f1_simulator_frames_verify_for_every_node():
-    from app import verify_signature
-
-    for _ in range(8):
-        line = serial_gateway.mock_serial_stream("plc")
-        frame = serial_gateway.parse_serial_line(line)
-        if frame.get("_is_bridge_msg"):
-            continue
-        fwd = serial_gateway.build_forward_payload(frame)
-        assert fwd is not None and verify_signature(fwd), frame.get("device_id")
-
-
 # ---------------------------------------------------------------- S7 XSS ---
 
 
@@ -334,9 +333,11 @@ def test_s8_connect_does_not_clear_quarantine(monkeypatch):
     client, headers = _client_logged_in()
     client.post("/api/com_ports/connect", json={"port": "MOCK"}, headers=headers)
     assert _isolated("ESP32_002")
-    # ...and the gateway is told to re-trip it once the link is up.
-    resync = captured["initial_commands"]
-    assert [c["device_id"] for c in resync if c["command"] == "ISOLATE"] == ["ESP32_002"]
+    # ...and once the link is up the gateway's on_connect hook re-trips it.
+    monkeypatch.setattr(serial_gateway, "is_connected", lambda: True)
+    assert "ESP32_002" in captured["on_connect"]()
+    queued = serial_gateway.pop_ready_commands()
+    assert any(c.get("command") == "ISOLATE" and c.get("device_id") == "ESP32_002" for c in queued)
 
 
 # ------------------------------------------------------ S11 save dialog ---

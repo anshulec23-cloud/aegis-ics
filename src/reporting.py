@@ -25,7 +25,7 @@ from analytics import (
     calculate_financial_analytics,
     calculate_monte_carlo_distribution,
     get_subsystem_financial_breakdown,
-    SUBSYSTEM_PROFILES,
+    get_subsystem_profile,
 )
 from trust_engine import get_device_trust_score, compute_device_trust_score
 
@@ -37,7 +37,7 @@ def generate_incident_report_pdf(db_session, username, location):
 
     Report Structure (10 Mandated Sections):
       1. Executive Incident Summary & Station Identification
-      2. Multi-Node Edge SCADA Parameter Inventory (All ESP Nodes: ESP32_001 - ESP32_004)
+      2. Multi-Node Edge SCADA Parameter Inventory (every known field node)
       3. Physical Safeguard Boundaries & Stuxnet Enforcement Rules
       4. FAIR Quantitative Cyber-Physical Risk Framework
       5. Financial Loss Exposure, Outage Liabilities & Regulatory Penalties
@@ -242,12 +242,9 @@ def generate_incident_report_pdf(db_session, username, location):
         )
     )
 
-    cluster_device_ids = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
-    # Check if any additional device states exist in DB
-    extra_states = db_session.query(DeviceState).all()
-    for es in extra_states:
-        if es.device_id and es.device_id not in cluster_device_ids:
-            cluster_device_ids.append(es.device_id)
+    from analytics import known_device_ids
+
+    cluster_device_ids = known_device_ids(db_session)
     cluster_device_ids.sort()
 
     # Table 2A: Node Network State & Trust Overview
@@ -266,7 +263,7 @@ def generate_incident_report_pdf(db_session, username, location):
         d_state = db_session.query(DeviceState).filter_by(device_id=did).first()
         is_isolated = d_state.is_isolated if d_state else False
         trust_val = get_device_trust_score(did, db_session)
-        profile = SUBSYSTEM_PROFILES.get(did, {})
+        profile = get_subsystem_profile(did)
 
         subsystem_name = profile.get("name", f"Field Node {did}")
         zone_name = profile.get("zone", "Auxiliary Bus")

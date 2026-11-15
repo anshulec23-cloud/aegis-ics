@@ -42,3 +42,8 @@ installer_output/
 device_keys.json
 initial_admin_password.txt
 firmware/**/aegis_secrets.h
+
+# Simulator identities written during tests
+tests/simulator_devices.json
+tests/host_identity.key
+tests/setup_token.txt

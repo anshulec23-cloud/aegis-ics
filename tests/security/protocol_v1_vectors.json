@@ -1,0 +1,15 @@
+{
+  "_comment": "Known-answer vectors for protocol v1. Firmware and host must both reproduce these exactly.",
+  "x25519_hkdf": {
+    "dev_priv": "a8abababababababababababababababababababababababababababababab6b",
+    "host_priv": "c8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd4d",
+    "device_id": "ESP32_0A1B2C",
+    "dev_pub": "e3712d851a0e5d79b831c5e34ab22b41a198171de209b8b8faca23a11c624859",
+    "host_pub": "b5bea823d9c9ff576091c54b7c596c0ae296884f0e150290e88455d7fba6126f",
+    "key": "9621f0033c62d2a91ae900031dbcbca9636d241f518a0adc55d59725824e7c13"
+  },
+  "canonical_tel": {
+    "canonical": "{\"boot\":1,\"faults\":[],\"id\":\"ESP32_0A1B2C\",\"seq\":1,\"temperature\":\"26.10\",\"tripped\":false,\"type\":\"TEL\",\"v\":1}",
+    "sig": "0819048460a637af25d2286c7649ac94e7f9277e042072161616290a8d53ad23"
+  }
+}

@@ -67,12 +67,38 @@ SUBSYSTEM_PROFILES = {
 }
 
 
+def _registry_name(dev_id: str):
+    try:
+        import registry
+
+        info = registry.device_info(dev_id)
+        return info.get("name") if info else None
+    except Exception:
+        return None
+
+
+def known_device_ids(db) -> List[str]:
+    """Devices the plant actually has: state rows, devices with telemetry, enrolled/provisioned keys."""
+    ids = {d.device_id for d in db.query(DeviceState).all() if d.device_id}
+    ids |= {r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]}
+    try:
+        from device_keys import provisioned_devices
+
+        ids |= provisioned_devices()
+    except Exception:
+        pass
+    return sorted(ids)
+
+
 def get_subsystem_profile(dev_id: str) -> Dict[str, Any]:
-    """Returns the financial profile for a device ID, generating a dynamic Tier-2 profile for new nodes."""
+    """Financial profile for a device. The four legacy demo IDs keep their curated profiles;
+    every other (discovered) node gets the default Tier-2 profile, named after its registry name."""
     if dev_id in SUBSYSTEM_PROFILES:
-        return SUBSYSTEM_PROFILES[dev_id]
+        profile = dict(SUBSYSTEM_PROFILES[dev_id])
+        profile["name"] = _registry_name(dev_id) or profile["name"]
+        return profile
     return {
-        "name": f"Industrial Node ({dev_id})",
+        "name": _registry_name(dev_id) or f"Industrial Node ({dev_id})",
         "zone": "Auxiliary RS-485 Segment",
         "equipment_value": 250000.0,
         "cleanup_remediation": 50000.0,
@@ -218,10 +244,11 @@ def calculate_financial_analytics(
         max_epa = target_profile["epa_fines"]
         max_nerc = target_profile["nerc_cip_fines"]
     else:
-        base_sle = sum(p["base_sle"] for p in SUBSYSTEM_PROFILES.values())
-        downtime_rate = sum(p["downtime_rate_per_hour"] for p in SUBSYSTEM_PROFILES.values())
-        max_epa = sum(p["epa_fines"] for p in SUBSYSTEM_PROFILES.values())
-        max_nerc = sum(p["nerc_cip_fines"] for p in SUBSYSTEM_PROFILES.values())
+        plant = [get_subsystem_profile(d) for d in known_device_ids(db)]
+        base_sle = sum(p["base_sle"] for p in plant)
+        downtime_rate = sum(p["downtime_rate_per_hour"] for p in plant)
+        max_epa = sum(p["epa_fines"] for p in plant)
+        max_nerc = sum(p["nerc_cip_fines"] for p in plant)
 
     # Active outage hourly rate for isolated nodes
     if device_id and device_id != "ALL":
@@ -426,8 +453,7 @@ def get_subsystem_financial_breakdown(db) -> List[Dict[str, Any]]:
     """Returns per-subsystem capital valuation, downtime liability, and status."""
     states = {d.device_id: d.is_isolated for d in db.query(DeviceState).all()}
 
-    t_devs = [r[0] for r in db.query(TelemetryLog.device_id).distinct().all() if r[0]]
-    all_dev_ids = sorted(list(set(list(SUBSYSTEM_PROFILES.keys()) + list(states.keys()) + t_devs)))
+    all_dev_ids = known_device_ids(db)
 
     results = []
     for did in all_dev_ids:

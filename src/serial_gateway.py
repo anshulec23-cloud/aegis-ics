@@ -30,6 +30,8 @@ except ImportError:
 import secrets
 import queue
 
+import protocol
+
 try:
     from security import get_device_key
 except ImportError:
@@ -183,8 +185,19 @@ def send_command(payload_dict):
     return cmd
 
 
-def pop_ready_commands(now=None):
-    """Drain the queue, returning unexpired commands with internal fields removed."""
+def send_frame(frame: dict, command_log_id=None):
+    """Enqueue an already-signed protocol-v1 frame (CMD / WELCOME) for the bus."""
+    item = dict(frame)
+    item["_enqueued_at"] = time.time()
+    if command_log_id is not None:
+        item["_log_id"] = command_log_id
+    _command_queue.put(item)
+    return item
+
+
+def _pop_ready_with_meta(now=None):
+    """Drain the queue: ``[(clean_frame, command_log_id_or_None)]``; expired items are dropped
+    (and their command-log rows marked EXPIRED)."""
     now = time.time() if now is None else now
     ready = []
     while True:
@@ -193,13 +206,25 @@ def pop_ready_commands(now=None):
         except queue.Empty:
             break
         age = now - float(cmd.get("_enqueued_at", now))
+        log_id = cmd.get("_log_id")
         if age > COMMAND_TTL_SECONDS:
-            print(
-                f"[Gateway] Dropping expired command ({age:.1f}s old): {cmd.get('command') or cmd.get('action')}"
-            )
+            name = cmd.get("cmd") or cmd.get("type") or cmd.get("command") or cmd.get("action")
+            print(f"[Gateway] Dropping expired command ({age:.1f}s old): {name}")
+            if log_id is not None:
+                try:
+                    import registry
+
+                    registry.mark_command(log_id, "EXPIRED", "not delivered within TTL")
+                except Exception:
+                    pass
             continue
-        ready.append({k: v for k, v in cmd.items() if not k.startswith("_")})
+        ready.append(({k: v for k, v in cmd.items() if not k.startswith("_")}, log_id))
     return ready
+
+
+def pop_ready_commands(now=None):
+    """Drain the queue, returning unexpired commands/frames with internal fields removed."""
+    return [item for item, _ in _pop_ready_with_meta(now)]
 
 
 def purge_command_queue():
@@ -408,272 +433,53 @@ def parse_serial_line(line: str, mode: str = "production"):
     return None
 
 
-_sim_device_index = 0
-_sim_devices = [
-    {
-        "id": "ESP32_001",
-        "name": "Catalytic Reactor 01",
-        "zone": "Reactor Bay North",
-        "grid": "Grid R-01",
-        "lat": 37.774929,
-        "lon": -122.419416,
-        "elev": 18.5,
-        "grid_x": 12.40,
-        "grid_y": -48.10,
-        "grid_z": 3.50,
-        "temp_base": 26.0,
-        "pres_base": 4.2,
-        "vib_base": 1.1,
-        "hall_base": 0.0,
-        "curr_base": 4.5,
-        "sensors": ["temp", "pres", "vib", "curr"],
-    },
-    {
-        "id": "ESP32_002",
-        "name": "Centrifugal Pump 02",
-        "zone": "Pumping Station East",
-        "grid": "Grid P-04",
-        "lat": 37.775180,
-        "lon": -122.418900,
-        "elev": 12.0,
-        "grid_x": 45.80,
-        "grid_y": -14.20,
-        "grid_z": 1.20,
-        "temp_base": 41.0,
-        "pres_base": 5.4,
-        "vib_base": 1.8,
-        "hall_base": 1500.0,
-        "curr_base": 5.2,
-        "sensors": ["vib", "hall", "curr", "temp"],
-    },
-    {
-        "id": "ESP32_003",
-        "name": "Cooling Cryo 03",
-        "zone": "Cryogenics Vault Sub-1",
-        "grid": "Grid C-02",
-        "lat": 37.774410,
-        "lon": -122.419850,
-        "elev": 8.2,
-        "grid_x": -22.10,
-        "grid_y": -65.40,
-        "grid_z": -4.80,
-        "temp_base": 18.5,
-        "pres_base": 2.2,
-        "vib_base": 0.6,
-        "hall_base": 0.0,
-        "curr_base": 2.8,
-        "sensors": ["temp", "pres", "curr"],
-    },
-    {
-        "id": "ESP32_004",
-        "name": "Turbine Generator 04",
-        "zone": "Turbine Hall South",
-        "grid": "Grid T-09",
-        "lat": 37.775550,
-        "lon": -122.420120,
-        "elev": 24.0,
-        "grid_x": -35.60,
-        "grid_y": 28.90,
-        "grid_z": 6.00,
-        "temp_base": 33.0,
-        "pres_base": 3.8,
-        "vib_base": 2.2,
-        "hall_base": 2200.0,
-        "curr_base": 7.1,
-        "sensors": ["temp", "pres", "vib", "hall", "curr"],
-    },
-]
+# --------------------------------------------------------------------------------
+# Simulator compatibility: drills live in simulator.py, re-exported for existing callers.
+# --------------------------------------------------------------------------------
+from simulator import (  # noqa: E402,F401
+    clear_device_attack,
+    get_active_attacks,
+    inject_attack,
+    reset_attacks,
+)
+
+_sim_bus = None  # SimulatedBus of the current simulator run (None for real hardware)
+
+
+def get_simulated_bus():
+    return _sim_bus
 
 
 def get_device_locations():
-    """Returns real GPS and facility plant coordinates reported by edge hardware."""
-    return [
-        {
-            "device_id": dev["id"],
-            "name": dev["name"],
-            "zone": dev["zone"],
-            "grid": dev["grid"],
-            "latitude": dev["lat"],
-            "longitude": dev["lon"],
-            "elevation_m": dev["elev"],
-            "grid_x": dev["grid_x"],
-            "grid_y": dev["grid_y"],
-            "grid_z": dev["grid_z"],
-        }
-        for dev in _sim_devices
-    ]
+    """Plant layout positions for the digital twin.
 
-
-_active_attacks = {}
-_thermal_drift_offsets = {}
-
-
-def inject_attack(device_id: str, attack_type: str):
-    """Dynamically activates an ICS cyber-physical attack vector on a simulated device node."""
-    global _active_attacks, _thermal_drift_offsets
-    if attack_type == "injection":
-        attack_type = "fdi_spike"
-    valid_attacks = {"stuxnet", "hmac_tamper", "thermal_drift", "fdi_spike", "ddos"}
-    if attack_type not in valid_attacks:
-        return {
-            "success": False,
-            "error": f"Invalid attack type '{attack_type}'. Choose from: {list(valid_attacks)}",
-        }
-    _active_attacks[device_id] = attack_type
-    if attack_type == "thermal_drift":
-        _thermal_drift_offsets[device_id] = 0.0
-    print(f"[Attack Suite] INJECTED vector '{attack_type}' onto {device_id}")
-    return {"success": True, "device_id": device_id, "attack": attack_type}
-
-
-def reset_attacks():
-    """Clears all active cyber-physical attack simulations."""
-    global _active_attacks, _thermal_drift_offsets
-    _active_attacks.clear()
-    _thermal_drift_offsets.clear()
-    print("[Attack Suite] Reset all attack vectors to clean baseline.")
-    return {"success": True, "message": "All attack vectors reset to normal"}
-
-
-def clear_device_attack(device_id: str):
-    """Clears active attack on a specific device."""
-    global _active_attacks, _thermal_drift_offsets
-    if device_id in _active_attacks:
-        del _active_attacks[device_id]
-    if device_id in _thermal_drift_offsets:
-        del _thermal_drift_offsets[device_id]
-    return {"success": True, "device_id": device_id}
-
-
-def get_active_attacks():
-    """Returns currently active attack vectors per device."""
-    return dict(_active_attacks)
-
-
-def mock_serial_stream(mode):
-    global _sim_device_index, _active_attacks, _thermal_drift_offsets
-    import random
-
-    time.sleep(0.5)
-    dev = _sim_devices[_sim_device_index % len(_sim_devices)]
-    _sim_device_index += 1
-    dev_id = dev["id"]
-
-    packet = {"device_id": dev_id, "rssi": round(-65.0 + random.uniform(-6, 6), 1)}
-
-    attack = _active_attacks.get(dev_id)
-
-    if attack == "stuxnet":
-        # Stuxnet resonance vector: Severe vibration and Hall RPM overspeed, while reporting spoofed baseline pressure
-        packet["vib"] = round(4.8 + random.uniform(0.1, 1.2), 2)
-        packet["hall"] = 3250.0 + random.choice([0, 150, 300])
-        packet["temp"] = round(dev["temp_base"] + random.uniform(8.0, 15.0), 2)
-        packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
-        packet["curr"] = round(dev["curr_base"] + random.uniform(2.5, 4.0), 2)
-    elif attack == "hmac_tamper":
-        # Cryptographic tamper vector: Valid sensors but deliberately corrupted HMAC signature
-        active_sensors = dev["sensors"]
-        if "temp" in active_sensors:
-            packet["temp"] = dev["temp_base"]
-        if "pres" in active_sensors:
-            packet["pres"] = dev["pres_base"]
-        if "vib" in active_sensors:
-            packet["vib"] = dev["vib_base"]
-        if "hall" in active_sensors and dev["hall_base"] > 0:
-            packet["hall"] = dev["hall_base"]
-        if "curr" in active_sensors:
-            packet["curr"] = dev["curr_base"]
-        packet["_tampered"] = True
-    elif attack == "thermal_drift":
-        # Stealth thermal drift: Creeps temperature upward progressively to test rolling deviation / variance
-        _thermal_drift_offsets[dev_id] = _thermal_drift_offsets.get(dev_id, 0.0) + 0.65
-        drift_val = _thermal_drift_offsets[dev_id]
-        packet["temp"] = round(dev["temp_base"] + drift_val, 2)
-        packet["pres"] = round(dev["pres_base"] + (drift_val * 0.08), 2)
-        packet["vib"] = dev["vib_base"]
-        if dev["hall_base"] > 0:
-            packet["hall"] = dev["hall_base"]
-        packet["curr"] = dev["curr_base"]
-    elif attack == "fdi_spike":
-        # False Data Injection: Extreme critical out-of-boundary spike
-        packet["temp"] = 96.8
-        packet["pres"] = 12.4
-        packet["vib"] = 5.8
-        if dev["hall_base"] > 0:
-            packet["hall"] = 3500.0
-        packet["curr"] = 19.2
-    elif attack == "ddos":
-        # Denial of Service: High bus latency, buffer saturation, signal degradation
-        packet["temp"] = round(dev["temp_base"] + random.uniform(-0.5, 0.5), 2)
-        packet["pres"] = round(dev["pres_base"] + random.uniform(-0.1, 0.1), 2)
-        packet["vib"] = dev["vib_base"]
-        packet["rssi"] = -98.0
-    else:
-        # Normal baseline telemetry
-        active_sensors = dev["sensors"]
-        if "temp" in active_sensors or random.random() < 0.2:
-            packet["temp"] = round(dev["temp_base"] + random.uniform(-1.2, 1.2), 2)
-        if "pres" in active_sensors or random.random() < 0.2:
-            packet["pres"] = round(dev["pres_base"] + random.uniform(-0.25, 0.25), 2)
-        if "vib" in active_sensors or random.random() < 0.2:
-            packet["vib"] = round(dev["vib_base"] + random.uniform(-0.15, 0.15), 2)
-        if "hall" in active_sensors and dev["hall_base"] > 0:
-            packet["hall"] = dev["hall_base"] + random.choice([-100, 0, 100])
-        if "curr" in active_sensors or random.random() < 0.2:
-            packet["curr"] = round(dev["curr_base"] + random.uniform(-0.25, 0.25), 2)
-
-    # Periodically emit Master Concentrator BUS_TOPOLOGY frame every 7 iterations
-    if _sim_device_index % 7 == 0:
-        topo_frame = {
-            "system": "Aegis Master Concentrator",
-            "type": "BUS_TOPOLOGY",
-            "status": "ONLINE",
-            "version": "simulator",
-            "slave_count": len(_sim_devices),
-            "slaves": [d["id"] for d in _sim_devices],
-            "sensors": {
-                d["id"]: ["temperature", "pressure", "vibration", "current"]
-                + (["hall_effect"] if d["hall_base"] > 0 else [])
-                for d in _sim_devices
-            },
-        }
-        return json.dumps(topo_frame) + "\n"
-
-    return json.dumps(_sign_simulated_packet(packet)) + "\n"
-
-
-_SIM_KEY_MAP = {
-    "temp": "temperature",
-    "pres": "pressure",
-    "vib": "vibration",
-    "hall": "hall_effect",
-    "curr": "current",
-}
-_warned_unkeyed_sim_devices = set()
-
-
-def _sign_simulated_packet(packet: dict) -> dict:
-    """Emit a frame exactly as a provisioned device would: long field names + its own HMAC.
-
-    The simulator plays the role of the field devices, so it signs with each device's own
-    key (never one shared key -- debug report F1). The ``hmac_tamper`` drill emits a
-    deliberately corrupted signature.
+    There is no real geolocation data from field devices (the previous fixed GPS coordinates
+    were invented -- debug report F15), so devices get an automatic grid position; operators
+    see them by name/ID. Physical coordinates will be operator-entered in a later phase.
     """
-    tampered = packet.pop("_tampered", False)
-    frame = {_SIM_KEY_MAP.get(k, k): v for k, v in packet.items()}
-    if tampered:
-        frame["signature"] = "BAD_HMAC_SIGNATURE_TAMPERED_" + "0" * 36
-        return frame
-    key = get_device_key(frame["device_id"])
-    if not key:
-        if frame["device_id"] not in _warned_unkeyed_sim_devices:
-            _warned_unkeyed_sim_devices.add(frame["device_id"])
-            print(
-                f"[Simulator] No key provisioned for {frame['device_id']}; its frames will be rejected."
-            )
-        return frame
-    frame["signature"] = sign_message(frame, key)
-    return frame
+    import registry
+
+    ids = sorted(set(registry.approved_device_ids()) | set(get_active_nodes()))
+    cols = max(1, min(4, len(ids)))
+    out = []
+    for i, dev_id in enumerate(ids):
+        info = registry.device_info(dev_id) or {}
+        out.append(
+            {
+                "device_id": dev_id,
+                "name": info.get("name") or dev_id,
+                "zone": "Unassigned",
+                "grid": f"Slot {i + 1}",
+                "latitude": None,
+                "longitude": None,
+                "elevation_m": None,
+                "grid_x": (i % cols) * 25.0,
+                "grid_y": (i // cols) * 25.0,
+                "grid_z": 0.0,
+                "location_source": "auto-layout",
+            }
+        )
+    return out
 
 
 FORWARDED_FIELDS = (
@@ -690,7 +496,7 @@ FORWARDED_FIELDS = (
 def build_forward_payload(
     raw_data: dict, allow_unsigned: bool = False, bench_key=None, default_device_id=None
 ):
-    """Build the JSON body sent to /api/telemetry from a parsed frame.
+    """Build the protocol-v0 ingestion body from a parsed legacy frame.
 
     Returns ``None`` for frames without a device signature: the gateway is not a signing
     authority (debug report S6). ``allow_unsigned`` exists only for bench testing with
@@ -718,6 +524,68 @@ def build_forward_payload(
     return payload
 
 
+# In-process frame handlers registered by app.py (ADR 0003). When the gateway runs as a
+# separate process they are unset and frames are POSTed to /api/telemetry instead.
+_frame_handler_v1 = None
+_frame_handler_v0 = None
+
+
+def set_frame_handler(v1_handler, v0_handler=None):
+    global _frame_handler_v1, _frame_handler_v0
+    _frame_handler_v1 = v1_handler
+    _frame_handler_v0 = v0_handler
+
+
+def _note_node(device_id: str, sensors=None, values=None):
+    with _buffer_lock:
+        node = _active_nodes.setdefault(
+            device_id, {"first_seen": time.time(), "packet_count": 0, "sensors": set()}
+        )
+        node["last_seen"] = time.time()
+        node["packet_count"] = node.get("packet_count", 0) + 1
+        if sensors:
+            node["sensors"].update(sensors)
+        if values is not None:
+            node["latest_values"] = values
+
+
+def _deliver(kind: str, body: dict, url: str, headers: dict):
+    """Hand a frame to ingestion: in-process when available, else HTTP."""
+    handler = _frame_handler_v1 if kind == "v1" else _frame_handler_v0
+    if handler is not None:
+        ok, status, message = handler(body)
+        return status, message
+    resp = requests.post(url, json=body, headers=headers, timeout=3)
+    return resp.status_code, resp.text
+
+
+def _handle_v1_line(frame: dict, line: str, url: str, headers: dict) -> None:
+    device_id = str(frame.get("id"))
+    ftype = frame.get("type")
+    log_raw_wire_packet(line, parsed=True, target_id=device_id)
+    if ftype == "HELLO":
+        _note_node(device_id, sensors=frame.get("sensors") or [])
+    elif ftype == "TEL":
+        values = {k: frame.get(k) for k in FORWARDED_FIELDS[:5] if frame.get(k) is not None}
+        _note_node(device_id, sensors=list(values), values=values)
+    elif ftype in ("POLL", "DISCOVER", "WELCOME", "CMD"):
+        return  # bus echo of host/master traffic
+    status, message = _deliver("v1", frame, url, headers)
+    if status not in (200,):
+        print(f"[Gateway] [{device_id}] {ftype} -> {status}: {message}")
+
+
+def _write_frames(write_line):
+    """Write every unexpired queued frame/command via ``write_line(str)``."""
+    import registry
+
+    for item, log_id in _pop_ready_with_meta():
+        line = protocol.encode(item) if protocol.is_v1(item) else json.dumps(item)
+        write_line(line)
+        if log_id is not None:
+            registry.mark_command(log_id, "SENT")
+
+
 def start_gateway(
     port="COM3",
     baud=115200,
@@ -728,16 +596,18 @@ def start_gateway(
     mock=False,
     allow_unsigned=False,
     gateway_token=None,
-    initial_commands=None,
+    on_connect=None,
+    sim_devices=None,
 ):
     """Run the gateway loop until stop_gateway() is called.
 
-    ``hmac_key`` is only used together with ``allow_unsigned`` (bench testing).
-    ``gateway_token`` is sent as the ``X-Aegis-Gateway-Token`` header; defaults to the
-    ``AEGIS_GATEWAY_TOKEN`` environment variable. ``initial_commands`` are queued right
-    after DISCOVER on every (re)start, e.g. ISOLATE re-sync for quarantined nodes.
+    ``mock=True`` runs the protocol-v1 plant simulator (``AEGIS_SIM_DEVICES`` slaves) instead
+    of a serial port. ``on_connect`` is called once the link is up (the app uses it to re-send
+    ISOLATE to quarantined nodes). ``hmac_key``/``allow_unsigned`` are for bench testing of
+    legacy unsigned sensors only. ``gateway_token`` authenticates HTTP delivery when the
+    gateway runs as a separate process (defaults to ``AEGIS_GATEWAY_TOKEN``).
     """
-    global _active_port, _gateway_state, _gateway_stop_event
+    global _active_port, _gateway_state, _gateway_stop_event, _sim_bus
 
     stop_event = threading.Event()
     _gateway_stop_event = stop_event
@@ -745,17 +615,22 @@ def start_gateway(
     _active_port = (port if port else "SIM_CLUSTER") if mock else port
     token = gateway_token or os.environ.get("AEGIS_GATEWAY_TOKEN", "")
     post_headers = {"Content-Type": "application/json", GATEWAY_TOKEN_HEADER: token}
-
-    default_dev_id = device_id or ("ESP32_001" if mode == "plc" else "ESP32_002")
+    default_dev_id = device_id
 
     print("=" * 60)
-    print(f" Aegis Edge Serial Gateway: Master Gateway Node")
-    print(f" Port         : {port} (@ {baud} baud)")
-    print(f" Mode Profile : {mode.upper()}")
-    print(f" Ingestion URL: {url}")
+    print(" Aegis Edge Serial Gateway")
+    print(f" Port         : {_active_port} (@ {baud} baud){'  [SIMULATOR]' if mock else ''}")
+    print(f" Delivery     : {'in-process' if _frame_handler_v1 else url}")
     print("=" * 60)
 
     ser = None
+    if mock:
+        import simulator
+        from database import DATA_DIR
+
+        _sim_bus = simulator.SimulatedBus(DATA_DIR, sim_devices)
+    else:
+        _sim_bus = None
 
     def _try_connect():
         nonlocal ser
@@ -768,7 +643,7 @@ def start_gateway(
             _gateway_state = "DISCONNECTED"
             return False
         try:
-            ser = serial.Serial(port, baudrate=baud, timeout=1)
+            ser = serial.Serial(port, baudrate=baud, timeout=0.2)
             ser.setDTR(False)
             ser.setRTS(False)
             ser.reset_input_buffer()
@@ -782,23 +657,7 @@ def start_gateway(
             _gateway_state = "RECONNECTING" if not stop_event.is_set() else "DISCONNECTED"
             return False
 
-    if not mock:
-        connected = _try_connect()
-        if not connected:
-            print(
-                f"[Gateway] Initial connection to {port} failed. Gateway will attempt auto-recovery in background."
-            )
-        else:
-            send_command(
-                {
-                    "command": "DISCOVER",
-                    "action": "DISCOVER",
-                    "target_device": "ALL",
-                    "timestamp": time.time(),
-                }
-            )
-    else:
-        _try_connect()  # simulator: marks the run CONNECTED
+    def _after_connect():
         send_command(
             {
                 "command": "DISCOVER",
@@ -807,18 +666,27 @@ def start_gateway(
                 "timestamp": time.time(),
             }
         )
+        if on_connect is not None:
+            try:
+                on_connect()
+            except Exception as err:
+                print(f"[Gateway] on_connect hook failed: {err}")
 
-    for cmd in initial_commands or []:
-        try:
-            send_command(dict(cmd, timestamp=time.time()))
-        except ValueError as err:
-            print(f"[Gateway] Initial command skipped: {err}")
+    if _try_connect():
+        _after_connect()
+    else:
+        print(f"[Gateway] Initial connection to {port} failed. Retrying in background.")
+
+    def _write_line(line: str):
+        if mock:
+            _sim_bus.write(line)
+        elif ser and ser.is_open:
+            ser.write((line + "\n").encode("utf-8"))
+            ser.flush()
 
     while not stop_event.is_set():
         try:
-            # Auto-reconnect if physical serial connection was lost or interrupted
             if not mock and (ser is None or not ser.is_open):
-                print(f"[Gateway] Attempting auto-reconnect to {port}...")
                 _gateway_state = "RECONNECTING"
                 if not _try_connect():
                     for _ in range(10):
@@ -826,59 +694,45 @@ def start_gateway(
                             break
                         time.sleep(0.2)
                     continue
+                _after_connect()
 
-            for cmd in pop_ready_commands():
-                if not mock and ser and ser.is_open:
-                    ser.write((json.dumps(cmd) + "\n").encode("utf-8"))
-                    ser.flush()
-                    print(f"[Gateway] Wrote command to UART: {cmd}")
-                elif mock:
-                    print(f"[Gateway MOCK] Wrote command: {cmd}")
+            _write_frames(_write_line)
 
             if mock:
-                line = mock_serial_stream(mode)
-                if stop_event.is_set():
-                    break
+                line = _sim_bus.readline(stop_event)
             else:
                 line = ser.readline().decode("utf-8", errors="ignore")
-                if not line:
-                    continue
+            if stop_event.is_set():
+                break
+            if not line or not line.strip():
+                continue
 
+            stripped = line.strip()
+            frame = None
+            if stripped.startswith("{"):
+                try:
+                    frame = json.loads(stripped)
+                except ValueError:
+                    frame = None
+            if protocol.is_v1(frame):
+                _handle_v1_line(frame, stripped, url, post_headers)
+                continue
+
+            # ---- protocol v0 (legacy firmware) and bridge status frames ----
             raw_data = parse_serial_line(line, mode)
             if not raw_data:
                 log_raw_wire_packet(line, parsed=False, target_id="UNKNOWN")
                 continue
-
-            # Check if this frame is a Master Concentrator announcement
             if raw_data.get("_is_bridge_msg"):
                 log_raw_wire_packet(line, parsed=True, target_id="MASTER_BRIDGE")
-                print(
-                    f"[Gateway] Master Concentrator Bridge verified: {raw_data.get('bridge_data')}"
-                )
                 continue
 
-            target_device_id = raw_data.get("device_id") or default_dev_id
+            target_device_id = raw_data.get("device_id") or default_dev_id or "UNKNOWN"
             log_raw_wire_packet(line, parsed=True, target_id=target_device_id)
-
-            # Update active nodes & sensor detection registry
-            detected_sensors = []
-            for s_name in ("temperature", "pressure", "vibration", "hall_effect", "current"):
-                if s_name in raw_data and raw_data[s_name] is not None:
-                    detected_sensors.append(s_name)
-
-            with _buffer_lock:
-                if target_device_id not in _active_nodes:
-                    _active_nodes[target_device_id] = {
-                        "first_seen": time.time(),
-                        "packet_count": 0,
-                        "sensors": set(),
-                    }
-                _active_nodes[target_device_id]["last_seen"] = time.time()
-                _active_nodes[target_device_id]["packet_count"] += 1
-                _active_nodes[target_device_id]["sensors"].update(detected_sensors)
-                _active_nodes[target_device_id]["latest_values"] = {
-                    k: raw_data[k] for k in detected_sensors
-                }
+            detected = [s for s in FORWARDED_FIELDS[:5] if raw_data.get(s) is not None]
+            _note_node(
+                target_device_id, sensors=detected, values={k: raw_data[k] for k in detected}
+            )
 
             payload = build_forward_payload(
                 raw_data,
@@ -891,19 +745,9 @@ def start_gateway(
                     f"[Gateway] [{target_device_id}] Dropped unsigned frame (device signature required)."
                 )
                 continue
-
-            resp = requests.post(url, json=payload, headers=post_headers, timeout=3)
-
-            if resp.status_code == 200:
-                print(f"[Gateway] [{target_device_id}] Success -> {raw_data}")
-            elif resp.status_code == 403:
-                print(
-                    f"[Gateway] [{target_device_id}] ACCESS DENIED: Device is isolated by Gateway."
-                )
-            else:
-                print(
-                    f"[Gateway] [{target_device_id}] Error status {resp.status_code}: {resp.text}"
-                )
+            status, message = _deliver("v0", payload, url, post_headers)
+            if status not in (200,):
+                print(f"[Gateway] [{target_device_id}] -> {status}: {message}")
 
         except Exception as e:
             print(f"[Gateway] Telemetry acquisition exception: {e}")
@@ -927,38 +771,29 @@ def start_gateway(
     if _gateway_stop_event is stop_event:
         _active_port = None
         _gateway_state = "DISCONNECTED"
+        _sim_bus = None
     print("[Gateway] Shutdown complete.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Aegis ICS V2 — Edge Serial Gateway Driver")
+    parser = argparse.ArgumentParser(description="Aegis ICS — Edge Serial Gateway Driver")
+    parser.add_argument("--port", type=str, default="COM3", help="Serial port (COM3, /dev/ttyUSB0)")
+    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--mode", type=str, choices=["plc", "non-plc"], default="plc")
     parser.add_argument(
-        "--port", type=str, default="COM3", help="Serial COM port name (e.g. COM3 or /dev/ttyUSB0)"
+        "--device-id", type=str, default=None, help="Device id for legacy CSV sensors"
     )
-    parser.add_argument("--baud", type=int, default=115200, help="Baud rate (115200, 9600, etc.)")
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["plc", "non-plc"],
-        default="plc",
-        help="Machine Profile Profile",
-    )
-    parser.add_argument("--device-id", type=str, default=None, help="Device ID override")
     parser.add_argument(
         "--key", type=str, default=None, help="Bench-test HMAC key (only with --allow-unsigned)"
     )
     parser.add_argument(
         "--allow-unsigned",
         action="store_true",
-        help="BENCH TESTING ONLY: sign frames from sensors that cannot sign themselves",
+        help="BENCH TESTING ONLY: sign frames from legacy sensors that cannot sign themselves",
     )
-    parser.add_argument(
-        "--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis REST Telemetry Ingest URL"
-    )
-    parser.add_argument(
-        "--mock", action="store_true", help="Emulate serial input (no COM port required)"
-    )
-
+    parser.add_argument("--url", type=str, default=DEFAULT_GATEWAY_URL, help="Aegis ingestion URL")
+    parser.add_argument("--mock", action="store_true", help="Run the protocol-v1 plant simulator")
+    parser.add_argument("--sim-devices", type=int, default=None, help="Number of simulated slaves")
     args = parser.parse_args()
     start_gateway(
         port=args.port,
@@ -969,4 +804,5 @@ if __name__ == "__main__":
         url=args.url,
         mock=args.mock,
         allow_unsigned=args.allow_unsigned,
+        sim_devices=args.sim_devices,
     )

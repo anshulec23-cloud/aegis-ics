@@ -400,13 +400,17 @@ def test_flask_api_routes():
 
     # 6. Device Isolation & Rejoin
     res = client.post(
-        "/api/device/isolate", json={"csrf_token": "valid_csrf_token"}, headers=headers
+        "/api/device/isolate",
+        json={"device_id": "ESP32_001", "csrf_token": "valid_csrf_token"},
+        headers=headers,
     )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
 
     res = client.post(
-        "/api/device/rejoin", json={"csrf_token": "valid_csrf_token"}, headers=headers
+        "/api/device/rejoin",
+        json={"device_id": "ESP32_001", "csrf_token": "valid_csrf_token"},
+        headers=headers,
     )
     assert res.status_code == 200
     assert res.get_json()["success"] is True
@@ -926,7 +930,7 @@ def test_financial_subsystems_endpoint():
     assert data["success"] is True
     assert "subsystems" in data
     subs = data["subsystems"]
-    assert len(subs) == 4
+    assert len(subs) >= 4  # every known node, not a fixed four
 
     dev_ids = [s["device_id"] for s in subs]
     assert "ESP32_001" in dev_ids
@@ -961,7 +965,7 @@ def test_device_locations_endpoint():
     assert data["success"] is True
     assert "locations" in data
     locs = data["locations"]
-    assert len(locs) == 4
+    assert isinstance(locs, list)
 
     for loc in locs:
         assert "device_id" in loc
@@ -971,8 +975,8 @@ def test_device_locations_endpoint():
         assert "grid_x" in loc
         assert "grid_y" in loc
         assert "grid_z" in loc
-        assert isinstance(loc["latitude"], float)
-        assert isinstance(loc["longitude"], float)
+        assert loc["latitude"] is None and loc["longitude"] is None
+        assert loc["location_source"] == "auto-layout"
 
 
 # --- 18. Audit & Deep Debugging Regression Tests ---

@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     Boolean,
     ForeignKey,
+    Text,
     DateTime,
     event,
 )
@@ -116,6 +117,8 @@ class TelemetryLog(Base):
     rssi = Column(Float, nullable=True)
     is_anomaly = Column(Boolean, default=False)
     is_simulated = Column(Boolean, default=False)
+    # Comma-separated sensor faults reported by the device (protocol v1), e.g. "temperature".
+    faults = Column(String(120), nullable=True)
 
 
 class DeviceState(Base):
@@ -128,6 +131,58 @@ class DeviceState(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class Device(Base):
+    """Registry of field devices discovered on the bus (ADR 0006).
+
+    status: ``pending`` (announced, awaiting operator approval) -> ``approved`` (key derived,
+    telemetry accepted) -> ``revoked``. Devices provisioned the legacy way (env / key file,
+    protocol v0) do not need a row here.
+    """
+
+    __tablename__ = "devices"
+    id = Column(Integer, primary_key=True)
+    device_id = Column(String(50), unique=True, nullable=False)
+    name = Column(String(80), nullable=True)
+    status = Column(String(16), nullable=False, default="pending")
+    public_key = Column(String(64), nullable=True)
+    fingerprint = Column(String(20), nullable=True)
+    hmac_key = Column(String(64), nullable=True)
+    firmware = Column(String(32), nullable=True)
+    sensors = Column(Text, nullable=True)  # JSON list
+    protocol = Column(Integer, nullable=False, default=1)
+    first_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(DateTime, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    enrollment_confirmed = Column(Boolean, nullable=False, default=False)
+    relay_tripped = Column(Boolean, nullable=True)
+    # Replay protection state (device -> host): current boot id, last sequence, recent boots.
+    last_boot = Column(Integer, nullable=True)
+    last_seq = Column(Integer, nullable=True)
+    seen_boots = Column(Text, nullable=True)  # JSON list of recent boot ids
+    # Host -> device command sequence (monotonic per device; the device rejects <= last seen).
+    host_seq = Column(Integer, nullable=False, default=0)
+
+
+class CommandLog(Base):
+    """Lifecycle of every command sent to a protocol-v1 device."""
+
+    __tablename__ = "command_log"
+    id = Column(Integer, primary_key=True)
+    device_id = Column(String(50), nullable=False)
+    seq = Column(Integer, nullable=False)
+    command = Column(String(16), nullable=False)
+    args = Column(Text, nullable=True)
+    status = Column(
+        String(12), nullable=False, default="QUEUED"
+    )  # QUEUED/SENT/ACKED/REJECTED/EXPIRED/FAILED
+    result = Column(String(120), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    sent_at = Column(DateTime, nullable=True)
+    acked_at = Column(DateTime, nullable=True)
 
 
 class Rule(Base):
@@ -170,6 +225,12 @@ def migrate_sqlite_schema():
             needs_migration = any(
                 row[1] in ("temperature", "pressure", "humidity") and row[3] == 1 for row in cols
             )
+            tel_cols = [
+                row[1] for row in cursor.execute("PRAGMA table_info('telemetry_logs')").fetchall()
+            ]
+            if tel_cols and "faults" not in tel_cols:
+                cursor.execute("ALTER TABLE telemetry_logs ADD COLUMN faults VARCHAR(120)")
+                conn.commit()
             audit_cols = [
                 row[1] for row in cursor.execute("PRAGMA table_info('audit_logs')").fetchall()
             ]
@@ -239,7 +300,9 @@ def _bootstrap_accounts(db) -> list:
             events.append("Replaced legacy default 'admin' password with ADMIN_PASSWORD.")
         else:
             admin.password_hash = locked_password_hash()
-            events.append("Locked 'admin' account that used the legacy default password; setup required.")
+            events.append(
+                "Locked 'admin' account that used the legacy default password; setup required."
+            )
 
     legacy = db.query(User).filter_by(username="noodles").first()
     if legacy and check_password_hash(legacy.password_hash, LEGACY_DEFAULT_PASSWORD):
@@ -278,10 +341,8 @@ def init_db():
             if not db.query(Rule).filter_by(key=key).first():
                 db.add(Rule(key=key, value=val, description=desc))
 
-        cluster_nodes = ["ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"]
-        for node_id in cluster_nodes:
-            if not db.query(DeviceState).filter_by(device_id=node_id).first():
-                db.add(DeviceState(device_id=node_id, is_isolated=False))
+        # No hard-coded node list: devices are discovered on the bus and enrolled through
+        # the registry (ADR 0006); their DeviceState rows are created on approval.
 
         # Only record things that actually happened (the old fabricated "baseline"
         # audit entries were removed in v2.6 -- debug report R2).
