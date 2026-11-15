@@ -204,3 +204,59 @@ def test_control_command_without_csrf_is_rejected():
     c = _client()
     r = c.post("/api/device/isolate", json={"device_id": "ESP32_EVIL"})
     assert r.status_code in (400, 401, 403, 302)
+
+
+# ---------------------------------- operator campaign endpoints (Station 04) ---
+
+
+def _auth_client():
+    from database import User
+
+    c = app.test_client()
+    db = SessionLocal()
+    admin_id = db.query(User).filter_by(username="admin").first().id
+    db.close()
+    with c.session_transaction() as sess:
+        sess.update(user_id=admin_id, username="admin", location="T", csrf_token="t")
+    return c
+
+
+def test_campaign_plan_requires_login():
+    assert app.test_client().get("/api/campaign/plan").status_code == 302
+
+
+def test_campaign_plan_returns_eight_stages():
+    r = _auth_client().get("/api/campaign/plan")
+    assert r.status_code == 200
+    assert len(r.get_json()["campaign"]) == 8
+
+
+def test_campaign_perimeter_stage_self_test_defends():
+    r = _auth_client().post(
+        "/api/campaign/stage", json={"id": "perimeter_flood"}, headers={"X-CSRF-Token": "t"}
+    )
+    assert r.status_code == 200
+    result = r.get_json()["result"]
+    assert result["kind"] == "perimeter" and result["defended"] is True
+
+
+def test_campaign_physical_stage_quarantines_and_prices():
+    dev = "ESP32_CAMP_PHY"
+    _enroll(dev)
+    _clear_isolation(dev)
+    c = _auth_client()
+    r = c.post(
+        "/api/campaign/stage",
+        json={"id": "fdi_spike", "device_id": dev},
+        headers={"X-CSRF-Token": "t"},
+    )
+    assert r.status_code == 200
+    result = r.get_json()["result"]
+    assert result["kind"] == "physical" and result["defended"] and result["quarantined"]
+    assert result["incident"]["prevented_loss"] > 0
+    c.post("/api/campaign/reset", headers={"X-CSRF-Token": "t"})
+
+
+def test_campaign_stage_requires_an_id():
+    r = _auth_client().post("/api/campaign/stage", json={}, headers={"X-CSRF-Token": "t"})
+    assert r.status_code == 400

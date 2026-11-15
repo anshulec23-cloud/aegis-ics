@@ -2630,6 +2630,46 @@ def api_redteam_status():
         db.close()
 
 
+# Operator-facing campaign control (dashboard Station 04). Unlike /api/redteam/* (machine,
+# token-guarded for the USB tool), these are driven by the logged-in operator, so they use the
+# normal login + CSRF protection and are NOT in the /api/redteam/ CSRF exemption.
+@app.route("/api/campaign/plan", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def api_campaign_plan():
+    import redteam
+
+    return jsonify({"success": True, "campaign": redteam.CAMPAIGN})
+
+
+@app.route("/api/campaign/stage", methods=["POST"])
+@login_required
+@require_webview_token
+def api_campaign_stage():
+    import redteam
+
+    body = request.get_json(silent=True) or {}
+    stage_id = str(body.get("id", "")).strip()
+    if not stage_id:
+        return jsonify({"success": False, "error": "Missing stage 'id'."}), 400
+    try:
+        result = redteam.run_stage(stage_id, body.get("device_id"))
+    except Exception as e:
+        print(f"[Campaign Stage Error] {e}")
+        return jsonify({"success": False, "error": "Campaign stage failed to run."}), 500
+    return jsonify({"success": result.get("ok", False), "result": result})
+
+
+@app.route("/api/campaign/reset", methods=["POST"])
+@login_required
+@require_webview_token
+def api_campaign_reset():
+    import redteam
+
+    return jsonify({"success": True, "result": redteam.reset(session.get("user_id"))})
+
+
 @app.route("/api/devices/locations", methods=["GET"])
 @limiter.exempt
 @login_required

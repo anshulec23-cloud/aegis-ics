@@ -203,6 +203,60 @@ def _is_isolated_quick(device_id: str) -> bool:
         db.close()
 
 
+def run_perimeter_selftest(stage_id: str) -> Dict[str, Any]:
+    """Exercise a perimeter stage from inside the app (loopback), the way the USB tool would
+    from outside, and report whether the HTTP surface rejected it."""
+    import app as app_module
+
+    client = app_module.app.test_client()
+    bad = {"device_id": "ESP32_EVIL", "temperature": 999}
+
+    if stage_id == "perimeter_flood":
+        codes = [client.post("/api/telemetry", json=bad).status_code for _ in range(12)]
+        defended = bool(codes) and all(c == 401 for c in codes)
+        detail = f"12 unauthenticated frames rejected {sorted(set(codes))} — gateway token required"
+    elif stage_id == "perimeter_forged":
+        c = client.post(
+            "/api/telemetry", json=bad, headers={app_module.GATEWAY_TOKEN_HEADER: "forged" + "x" * 32}
+        ).status_code
+        defended = c == 401
+        detail = f"forged gateway token rejected (HTTP {c})"
+    elif stage_id == "perimeter_csrf":
+        c = client.post("/api/device/isolate", json={"device_id": "ESP32_EVIL"}).status_code
+        defended = c in (400, 401, 403, 302)
+        detail = f"control command without a session/CSRF token rejected (HTTP {c})"
+    elif stage_id == "perimeter_bruteforce":
+        with client.session_transaction() as sess:
+            sess["csrf_token"] = "drill"
+        codes = []
+        for i in range(6):
+            r = client.post(
+                "/login",
+                data={"username": "admin", "password": f"guess{i}", "csrf_token": "drill"},
+            )
+            codes.append(r.status_code)
+        defended = bool(codes) and all(c in (401, 400, 429) for c in codes)
+        detail = f"6 wrong-password logins rejected {sorted(set(codes))} — no default password exists"
+    else:
+        return {"ok": False, "error": f"Unknown perimeter stage '{stage_id}'."}
+
+    return {"ok": True, "defended": defended, "action": "rejected at the perimeter", "detail": detail}
+
+
+def run_stage(stage_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    """Run one campaign stage (perimeter self-test or physical injection) and tag it with the
+    campaign metadata so the dashboard and the portable tool render identically."""
+    stage = next((s for s in CAMPAIGN if s["id"] == stage_id), None)
+    if stage is None:
+        return {"ok": False, "error": f"Unknown stage '{stage_id}'."}
+    if stage["kind"] == "perimeter":
+        res = run_perimeter_selftest(stage_id)
+    else:
+        res = run_physical_attack(stage_id, device_id)
+    res.update({"id": stage_id, "name": stage["name"], "kind": stage["kind"], "expect": stage["expect"]})
+    return res
+
+
 def reset(user_id: Optional[int] = None) -> Dict[str, Any]:
     """Clear drill state and rejoin every device the campaign quarantined."""
     import app as app_module

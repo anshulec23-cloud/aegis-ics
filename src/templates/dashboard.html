@@ -460,54 +460,98 @@
                 </div>
             </div>
             <p class="text-xs font-mono text-slate-400">
-                Drills run against the software simulator (Station 06 &rarr; SOFTWARE EMULATOR). The attack is injected into a
-                simulated slave and everything after that is real: detection, trust scoring, quarantine and audit entries come from
-                the live pipeline. Drills are refused on real hardware.
+                Launch the staged adversarial campaign &mdash; the same eight attacks the portable USB drill
+                (<span class="font-bold">tools/redteam</span>) fires at this software. Perimeter stages are rejected at the door;
+                physical-process stages drive the live detection pipeline, which micro-segments the affected node while the loss
+                engine prices the incident in real time. Physical stages target the software simulator (Station&nbsp;06); drills
+                are refused on real hardware.
             </p>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-danger">VECTOR 01</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-01</span>
+            <!-- Campaign control + live financial response -->
+            <div class="subway-card p-5 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="subway-badge subway-badge-danger">LIVE CAMPAIGN</span>
+                        <span id="campaign-progress" class="text-xs font-mono text-slate-400">8 stages ready</span>
                     </div>
-                    <h3 class="text-sm font-bold text-white font-mono">Stuxnet Multi-Variable Drift</h3>
-                    <p class="text-xs text-slate-400">
-                        Ramps core temperature while suppressing pressure reports to evade single-variable alarms.
-                    </p>
-                    <button onclick="injectAttackVector('stuxnet')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE STUXNET VECTOR
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="campaign-launch" onclick="launchCampaign()" class="subway-btn subway-btn-danger text-xs">
+                            &#9876; LAUNCH RED-TEAM CAMPAIGN
+                        </button>
+                        <button onclick="resetCampaign()" class="subway-btn subway-btn-primary text-xs">
+                            RESTORE PLANT
+                        </button>
+                    </div>
                 </div>
 
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-warning">VECTOR 02</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-02</span>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">STAGES DEFENDED</div>
+                        <div id="campaign-defended" class="text-xl font-bold text-blue-400 font-mono mt-1">0 / 8</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Perimeter + physical-process</div>
                     </div>
-                    <h3 class="text-sm font-bold text-white font-mono">Cryptographic Replay Attack</h3>
-                    <p class="text-xs text-slate-400">
-                        Re-transmits stale valid telemetry frames to blind supervisor while physical conditions run unchecked.
-                    </p>
-                    <button onclick="injectAttackVector('replay')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE REPLAY VECTOR
-                    </button>
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">DOWNTIME COST INCURRED</div>
+                        <div id="campaign-actual" class="text-xl font-bold text-white font-mono mt-1">$0</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Cost of defending (isolation)</div>
+                    </div>
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">CATASTROPHE PREVENTED</div>
+                        <div id="campaign-prevented" class="text-xl font-bold text-blue-400 font-mono mt-1">$0</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Equipment loss averted</div>
+                    </div>
                 </div>
 
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-danger">VECTOR 03</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-03</span>
-                    </div>
-                    <h3 class="text-sm font-bold text-white font-mono">HMAC-SHA256 Tampering</h3>
-                    <p class="text-xs text-slate-400">
-                        Injects forged wire packets with invalid cryptographic signatures testing edge gateway rejection.
-                    </p>
-                    <button onclick="injectAttackVector('tamper')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE HMAC SPOOF
-                    </button>
-                </div>
+                <div id="campaign-stages" class="space-y-2"></div>
             </div>
+
+            <!-- Granular single-vector injection (kept for manual testing) -->
+            <details class="subway-card p-4">
+                <summary class="text-xs font-bold text-white font-mono cursor-pointer">MANUAL SINGLE-VECTOR INJECTION</summary>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-danger">VECTOR 01</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-01</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">Stuxnet Multi-Variable Drift</h3>
+                        <p class="text-xs text-slate-400">
+                            Ramps core temperature while suppressing pressure reports to evade single-variable alarms.
+                        </p>
+                        <button onclick="injectAttackVector('stuxnet')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE STUXNET VECTOR
+                        </button>
+                    </div>
+
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-warning">VECTOR 02</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-02</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">Cryptographic Replay Attack</h3>
+                        <p class="text-xs text-slate-400">
+                            Re-transmits stale valid telemetry frames to blind supervisor while physical conditions run unchecked.
+                        </p>
+                        <button onclick="injectAttackVector('replay')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE REPLAY VECTOR
+                        </button>
+                    </div>
+
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-danger">VECTOR 03</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-03</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">HMAC-SHA256 Tampering</h3>
+                        <p class="text-xs text-slate-400">
+                            Injects forged wire packets with invalid cryptographic signatures testing edge gateway rejection.
+                        </p>
+                        <button onclick="injectAttackVector('tamper')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE HMAC SPOOF
+                        </button>
+                    </div>
+                </div>
+            </details>
         </div>
 
         <!-- ==================================================================
@@ -1882,6 +1926,133 @@
             .catch(e => console.error(e));
         }
 
+        // ====================================================================
+        // STATION 04: STAGED RED-TEAM CAMPAIGN (mirrors the portable USB drill)
+        // ====================================================================
+        let campaignPlan = [];
+        let campaignRunning = false;
+
+        function campaignRow(stage, i) {
+            const kindBadge = stage.kind === 'perimeter'
+                ? '<span class="subway-badge subway-badge-blue text-[10px]">PERIMETER</span>'
+                : '<span class="subway-badge subway-badge-danger text-[10px]">PHYSICAL</span>';
+            return `<div class="subway-card p-3 flex items-center gap-3">
+                <span class="text-xs font-mono text-slate-500" style="width:1.25rem">${i + 1}</span>
+                ${kindBadge}
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-white font-mono">${stage.name}</div>
+                    <div id="camp-detail-${stage.id}" class="text-[10px] text-slate-400">${stage.expect || ''}</div>
+                </div>
+                <span id="camp-status-${stage.id}" class="subway-badge subway-badge-warning text-[10px]">PENDING</span>
+            </div>`;
+        }
+
+        function loadCampaignPlan() {
+            fetch('/api/campaign/plan')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    campaignPlan = data.campaign;
+                    const host = document.getElementById('campaign-stages');
+                    if (host) host.innerHTML = campaignPlan.map(campaignRow).join('');
+                    const prog = document.getElementById('campaign-progress');
+                    if (prog) prog.innerText = `${campaignPlan.length} stages ready`;
+                })
+                .catch(e => console.error('campaign plan', e));
+        }
+
+        function setStageStatus(id, label, variant) {
+            const el = document.getElementById('camp-status-' + id);
+            if (!el) return;
+            el.className = `subway-badge subway-badge-${variant} text-[10px]`;
+            el.innerText = label;
+        }
+
+        function money(v) { return '$' + Math.round(v || 0).toLocaleString(); }
+
+        async function launchCampaign() {
+            if (campaignRunning) return;
+            campaignRunning = true;
+            const launchBtn = document.getElementById('campaign-launch');
+            if (launchBtn) { launchBtn.disabled = true; launchBtn.innerText = 'CAMPAIGN RUNNING...'; }
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const devId = document.getElementById('drill-device-select')?.value || null;
+
+            let defended = 0, actualTotal = 0, preventedMax = 0;
+            document.getElementById('campaign-defended').innerText = `0 / ${campaignPlan.length}`;
+            document.getElementById('campaign-actual').innerText = '$0';
+            document.getElementById('campaign-prevented').innerText = '$0';
+            campaignPlan.forEach(s => setStageStatus(s.id, 'PENDING', 'warning'));
+
+            for (let i = 0; i < campaignPlan.length; i++) {
+                const stage = campaignPlan[i];
+                setStageStatus(stage.id, 'RUNNING...', 'warning');
+                document.getElementById('campaign-progress').innerText = `stage ${i + 1} / ${campaignPlan.length}: ${stage.name}`;
+                let res = {};
+                try {
+                    const r = await fetch('/api/campaign/stage', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                        body: JSON.stringify({ id: stage.id, device_id: devId })
+                    });
+                    res = (await r.json()).result || {};
+                } catch (e) { res = { ok: false, error: 'request failed' }; }
+
+                const detailEl = document.getElementById('camp-detail-' + stage.id);
+                if (!res.ok) {
+                    setStageStatus(stage.id, 'SKIPPED', 'warning');
+                    if (detailEl) detailEl.innerText = res.error || 'could not run';
+                } else {
+                    if (res.defended) { defended++; setStageStatus(stage.id, 'DEFENDED', 'nominal'); }
+                    else setStageStatus(stage.id, 'BREACH', 'danger');
+                    if (detailEl) {
+                        if (res.kind === 'physical' && res.incident) {
+                            const inc = res.incident;
+                            actualTotal += inc.actual_loss || 0;
+                            preventedMax = Math.max(preventedMax, inc.prevented_loss || 0);
+                            detailEl.innerText = `${res.action} · actual ${money(inc.actual_loss)}, projected-if-unfixed ${money(inc.projected_loss)}, prevented ${money(inc.prevented_loss)}, fix ${inc.time_to_fix_hours}h`;
+                        } else {
+                            detailEl.innerText = res.detail || res.action || 'defended';
+                        }
+                    }
+                }
+                document.getElementById('campaign-defended').innerText = `${defended} / ${campaignPlan.length}`;
+                document.getElementById('campaign-actual').innerText = money(actualTotal);
+                document.getElementById('campaign-prevented').innerText = money(preventedMax);
+                await new Promise(r => setTimeout(r, 350));
+            }
+
+            document.getElementById('campaign-progress').innerText =
+                `complete · ${defended} / ${campaignPlan.length} defended · ${money(preventedMax)} catastrophe prevented`;
+            if (launchBtn) { launchBtn.disabled = false; launchBtn.innerHTML = '&#9876; LAUNCH RED-TEAM CAMPAIGN'; }
+            campaignRunning = false;
+            fetchAuditLogs();
+            refreshRiskView();
+        }
+
+        function resetCampaign() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch('/api/campaign/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
+            })
+            .then(r => r.json())
+            .then(() => {
+                campaignPlan.forEach(s => setStageStatus(s.id, 'PENDING', 'warning'));
+                campaignPlan.forEach(s => {
+                    const d = document.getElementById('camp-detail-' + s.id);
+                    if (d) d.innerText = s.expect || '';
+                });
+                document.getElementById('campaign-defended').innerText = `0 / ${campaignPlan.length}`;
+                document.getElementById('campaign-actual').innerText = '$0';
+                document.getElementById('campaign-prevented').innerText = '$0';
+                document.getElementById('campaign-progress').innerText = `${campaignPlan.length} stages ready`;
+                fetchAuditLogs();
+                refreshRiskView();
+            })
+            .catch(e => console.error(e));
+        }
+
         function refreshRiskView() {
             // 1. Fetch High-Level FAIR Analytics (with bugfix for data.financials)
             fetch('/api/financial/analytics')
@@ -2516,6 +2687,7 @@
             scanComPorts();
             refreshTopology();        // Dynamic node and sensor topology
             refreshRiskView();        // Seed financial analytics and Monte Carlo curve
+            loadCampaignPlan();       // Station 04 staged red-team campaign
 
             // Background polling for active station views
             setInterval(() => {
