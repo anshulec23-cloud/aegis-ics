@@ -2341,7 +2341,7 @@ def download_report():
     try:
         username = session.get("username", "admin")
         location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
-        pdf_data = generate_incident_report_pdf(db, username, location)
+        pdf_data = generate_incident_report_pdf(db, username, location, detections=_current_detections(db))
         filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
         response = send_file(
             BytesIO(pdf_data),
@@ -2374,7 +2374,7 @@ def view_report():
     try:
         username = session.get("username", "admin")
         location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
-        pdf_data = generate_incident_report_pdf(db, username, location)
+        pdf_data = generate_incident_report_pdf(db, username, location, detections=_current_detections(db))
         filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
         response = send_file(
             BytesIO(pdf_data),
@@ -2416,7 +2416,7 @@ def save_report_dialog():
 
         username = session.get("username", "admin")
         location = session.get("location", "X:+12.40, Y:-48.10, Z:+3.50")
-        pdf_data = generate_incident_report_pdf(db, username, location)
+        pdf_data = generate_incident_report_pdf(db, username, location, detections=_current_detections(db))
 
         default_filename = f"aegis_scada_nist800_report_{int(time.time())}.pdf"
 

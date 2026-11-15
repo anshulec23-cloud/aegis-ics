@@ -28,24 +28,59 @@ from analytics import (
     get_subsystem_profile,
 )
 from trust_engine import get_device_trust_score, compute_device_trust_score
+import loss_engine
+import detection
 
 
-def generate_incident_report_pdf(db_session, username, location):
+def _ml_detections(db):
+    """Classify quarantined / recently-anomalous nodes with the trained attack classifier.
+
+    Mirrors app._current_detections but self-contained (reporting.py must not import app).
+    Returns {device_id: {attack_type, confidence, ...}} or None.
+    """
+    try:
+        if not detection.model_available():
+            return None
+        candidates = {s.device_id for s in db.query(DeviceState).filter_by(is_isolated=True).all()}
+        for row in (
+            db.query(TelemetryLog.device_id)
+            .filter(TelemetryLog.is_anomaly == True)  # noqa: E712
+            .order_by(TelemetryLog.timestamp.desc())
+            .limit(50)
+            .all()
+        ):
+            candidates.add(row[0])
+        out = {}
+        for dev in candidates:
+            hit = detection.detect_device(db, dev)
+            if hit:
+                out[dev] = hit
+        return out or None
+    except Exception:
+        return None
+
+
+def generate_incident_report_pdf(db_session, username, location, detections=None):
     """
     Generates an exhaustive, formal, publication-grade incident and compliance audit report
     adhering strictly to NIST SP 800-82 Rev 3 (Guide to OT/ICS Security) and NIST SP 800-53 Rev 5.
 
-    Report Structure (10 Mandated Sections):
+    ``detections`` is an optional ``{device_id: {attack_type, confidence}}`` map from the trained
+    attack classifier (app._current_detections); when omitted it is computed here. It drives
+    Section 6 (ML classification + live loss accounting + mitigation).
+
+    Report Structure (11 Mandated Sections):
       1. Executive Incident Summary & Station Identification
       2. Multi-Node Edge SCADA Parameter Inventory (every known field node)
       3. Physical Safeguard Boundaries & Stuxnet Enforcement Rules
       4. FAIR Quantitative Cyber-Physical Risk Framework
       5. Financial Loss Exposure, Outage Liabilities & Regulatory Penalties
-      6. Monte Carlo 12-Point Probabilistic Loss Exceedance Distribution (P05 to P99)
-      7. Cyber Threat Vectors & Security Incident Breakdown
-      8. Sensor Telemetry Dynamics & Physical Waveform Plot
-      9. Append-Only Chronological Security Audit Trail
-     10. NIST SP 800-53 Rev 5 Mandated Technical Mitigations
+      6. Active Cyber-Physical Incidents — ML Classification, Loss Accounting & Mitigation
+      7. Monte Carlo 12-Point Probabilistic Loss Exceedance Distribution (P05 to P99)
+      8. Cyber Threat Vectors & Security Incident Breakdown
+      9. Sensor Telemetry Dynamics & Physical Waveform Plot
+     10. Append-Only Chronological Security Audit Trail
+     11. NIST SP 800-53 Rev 5 Mandated Technical Mitigations
     """
     buffer = BytesIO()
     # Letter dimensions: 612 x 792 pt. Margins: 36 pt (0.5 in). Usable width: 540 pt.
@@ -811,10 +846,131 @@ def generate_incident_report_pdf(db_session, username, location):
     story.append(Spacer(1, 4))
 
     # =========================================================================
-    # SECTION 6: Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)
+    # SECTION 6: Active Incidents — ML Classification, Loss Accounting & Mitigation
     # =========================================================================
     story.append(
-        Paragraph("6. Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)", h2_style)
+        Paragraph(
+            "6. Active Cyber-Physical Incidents — ML Classification, Loss Accounting &amp; Mitigation",
+            h2_style,
+        )
+    )
+
+    if detections is None:
+        detections = _ml_detections(db_session)
+    incident = loss_engine.assess(db_session, detections=detections)
+    conf_map = {d: (info or {}).get("confidence") for d, info in (detections or {}).items()}
+    clf = detection.status()
+    if clf.get("available"):
+        clf_line = (
+            f"Attack-type classifier online: {clf.get('algorithm', 'RandomForestClassifier')} · "
+            f"{len(clf.get('classes', []))} classes · "
+            f"{(clf.get('accuracy') or 0) * 100:.1f}% offline accuracy."
+        )
+    else:
+        clf_line = "Attack-type classifier unavailable; incidents classified from the deterministic audit trail only."
+    story.append(
+        Paragraph(
+            "Every quarantine is triggered by the deterministic continuous-trust engine and the physical-safety rule kernel; "
+            "the trained offline attack-type classifier then <b>names</b> the attack from the affected node's own telemetry, and "
+            "the live loss engine prices the incident. Recovery time and mitigation below are selected per the identified attack "
+            "class. " + clf_line,
+            body_style,
+        )
+    )
+
+    totals = incident["totals"]
+    if incident["incident_active"]:
+        inc_headers = [
+            Paragraph("Field Node &amp; Zone", table_header),
+            Paragraph("ML-Classified Attack", table_header),
+            Paragraph("Actual Loss", table_header),
+            Paragraph("Projected (Unfixed)", table_header),
+            Paragraph("Catastrophe Prevented", table_header),
+            Paragraph("Fix (h)", table_header),
+            Paragraph("Restabilize", table_header),
+        ]
+        inc_rows = [inc_headers]
+        for inc in incident["incidents"]:
+            conf = conf_map.get(inc["device_id"])
+            src = f"ML {conf * 100:.0f}% conf" if conf else "rule / audit"
+            attack_cell = (
+                f"<b>{html.escape(str(inc['attack_label']))}</b><br/>"
+                f"<font size=6 color='#475569'>{src} · {html.escape(str(inc['mitre']))}</font>"
+            )
+            node_cell = (
+                f"<b>{html.escape(str(inc['device_id']))}</b><br/>"
+                f"<font size=6 color='#475569'>{html.escape(str(inc['zone']))}</font>"
+            )
+            inc_rows.append(
+                [
+                    Paragraph(node_cell, table_text),
+                    Paragraph(attack_cell, table_text),
+                    Paragraph(f"${inc['actual_loss']:,.0f}", table_text),
+                    Paragraph(f"${inc['projected_loss']:,.0f}", table_text),
+                    Paragraph(f"<b>${inc['prevented_loss']:,.0f}</b>", table_text),
+                    Paragraph(f"{inc['time_to_fix_hours']:.1f}", table_text),
+                    Paragraph(f"${inc['restabilization_cost']:,.0f}", table_text),
+                ]
+            )
+        t_inc = Table(inc_rows, colWidths=[96, 120, 66, 74, 80, 36, 68])
+        t_inc.setStyle(
+            TableStyle(
+                [
+                    ('BACKGROUND', (0, 0), (-1, 0), CRIMSON_ACCENT),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT_GREY]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, BORDER_GREY),
+                ]
+            )
+        )
+        story.append(t_inc)
+        story.append(Spacer(1, 3))
+        story.append(
+            Paragraph(
+                f"<b>Current posture totals:</b> actual loss <b>${totals['actual_loss']:,.2f}</b> · "
+                f"projected-if-unfixed <b>${totals['projected_loss']:,.2f}</b> · "
+                f"catastrophe prevented <b>${totals['prevented_loss']:,.2f}</b> · "
+                f"restabilization <b>${totals['restabilization_cost']:,.2f}</b> · "
+                f"regulatory exposure <b>${totals['regulatory_exposure']:,.2f}</b> · "
+                f"net risk reduction <b>{totals['net_risk_reduction_pct']:.1f}%</b> · "
+                f"max time-to-fix <b>{totals['total_time_to_fix_hours']:.1f} h</b>.",
+                body_style,
+            )
+        )
+        story.append(Spacer(1, 3))
+        story.append(
+            Paragraph("<b>Table 6.1: ML-Driven Mitigation &amp; Recovery Plan (per incident)</b>", body_style)
+        )
+        for inc in incident["incidents"]:
+            controls = ", ".join(inc.get("nist_controls", []))
+            story.append(
+                Paragraph(
+                    f"• <b>{html.escape(str(inc['device_id']))} — {html.escape(str(inc['attack_label']))} "
+                    f"({html.escape(str(inc['mitre']))})</b>: {html.escape(str(inc['mitigation']))} "
+                    f"<i>Recommended recovery {inc['time_to_fix_hours']:.1f} h · restabilization "
+                    f"${inc['restabilization_cost']:,.2f} · NIST controls {html.escape(controls)}.</i>",
+                    body_style,
+                )
+            )
+    else:
+        story.append(
+            Paragraph(
+                "No active cyber-physical incidents. All field nodes are operating within their safety envelopes and the trained "
+                "classifier reports no attack signature in current telemetry.",
+                body_style,
+            )
+        )
+    story.append(Spacer(1, 6))
+
+    # =========================================================================
+    # SECTION 7: Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)
+    # =========================================================================
+    story.append(
+        Paragraph("7. Monte Carlo 12-Point Loss Exceedance Distribution (P05 to P99)", h2_style)
     )
     story.append(
         Paragraph(
@@ -894,7 +1050,7 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     # SECTION 7: Cyber Threat Vectors & Security Incident Breakdown
     # =========================================================================
-    story.append(Paragraph("7. Cyber Threat Vectors &amp; Security Incident Breakdown", h2_style))
+    story.append(Paragraph("8. Cyber Threat Vectors &amp; Security Incident Breakdown", h2_style))
     story.append(
         Paragraph(
             "Categorized record of all cyber security attack vectors identified, blocked, or isolated during system operation:",
@@ -1013,7 +1169,7 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     # SECTION 8: Sensor Telemetry Dynamics & Physical Waveform Plot
     # =========================================================================
-    story.append(Paragraph("8. Sensor Telemetry Dynamics &amp; Physical Waveform Plot", h2_style))
+    story.append(Paragraph("9. Sensor Telemetry Dynamics &amp; Physical Waveform Plot", h2_style))
     telemetry = (
         db_session.query(TelemetryLog)
         .filter(TelemetryLog.is_simulated == False)  # noqa: E712
@@ -1121,7 +1277,7 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     # SECTION 9: Append-Only Chronological Security Audit Trail
     # =========================================================================
-    story.append(Paragraph("9. Chronological Security Audit Trail", h2_style))
+    story.append(Paragraph("10. Chronological Security Audit Trail", h2_style))
 
     audit_logs = (
         db_session.query(AuditLog)
@@ -1200,7 +1356,7 @@ def generate_incident_report_pdf(db_session, username, location):
     # =========================================================================
     story.append(
         Paragraph(
-            "10. NIST SP 800-82r3 &amp; NIST SP 800-53r5 Technical Mitigation Protocols", h2_style
+            "11. NIST SP 800-82r3 &amp; NIST SP 800-53r5 Technical Mitigation Protocols", h2_style
         )
     )
     story.append(
