@@ -115,8 +115,8 @@ Signature format: [protocols.md](../01-architecture/protocols.md#canonical-signi
 | GET | `/api/financial/analytics?device_id=` 🅦 | FAIR metrics |
 | GET | `/api/financial/loss_distribution?device_id=` 🅦 | 12-point curve |
 | GET | `/api/financial/subsystems` 🅦 | per-node costs |
-| GET | `/api/report/download` | PDF attachment |
-| GET | `/api/report/view` | PDF inline |
+| GET | `/api/report/download` | NIST SP 800 PDF attachment (11 sections; Section 6 = ML-classified incidents + loss accounting + mitigation, fed by `_current_detections`) |
+| GET | `/api/report/view` | same report, PDF inline |
 | GET/POST | `/api/report/save_dialog[?native=1]` | desktop: native save dialog; web: `{"download_url"}` |
 
 ## Red team (login + CSRF)
