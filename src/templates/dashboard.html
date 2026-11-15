@@ -8,15 +8,25 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Offline Air-Gapped Vendor Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='subway.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='xp.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='components/PixelSwap.css') }}">
     <!-- Offline Chart.js -->
     <script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
     <!-- PixelSwap Engine -->
     <script src="{{ url_for('static', filename='components/pixel_swap.js') }}"></script>
 </head>
-<body class="theme-green select-none min-h-screen flex flex-col bg-[#090a0f] text-[#ffffff]">
+<body class="theme-green xp-has-taskbar select-none min-h-screen flex flex-col">
+
+    <!-- XP window title bar -->
+    <div class="xp-titlebar">
+        <img class="xp-title-ico" src="{{ url_for('static', filename='icon.png') }}" alt="" onerror="this.style.display='none'">
+        <span class="xp-title-text">Aegis ICS &mdash; Industrial Control System Security</span>
+        <span class="xp-caption-btns">
+            <span class="xp-cap" title="Minimize">&#8211;</span>
+            <span class="xp-cap" title="Maximize">&#9633;</span>
+            <a class="xp-cap close" href="/logout" title="Log out">&times;</a>
+        </span>
+    </div>
 
     <!-- ======================================================================
          TOP BAR: INDUSTRIAL TRANSIT ROUTE & OPERATOR CREDENTIALS
@@ -29,11 +39,11 @@
             </div>
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold tracking-wider text-white">AEGIS TRANSIT ROUTE LINE 1</span>
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30">OPERATIONAL</span>
+                    <span class="text-xs font-bold tracking-wide">Aegis ICS Security Console</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/30">OPERATIONAL</span>
                 </div>
-                <div class="text-[11px] text-slate-400 font-mono">
-                    SUPERVISORY PROCESS ENFORCER // DEC VT-220 COMPLIANT
+                <div class="text-[11px] text-slate-400">
+                    Zero-Trust Industrial Control System Gateway
                 </div>
             </div>
         </div>
@@ -2530,6 +2540,82 @@
             });
 
             checkHashRoute();
+        });
+    </script>
+    <!-- XP taskbar -->
+    <div id="xp-taskbar">
+        <div id="xp-start" onclick="toggleStartMenu(event)"><span class="start-orb"></span>start</div>
+        <div class="xp-task-btns" id="xp-task-btns"></div>
+        <div id="xp-tray"><span class="tray-clock" id="xp-tray-clock">--:--</span></div>
+    </div>
+    <div id="xp-startmenu">
+        <div class="sm-header">Aegis ICS &nbsp;&middot;&nbsp; {{ username or 'operator' }}</div>
+        <div id="xp-startmenu-items"></div>
+        <div class="sm-sep"></div>
+        <div class="sm-item" onclick="location.href='/api/report/download'">&#128196;&nbsp; Generate NIST 800 report</div>
+        <div class="sm-footer"><a href="/logout" class="subway-btn subway-btn-danger text-xs">Log off</a></div>
+    </div>
+
+    <script>
+        // ---- Windows XP taskbar + start menu ----
+        const XP_STATIONS = [
+            { i: 0, label: 'Process Monitor', icon: '📊' },
+            { i: 1, label: 'Plant Twin', icon: '🏭' },
+            { i: 2, label: 'Safety Enforcer', icon: '🛡' },
+            { i: 3, label: 'Red Team Drills', icon: '⚔' },
+            { i: 4, label: 'Risk Analytics', icon: '💰' },
+            { i: 5, label: 'Hardware Gateway', icon: '🔌' },
+            { i: 6, label: 'Forensic Audit', icon: '📋' },
+        ];
+        function buildTaskbar() {
+            const bar = document.getElementById('xp-task-btns');
+            const menu = document.getElementById('xp-startmenu-items');
+            if (!bar) return;
+            XP_STATIONS.forEach(st => {
+                const b = document.createElement('button');
+                b.className = 'xp-task-btn'; b.dataset.index = st.i;
+                b.innerHTML = `<span>${st.icon}</span><span>${st.label}</span>`;
+                b.addEventListener('click', () => switchStation(st.i));
+                bar.appendChild(b);
+                const m = document.createElement('div');
+                m.className = 'sm-item';
+                m.innerHTML = `<span style="font-size:16px">${st.icon}</span> ${st.label}`;
+                m.addEventListener('click', () => { switchStation(st.i); closeStartMenu(); });
+                menu.appendChild(m);
+            });
+        }
+        function setActiveTask(index) {
+            document.querySelectorAll('#xp-task-btns .xp-task-btn').forEach(b => {
+                b.classList.toggle('active', Number(b.dataset.index) === Number(index));
+            });
+        }
+        function toggleStartMenu(e) { if (e) e.stopPropagation(); document.getElementById('xp-startmenu').classList.toggle('open'); }
+        function closeStartMenu() { document.getElementById('xp-startmenu').classList.remove('open'); }
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('xp-startmenu');
+            if (menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'xp-start' && !document.getElementById('xp-start').contains(e.target)) {
+                closeStartMenu();
+            }
+        });
+        function tickTrayClock() {
+            const el = document.getElementById('xp-tray-clock');
+            if (el) {
+                const now = new Date();
+                let h = now.getHours(); const m = String(now.getMinutes()).padStart(2, '0');
+                const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+                el.textContent = `${h}:${m} ${ap}`;
+            }
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            buildTaskbar();
+            setActiveTask(0);
+            tickTrayClock();
+            setInterval(tickTrayClock, 10000);
+            // Keep the taskbar in sync with whatever triggers a station change.
+            if (typeof window.switchStation === 'function') {
+                const _origSwitch = window.switchStation;
+                window.switchStation = function (i) { _origSwitch(i); setActiveTask(i); closeStartMenu(); };
+            }
         });
     </script>
 </body>

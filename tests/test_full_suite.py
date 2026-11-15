@@ -1670,45 +1670,22 @@ def test_sse_stream_endpoint():
 
 
 def test_terminal_css_and_1980s_assets():
-    """Verify 1980s DEC VT-220 / IBM 3270 CRT styling assets and templates exist."""
-    import os
-
+    """The UI is the Windows XP (Luna) theme: xp.css exists and is linked by the templates."""
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    terminal_css = os.path.join(base_dir, "src", "static", "terminal.css")
-    login_html = os.path.join(base_dir, "src", "templates", "login.html")
-    dash_html = os.path.join(base_dir, "src", "templates", "dashboard.html")
-
-    assert os.path.isfile(terminal_css), f"Missing 1980s terminal CSS: {terminal_css}"
-    with open(terminal_css, "r", encoding="utf-8") as f:
-        css_content = f.read()
-
-    # Verify key CRT phosphor tokens and visual FX
-    assert "--crt-bg" in css_content
-    assert "--crt-text" in css_content
-    assert "theme-amber" in css_content
-    assert "theme-green" in css_content
-    assert "theme-mono" in css_content
-    assert "crt-active" in css_content
-    assert "phosphor-glow" in css_content
-    assert "oscilloscope-grid" in css_content
-    assert "tape-counter" in css_content
-    assert "mechanical-switch" in css_content
-
-    # Verify templates link terminal.css
-    with open(login_html, "r", encoding="utf-8") as f:
-        login_content = f.read()
-    assert "terminal.css" in login_content
-    assert "DEC VT-220" in login_content or "MAINFRAME" in login_content
-    assert "UID:" in login_content
-    assert "KEY:" in login_content
-
-    with open(dash_html, "r", encoding="utf-8") as f:
-        dash_content = f.read()
-    assert "terminal.css" in dash_content
-    assert "time-scrubber-slider" in dash_content or "onTimeScrub" in dash_content
-    assert "forensicHistoryBuffer" in dash_content
-    assert "setCRTTheme" in dash_content
-    assert "toggleScanlines" in dash_content
+    xp_css = os.path.join(base_dir, "src", "static", "xp.css")
+    assert os.path.isfile(xp_css), f"Missing XP theme CSS: {xp_css}"
+    css_content = open(xp_css, encoding="utf-8").read()
+    for token in ("xp-titlebar", "xp-taskbar", "xp-start", "Luna", "subway-btn"):
+        assert token in css_content, token
+    login_content = open(
+        os.path.join(base_dir, "src", "templates", "login.html"), encoding="utf-8"
+    ).read()
+    dash_content = open(
+        os.path.join(base_dir, "src", "templates", "dashboard.html"), encoding="utf-8"
+    ).read()
+    assert "xp.css" in login_content
+    assert "xp.css" in dash_content
+    assert "xp-taskbar" in dash_content
 
 
 def test_forensic_time_scrubber_slicing():
@@ -1772,7 +1749,7 @@ def test_terminal_dashboard_routes_and_html_render():
     # 1. Login route
     res_login = client.get("/login")
     assert res_login.status_code == 200
-    assert b"terminal.css" in res_login.data
+    assert b"xp.css" in res_login.data
     assert b"theme-green" in res_login.data
     assert b"CLASSIFIED INDUSTRIAL FACILITY" in res_login.data or b"VT-220" in res_login.data
     assert b"CRT PALETTE:" not in res_login.data
@@ -1785,7 +1762,7 @@ def test_terminal_dashboard_routes_and_html_render():
 
     res_dash = client.get("/")
     assert res_dash.status_code == 200
-    assert b"terminal.css" in res_dash.data
+    assert b"xp.css" in res_dash.data
     assert b"theme-green" in res_dash.data
     assert b"DEC VT-220" in res_dash.data or b"OPERATING STATION" in res_dash.data
     assert b"REEL-TO-REEL" in res_dash.data or b"FORENSIC TIME SCRUBBER" in res_dash.data
