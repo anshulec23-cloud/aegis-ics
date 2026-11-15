@@ -2463,13 +2463,49 @@ def get_financial_analytics():
     target_dev = device_id if (device_id and device_id != "ALL" and device_id != "all") else None
     db = SessionLocal()
     try:
+        import loss_engine
+
         data = calculate_financial_analytics(db, device_id=target_dev)
+        # Live incident loss picture (actual / projected / time-to-fix / restabilization / where).
+        data["incident"] = loss_engine.assess(db, detections=_current_detections(db))
         return jsonify({"success": True, "financials": data})
     except Exception as e:
         print(f"[Financial Analytics Error] {e}")
         return jsonify({"success": False, "error": "Failed to calculate financial analytics."}), 500
     finally:
         db.close()
+
+
+@app.route("/api/financial/incident", methods=["GET"])
+@limiter.exempt
+@login_required
+@require_webview_token
+def get_incident_losses():
+    """Live incident loss accounting on its own (drives the financial tab's incident panel)."""
+    db = SessionLocal()
+    try:
+        import loss_engine
+
+        return jsonify(
+            {
+                "success": True,
+                "incident": loss_engine.assess(db, detections=_current_detections(db)),
+            }
+        )
+    except Exception as e:
+        print(f"[Incident Loss Error] {e}")
+        return jsonify({"success": False, "error": "Failed to compute incident losses."}), 500
+    finally:
+        db.close()
+
+
+def _current_detections(db):
+    """Assemble the current attack detections for the loss engine.
+
+    Today this is the deterministic view (active drills + quarantine reasons, built inside
+    loss_engine). The trained ML classifier (detection.py) will feed richer entries here.
+    """
+    return None
 
 
 @app.route("/api/financial/loss_distribution", methods=["GET"])
