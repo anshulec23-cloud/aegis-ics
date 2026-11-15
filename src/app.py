@@ -2309,6 +2309,12 @@ def api_model_status():
                     metrics = json.load(mf)
             except Exception:
                 pass
+        try:
+            import detection
+
+            classifier = detection.status()
+        except Exception:
+            classifier = {"available": False}
         return jsonify(
             {
                 "success": True,
@@ -2316,6 +2322,7 @@ def api_model_status():
                 "trees_count": len(rf_model.fast_trees) if rf_model.fast_trees else 0,
                 "enforcement_status": "ACTIVE_ZERO_TRUST",
                 "metrics": metrics,
+                "attack_classifier": classifier,
             }
         )
     except Exception as e:
@@ -2505,10 +2512,38 @@ def get_incident_losses():
 def _current_detections(db):
     """Assemble the current attack detections for the loss engine.
 
-    Today this is the deterministic view (active drills + quarantine reasons, built inside
-    loss_engine). The trained ML classifier (detection.py) will feed richer entries here.
+    The trained offline classifier (detection.py) names the physical-process attack behind each
+    quarantined / anomalous node from its telemetry. Where it is confident, its label (and
+    confidence) feed the loss engine so the incident is priced by the real attack type; where it
+    abstains (protocol attacks leave no malicious telemetry), the loss engine falls back to the
+    deterministic/audit view. Best-effort: never let detection break the financial read.
     """
-    return None
+    try:
+        import detection
+        from database import DeviceState, TelemetryLog
+
+        if not detection.model_available():
+            return None
+
+        candidates = {s.device_id for s in db.query(DeviceState).filter_by(is_isolated=True).all()}
+        recent_anom = (
+            db.query(TelemetryLog.device_id)
+            .filter(TelemetryLog.is_anomaly == True)  # noqa: E712
+            .order_by(TelemetryLog.timestamp.desc())
+            .limit(50)
+            .all()
+        )
+        candidates.update(row[0] for row in recent_anom)
+
+        detections = {}
+        for device_id in candidates:
+            hit = detection.detect_device(db, device_id)
+            if hit:
+                detections[device_id] = hit
+        return detections or None
+    except Exception as e:  # pragma: no cover - defensive
+        print(f"[Detection] _current_detections failed, using deterministic view: {e}")
+        return None
 
 
 @app.route("/api/financial/loss_distribution", methods=["GET"])

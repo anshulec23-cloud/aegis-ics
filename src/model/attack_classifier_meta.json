@@ -1,0 +1,67 @@
+{
+  "algorithm": "RandomForestClassifier",
+  "classes": [
+    "normal",
+    "fdi_spike",
+    "stuxnet",
+    "thermal_drift",
+    "sensor_fault"
+  ],
+  "features": [
+    "temperature",
+    "pressure",
+    "vibration",
+    "hall_effect",
+    "current"
+  ],
+  "accuracy": 0.963,
+  "f1_macro": 0.9636,
+  "confusion_matrix": [
+    [
+      788,
+      2,
+      6,
+      0,
+      4
+    ],
+    [
+      1,
+      791,
+      3,
+      2,
+      4
+    ],
+    [
+      4,
+      2,
+      813,
+      15,
+      17
+    ],
+    [
+      1,
+      3,
+      24,
+      807,
+      19
+    ],
+    [
+      4,
+      4,
+      20,
+      19,
+      807
+    ]
+  ],
+  "feature_importances": {
+    "temperature": 0.2493,
+    "pressure": 0.2591,
+    "vibration": 0.2253,
+    "hall_effect": 0.1591,
+    "current": 0.1072
+  },
+  "n_train": 16640,
+  "n_test": 4160,
+  "n_estimators": 120,
+  "trained_at": "2026-11-15T16:11:26Z"
+}
