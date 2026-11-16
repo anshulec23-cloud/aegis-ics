@@ -32,7 +32,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
 ## 2. Linux Deliverables & Packaging Architecture
 
 ### 2.1 Standalone ELF Binary (`dist/linux/AegisICS`)
-* **Specification**: [`build_scripts/AegisICS_linux.spec`](../build_scripts/AegisICS_linux.spec)
+* **Specification**: [`build_scripts/AegisICS_linux.spec`](../../build_scripts/AegisICS_linux.spec)
 * **Entrypoint**: `src/main.py`
 * **Static Assets Bundled**:
   * `src/templates/` -> `templates` (SCADA dashboard, login terminal)
@@ -42,7 +42,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
 * **Dynamic Linking**: Statically links required Python bytecode and shared C-extensions; dynamically links system `libc.so.6` (compatible with `libc6 >= 2.31`).
 
 ### 2.2 Debian Package (`dist/linux/aegis-ics_2.5.2_amd64.deb`)
-* **Builder**: [`build_scripts/package_deb.py`](../build_scripts/package_deb.py)
+* **Builder**: [`build_scripts/package_deb.py`](../../build_scripts/package_deb.py)
 * **Assembler**: Uses `dpkg-deb --build --root-owner-group` with automatic pure-Python `ar` archive fallback.
 * **Target Layout**:
   * `/opt/aegis-ics/AegisICS`: Executable binary
@@ -55,7 +55,7 @@ Aegis ICS produces self-contained, standalone release deliverables that embed th
   * `/var/lib/aegis-ics/`: Persistent database and WAL directory
 
 ### 2.3 Portable Tarball (`dist/linux/aegis-ics-2.5.2-linux-x86_64.tar.gz`)
-* **Builder**: [`build_scripts/package_tarball.py`](../build_scripts/package_tarball.py)
+* **Builder**: [`build_scripts/package_tarball.py`](../../build_scripts/package_tarball.py)
 * **Contents**:
   * `AegisICS`: Executable binary
   * `run.sh`: Zero-configuration portable launcher setting `AEGIS_DATA_DIR` to current directory
@@ -107,3 +107,11 @@ Every compiled binary must be validated through the two-phase verification check
 ./dist/linux/AegisICS --check
 # Expected Output: Aegis ICS v2.5.2 [SELF-TEST OK]
 ```
+
+---
+
+## v2.6 packaging notes
+
+- **No database is bundled.** Each installation creates its own database, host identity and session key in its data directory on first run (see [configuration](../04-development/configuration.md#data-directory)). The old specs bundled whatever `aegis_v2.db` was in the developer's checkout, including accounts and telemetry.
+- New modules (`version`, `bootstrap`, `enrollment`, `protocol`, `registry`, `simulator`, `device_keys`) and `cryptography`'s X25519 are listed in the specs' `hiddenimports`.
+- **Verified 2026-11-15** (Windows 11, Python 3.11, PyInstaller 6): `python -m PyInstaller build_scripts/AegisICS.spec` produced a 97 MB `AegisICS.exe`. `--version` and `--check` passed. A headless run on an empty data directory went through first-run setup, simulator discovery, approval of 3 devices, live telemetry, an ACKed setpoint, a measured ping and a PDF report, with no errors. The desktop window (PyWebView) was not exercised in that run.

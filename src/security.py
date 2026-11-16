@@ -6,47 +6,29 @@ ephemeral port allocation, path resolution for PyInstaller builds, cryptographic
 secret generation, and basic anti-debug detection.
 """
 
-import ctypes 
-import functools 
-import os 
-import secrets 
-import socket 
-import sys 
-from typing import Callable ,Any 
+import ctypes
+import functools
+import os
+import secrets
+import socket
+import sys
+from typing import Callable, Any
 
-from flask import jsonify ,request 
-
-
+from flask import jsonify, request
 
 
+from version import __version__ as APP_VERSION  # noqa: F401 -- single source: src/version.py
 
-APP_VERSION :str ="2.5.2"
-"""Current application version string."""
-
-GITHUB_REPO :str ="anshulec23-cloud/aegis-ics"
+GITHUB_REPO: str = "anshulec23-cloud/aegis-ics"
 """GitHub repository identifier used for update checks."""
 
 
-DEFAULT_DEVICE_KEYS = {
-    "ESP32_001": "aegis_shared_esp32_001_secret_key_v2",
-    "ESP32_002": "aegis_shared_esp32_002_secret_key_v2",
-    "ESP32_003": "aegis_shared_esp32_003_secret_key_v2",
-    "ESP32_004": "aegis_shared_esp32_004_secret_key_v2",
-}
-
-def get_device_key(device_id: str = "ESP32_001") -> str:
-    """Return a consistent device HMAC pre-shared key across processes."""
-    env_key = os.environ.get(f"DEVICE_KEY_{device_id}")
-    if env_key:
-        return env_key
-    return DEFAULT_DEVICE_KEYS.get(device_id, "aegis_shared_default_secret_key_v2")
+# Device keys are provisioned per deployment (env or key file); see src/device_keys.py.
+# There are intentionally no built-in or fallback keys.
+from device_keys import get_device_key, is_valid_device_id  # noqa: E402,F401
 
 
-
-
-
-
-def find_free_port ()->int :
+def find_free_port() -> int:
     """Find a random available ephemeral port on localhost.
 
     Binds a TCP socket to ``127.0.0.1:0`` and lets the operating system
@@ -55,18 +37,14 @@ def find_free_port ()->int :
     Returns:
         int: An available port number assigned by the OS.
     """
-    with socket .socket (socket .AF_INET ,socket .SOCK_STREAM )as s :
-        s .bind (("127.0.0.1",0 ))
-        s .setsockopt (socket .SOL_SOCKET ,socket .SO_REUSEADDR ,1 )
-        _ ,port =s .getsockname ()
-        return port 
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _, port = s.getsockname()
+        return port
 
 
-
-
-
-
-def resource_path (relative_path :str )->str :
+def resource_path(relative_path: str) -> str:
     """Resolve a file path for both development and frozen PyInstaller builds.
 
     When the application is bundled with PyInstaller, files are extracted to a
@@ -80,15 +58,11 @@ def resource_path (relative_path :str )->str :
         str: The absolute path to the requested resource.
     """
 
-    base_path :str =getattr (sys ,"_MEIPASS",os .path .dirname (os .path .abspath (__file__ )))
-    return os .path .join (base_path ,relative_path )
+    base_path: str = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 
-
-
-
-
-def require_webview_token (f :Callable [...,Any ])->Callable [...,Any ]:
+def require_webview_token(f: Callable[..., Any]) -> Callable[..., Any]:
     """Flask route decorator that validates the ``X-PYWEBVIEW-TOKEN`` header.
 
     The decorator enforces that every decorated request carries a valid
@@ -108,40 +82,33 @@ def require_webview_token (f :Callable [...,Any ])->Callable [...,Any ]:
         The decorated function with token validation applied.
     """
 
-    @functools .wraps (f )
-    def decorated_function (*args :Any ,**kwargs :Any )->Any :
-        from flask import current_app
-        if current_app and current_app.config.get("TESTING"):
+    @functools.wraps(f)
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
+        # Note: no TESTING bypass -- tests must exercise the same checks as production.
+        if not os.environ.get("AEGIS_DESKTOP_MODE"):
             return f(*args, **kwargs)
 
-        if not os .environ .get ("AEGIS_DESKTOP_MODE"):
-            return f (*args ,**kwargs )
+        from flask import session
 
-        from flask import session 
-        if session .get ("user_id"):
-            return f (*args ,**kwargs )
+        if session.get("user_id"):
+            return f(*args, **kwargs)
 
-        try :
-            import webview 
-        except ImportError :
+        try:
+            import webview
+        except ImportError:
+            return jsonify({"error": "Forbidden – webview module unavailable"}), 403
 
-            return jsonify ({"error":"Forbidden – webview module unavailable"}),403 
-
-        token :str |None =request .headers .get ("X-PYWEBVIEW-TOKEN")
+        token: str | None = request.headers.get("X-PYWEBVIEW-TOKEN")
 
         if not token or not secrets.compare_digest(str(token), str(getattr(webview, "token", ""))):
-            return jsonify ({"error":"Forbidden – invalid or missing token"}),403 
+            return jsonify({"error": "Forbidden – invalid or missing token"}), 403
 
-        return f (*args ,**kwargs )
+        return f(*args, **kwargs)
 
-    return decorated_function 
-
-
+    return decorated_function
 
 
-
-
-def generate_runtime_secret ()->str :
+def generate_runtime_secret() -> str:
     """Generate a cryptographically secure runtime secret.
 
     Uses :func:`secrets.token_hex` to produce a 64-character hexadecimal
@@ -151,14 +118,10 @@ def generate_runtime_secret ()->str :
     Returns:
         str: A 64-character hex string.
     """
-    return secrets .token_hex (32 )
+    return secrets.token_hex(32)
 
 
-
-
-
-
-def check_debugger ()->bool :
+def check_debugger() -> bool:
     """Perform basic anti-debug detection on Windows and Linux.
 
     On Windows: Calls ``kernel32.IsDebuggerPresent()`` via :mod:`ctypes`.
@@ -168,10 +131,10 @@ def check_debugger ()->bool :
         bool: ``True`` if a debugger is detected, ``False`` otherwise.
     """
     if sys.platform == "win32":
-        try :
-            return bool (ctypes .windll .kernel32 .IsDebuggerPresent ())
-        except (AttributeError ,OSError ):
-            return False 
+        try:
+            return bool(ctypes.windll.kernel32.IsDebuggerPresent())
+        except (AttributeError, OSError):
+            return False
     elif sys.platform.startswith("linux"):
         try:
             status_path = "/proc/self/status"
@@ -183,4 +146,4 @@ def check_debugger ()->bool :
                             return tracer_pid > 0
         except Exception:
             return False
-    return False 
+    return False

@@ -1,9 +1,34 @@
 #!/bin/sh
 set -e
 
-# Setup data directory
-mkdir -p /var/lib/aegis-ics
-chmod 755 /var/lib/aegis-ics
+# Dedicated unprivileged service account (never run the gateway as root).
+if ! getent group aegis >/dev/null 2>&1; then
+    addgroup --system aegis >/dev/null
+fi
+if ! getent passwd aegis >/dev/null 2>&1; then
+    adduser --system --ingroup aegis --home /var/lib/aegis-ics --no-create-home \
+        --shell /usr/sbin/nologin aegis >/dev/null
+fi
+adduser aegis dialout >/dev/null 2>&1 || true
+
+# Data and log directories owned by the service account, not world-readable
+# (they hold the database, device keys and the generated admin password).
+mkdir -p /var/lib/aegis-ics /var/log/aegis-ics
+chown aegis:aegis /var/lib/aegis-ics /var/log/aegis-ics
+chmod 750 /var/lib/aegis-ics /var/log/aegis-ics
+
+# Site configuration file for secrets (readable by root and the service group only).
+if [ ! -f /etc/default/aegis-ics ]; then
+    cat > /etc/default/aegis-ics <<'EOF'
+# Aegis ICS site configuration (sourced by the systemd unit and the SysV init script).
+# ADMIN_PASSWORD=<at least 12 characters>   # otherwise a random one is generated on first start
+# FLASK_SECRET_KEY=<64 hex chars>
+# FLASK_SESSION_SECURE=true                 # when served through an HTTPS reverse proxy
+# AEGIS_DEVICE_KEYS_FILE=/var/lib/aegis-ics/device_keys.json
+EOF
+    chown root:aegis /etc/default/aegis-ics
+    chmod 640 /etc/default/aegis-ics
+fi
 
 # Setup symlink in /usr/local/bin
 if [ -x /opt/aegis-ics/AegisICS ]; then
@@ -27,12 +52,17 @@ fi
 
 # Output guidance on hardware serial port access (dialout group)
 echo "=================================================================="
-echo " Aegis ICS v2.5.2 successfully installed!"
+echo " Aegis ICS successfully installed!"
 echo " "
 echo " Desktop GUI Mode : Run 'aegis-ics' or launch from Application Menu"
 echo " Headless Server  : Run 'aegis-ics --server --port 5000'"
 echo " Service (SysV)   : sudo service aegis-ics start (MX Linux default)"
 echo " Service (systemd): sudo systemctl start aegis-ics"
+echo " "
+echo " Service listens on 127.0.0.1:5000 as user 'aegis'."
+echo " First start: the admin password is printed to the service log and saved to"
+echo "   /var/lib/aegis-ics/initial_admin_password.txt (or set ADMIN_PASSWORD in"
+echo "   /etc/default/aegis-ics). Provision device keys before connecting hardware."
 echo " "
 echo " [NOTE] To allow access to USB/Serial COM devices (ESP32/PLC):"
 echo "        Ensure your user is in the 'dialout' group:"

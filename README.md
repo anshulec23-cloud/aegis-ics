@@ -9,6 +9,8 @@
 
 > Official Software Application Release (v2.5.2 - Final Production Release): Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application engineered for Industrial Control Systems (ICS) and Operational Technology (OT) environments. Concludes the v2.x architecture cycle, subject to future LTS maintenance or security updates as needed.
 
+> **Documentation:** the complete, code-accurate docs live in [`docs/`](docs/README.md). Start with [Architecture](docs/01-architecture/ARCHITECTURE.md), the [Debug Report](docs/07-reports/DEBUG_REPORT.md) and the [Restructure Plan](docs/08-roadmap/RESTRUCTURE_PLAN.md). Where this README and `docs/` disagree, `docs/` reflects the actual code.
+
 ---
 
 ## Table of Contents
@@ -472,14 +474,18 @@ aegis-ics/
 │   └── package_tarball.py     # Portable tarball packager
 ├── dist/                      # Compiled deliverables
 │   └── AegisICS.exe           # Standalone Windows executable (348 MB)
-├── docs/                      # Technical specifications and research manuscript
-│   ├── figures/               # High-resolution publication benchmark figures (PNG)
-│   ├── build_pipeline.md      # Executable compilation documentation
-│   ├── evaluation.md          # Architectural benchmarks and performance metrics
-│   ├── linux_deployment.md    # Debian/MX Linux installation and service guide
-│   ├── paper_draft.md         # IEEE/ACM journal academic manuscript draft
-│   ├── threat_model.md        # Comprehensive ICS threat model and MITRE ATT&CK for ICS
-│   └── trust_scoring.md       # Mathematical trust scoring specification
+├── docs/                      # Full documentation — start at docs/README.md
+│   ├── 00-overview/           # Project overview, glossary
+│   ├── 01-architecture/       # ARCHITECTURE.md, data model, protocols, per-component pages
+│   ├── 02-security/           # Security model, threat model
+│   ├── 03-api/                # REST API reference
+│   ├── 04-development/        # Getting started, configuration, testing, contributing
+│   ├── 05-operations/         # Runbook, build pipeline, Linux deployment
+│   ├── 06-research/           # Evaluation, trust scoring, paper draft
+│   ├── 07-reports/            # DEBUG_REPORT.md
+│   ├── 08-roadmap/            # RESTRUCTURE_PLAN.md
+│   ├── adr/                   # Architecture decision records
+│   └── figures/               # Benchmark figures (PNG)
 ├── firmware/                  # Edge microcontroller Arduino C++ source code
 │   ├── esp32_master_bridge/   # RS-485 to USB-CDC master gateway concentrator
 │   └── esp32_slave_sensor/    # Edge transducer firmware with GPIO 25 hardware trip

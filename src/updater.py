@@ -6,18 +6,18 @@ Aegis ICS desktop application on GitHub. It is designed to run as a
 non-blocking background check during application startup.
 """
 
-import logging 
-import threading 
-from dataclasses import dataclass ,field 
-from typing import Callable 
+import logging
+import threading
+from dataclasses import dataclass, field
+from typing import Callable
 
-import requests 
+import requests
 
-logger =logging .getLogger (__name__ )
+logger = logging.getLogger(__name__)
 
 
-@dataclass 
-class UpdateInfo :
+@dataclass
+class UpdateInfo:
     """Information about an available application update.
 
     Attributes:
@@ -29,17 +29,18 @@ class UpdateInfo :
         published_at: ISO 8601 timestamp of when the release was published.
     """
 
-    available :bool =False 
-    current_version :str =""
-    latest_version :str =""
-    download_url :str =""
-    release_notes :str =""
-    published_at :str =""
+    available: bool = False
+    current_version: str = ""
+    latest_version: str = ""
+    download_url: str = ""
+    release_notes: str = ""
+    published_at: str = ""
 
 
 import re
 
-def _parse_semver (version :str )->tuple [int ,...]:
+
+def _parse_semver(version: str) -> tuple[int, ...]:
     """Parse a version string into a tuple of integers for comparison.
 
     Args:
@@ -59,7 +60,7 @@ def _parse_semver (version :str )->tuple [int ,...]:
     return tuple(parts) if parts else (0, 0, 0)
 
 
-def check_for_updates (current_version :str ,repo :str )->UpdateInfo :
+def check_for_updates(current_version: str, repo: str) -> UpdateInfo:
     """Check GitHub for a newer release of the application.
 
     Queries the GitHub public API for the latest release of the given
@@ -78,55 +79,51 @@ def check_for_updates (current_version :str ,repo :str )->UpdateInfo :
     Returns:
         An UpdateInfo instance describing the update status.
     """
-    try :
-        url =f"https://api.github.com/repos/{repo }/releases/latest"
-        response =requests .get (url ,timeout =5 )
-        response .raise_for_status ()
+    try:
+        url = f"https://api.github.com/repos/{repo}/releases/latest"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
 
-        data =response .json ()
+        data = response.json()
 
-        tag_name :str =data .get ("tag_name","")
-        html_url :str =data .get ("html_url","")
-        body :str =data .get ("body","")or ""
-        published_at :str =data .get ("published_at","")
+        tag_name: str = data.get("tag_name", "")
+        html_url: str = data.get("html_url", "")
+        body: str = data.get("body", "") or ""
+        published_at: str = data.get("published_at", "")
 
+        latest_version = tag_name.lstrip("v")
 
-        latest_version =tag_name .lstrip ("v")
+        current_tuple = _parse_semver(current_version)
+        latest_tuple = _parse_semver(latest_version)
+        is_available = latest_tuple > current_tuple
 
-
-        current_tuple =_parse_semver (current_version )
-        latest_tuple =_parse_semver (latest_version )
-        is_available =latest_tuple >current_tuple 
-
-        logger .info (
-        "Update check complete: current=%s, latest=%s, available=%s",
-        current_version ,
-        latest_version ,
-        is_available ,
+        logger.info(
+            "Update check complete: current=%s, latest=%s, available=%s",
+            current_version,
+            latest_version,
+            is_available,
         )
 
-        return UpdateInfo (
-        available =is_available ,
-        current_version =current_version ,
-        latest_version =latest_version ,
-        download_url =html_url ,
-        release_notes =body ,
-        published_at =published_at ,
+        return UpdateInfo(
+            available=is_available,
+            current_version=current_version,
+            latest_version=latest_version,
+            download_url=html_url,
+            release_notes=body,
+            published_at=published_at,
         )
 
-    except Exception :
-        logger .error (
-        "Failed to check for updates for repo '%s'",repo ,exc_info =True 
-        )
-        return UpdateInfo (
-        available =False ,
-        current_version =current_version ,
+    except Exception:
+        logger.error("Failed to check for updates for repo '%s'", repo, exc_info=True)
+        return UpdateInfo(
+            available=False,
+            current_version=current_version,
         )
 
 
-def check_updates_async (
-current_version :str ,repo :str ,callback :Callable [[UpdateInfo ],None ]
-)->None :
+def check_updates_async(
+    current_version: str, repo: str, callback: Callable[[UpdateInfo], None]
+) -> None:
     """Check for updates in a background thread without blocking the UI.
 
     Spawns a daemon thread that runs :func:`check_for_updates` and invokes
@@ -140,10 +137,10 @@ current_version :str ,repo :str ,callback :Callable [[UpdateInfo ],None ]
                   be called from the background thread.
     """
 
-    def _worker ()->None :
-        update_info =check_for_updates (current_version ,repo )
-        callback (update_info )
+    def _worker() -> None:
+        update_info = check_for_updates(current_version, repo)
+        callback(update_info)
 
-    thread =threading .Thread (target =_worker ,name ="update-checker",daemon =True )
-    thread .start ()
-    logger .debug ("Background update check started for repo '%s'",repo )
+    thread = threading.Thread(target=_worker, name="update-checker", daemon=True)
+    thread.start()
+    logger.debug("Background update check started for repo '%s'", repo)

@@ -5,15 +5,36 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+# Dedicated unprivileged account (created by postinst); dialout grants serial-port access.
+User=aegis
+Group=aegis
+SupplementaryGroups=dialout
 WorkingDirectory=/var/lib/aegis-ics
 Environment="AEGIS_SERVER_MODE=1"
 Environment="FLASK_PORT=5000"
 Environment="AEGIS_DATA_DIR=/var/lib/aegis-ics"
-ExecStart=/opt/aegis-ics/AegisICS --server --port 5000 --host 0.0.0.0
+# Site secrets and overrides (ADMIN_PASSWORD, FLASK_SECRET_KEY, DEVICE_KEY_*, ...), mode 0640.
+EnvironmentFile=-/etc/default/aegis-ics
+# Loopback only. Expose remotely through a TLS reverse proxy (see docs/05-operations/runbook.md).
+ExecStart=/opt/aegis-ics/AegisICS --server --port 5000 --host 127.0.0.1
 Restart=on-failure
 RestartSec=5s
 LimitNOFILE=65536
+
+# Sandboxing
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/aegis-ics
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target

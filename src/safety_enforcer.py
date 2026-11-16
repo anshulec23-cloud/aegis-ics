@@ -23,9 +23,7 @@ except ImportError:
 
 
 def validate_command(
-    command: dict,
-    db: Session,
-    target_device: Optional[str] = None
+    command: dict, db: Session, target_device: Optional[str] = None
 ) -> Tuple[bool, str]:
     """
     Validates a SCADA setpoint command against safety rules and Neural Safety Policy.
@@ -37,7 +35,10 @@ def validate_command(
 
     # 1. Command Syntax & Type Validation
     if cmd_type not in ("set_temp", "set_pressure"):
-        return False, f"Denied: Unknown command type '{cmd_type}'. Only 'set_temp' and 'set_pressure' are permitted."
+        return (
+            False,
+            f"Denied: Unknown command type '{cmd_type}'. Only 'set_temp' and 'set_pressure' are permitted.",
+        )
 
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False, "Command setpoint value must be numeric."
@@ -54,7 +55,10 @@ def validate_command(
         t_min = temp_min_rule.value if temp_min_rule else 0.0
 
         if not (t_min <= value <= t_max):
-            return False, f"Rule violation: Temperature setpoint {value}C exceeds boundaries ({t_min}-{t_max}C)."
+            return (
+                False,
+                f"Rule violation: Temperature setpoint {value}C exceeds boundaries ({t_min}-{t_max}C).",
+            )
 
     elif cmd_type == "set_pressure":
         pres_max_rule = db.query(Rule).filter_by(key="pressure_max").first()
@@ -64,7 +68,10 @@ def validate_command(
         p_min = pres_min_rule.value if pres_min_rule else 0.0
 
         if not (p_min <= value <= p_max):
-            return False, f"Rule violation: Pressure setpoint {value} bar exceeds boundaries ({p_min}-{p_max} bar)."
+            return (
+                False,
+                f"Rule violation: Pressure setpoint {value} bar exceeds boundaries ({p_min}-{p_max} bar).",
+            )
 
     # 3. Telemetry Freshness & Device Scoping
     telemetry_query = db.query(TelemetryLog)
@@ -75,11 +82,13 @@ def validate_command(
     dev_label = f" on {device_id}" if device_id else ""
 
     # Telemetry Freshness Check: requires active telemetry within 120s (with up to 5s clock skew tolerance)
-    time_diff = (time.time() - latest_telemetry.timestamp) if (latest_telemetry and latest_telemetry.timestamp is not None) else 9999.0
+    time_diff = (
+        (time.time() - latest_telemetry.timestamp)
+        if (latest_telemetry and latest_telemetry.timestamp is not None)
+        else 9999.0
+    )
     is_fresh = bool(
-        latest_telemetry
-        and latest_telemetry.timestamp is not None
-        and -5.0 <= time_diff <= 120.0
+        latest_telemetry and latest_telemetry.timestamp is not None and -5.0 <= time_diff <= 120.0
     )
 
     # 4. Neural Safety Policy & Coordinated Stuxnet Interlock Evaluation
@@ -108,7 +117,6 @@ def validate_command(
                     "SAFETY INTERLOCK BLOCK: Neural Safety Policy evaluation failed. "
                     "Command blocked as precautionary measure. System requires maintenance."
                 )
-
 
         # Deterministic Physics-Informed Hard Invariant Interlocks (Redundant Defense-in-Depth)
         if cmd_type == "set_temp" and value >= 45.0:
@@ -146,8 +154,12 @@ def validate_command(
                 f"Cannot verify cross-variable safety without live sensor data."
             )
         if latest_telemetry and not is_fresh:
-            print(f"[SafetyEnforcer] Warning: Stale telemetry{dev_label}. Low-risk command allowed.")
+            print(
+                f"[SafetyEnforcer] Warning: Stale telemetry{dev_label}. Low-risk command allowed."
+            )
         elif not latest_telemetry:
-            print(f"[SafetyEnforcer] Warning: No telemetry history{dev_label}. Low-risk command allowed.")
+            print(
+                f"[SafetyEnforcer] Warning: No telemetry history{dev_label}. Low-risk command allowed."
+            )
 
     return True, "Approved"

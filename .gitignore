@@ -38,3 +38,17 @@ obfuscated/
 installer_output/
 *.log
 *.msi
+# Local secrets (never commit)
+device_keys.json
+initial_admin_password.txt
+firmware/**/aegis_secrets.h
+
+# Simulator identities written during tests
+tests/simulator_devices.json
+tests/host_identity.key
+tests/setup_token.txt
+tests/redteam_token.txt
+
+# Red-team drill runtime artifacts (written to the data dir at run time)
+redteam_token.txt
+redteam_runtime.json

@@ -537,7 +537,7 @@ Addressing legacy vulnerabilities where unauthenticated nodes inherited full tru
 ### D. Empirical Trust Evolution Under Multi-Stage Attack
 The dynamic responsiveness of the 4-factor trust engine was evaluated in a 500-step continuous simulation spanning five operational phases (`tests/benchmark_results/trust_evolution_results.json`):
 
-![Continuous Trust Evolution across Multi-Stage Cyber-Physical Attack](figures/fig_trust_evolution.png)
+![Continuous Trust Evolution across Multi-Stage Cyber-Physical Attack](../figures/fig_trust_evolution.png)
 
 *Figure 1: Continuous Trust Score evolution across five operational regimes. The engine maintains stable trust ($0.985$) during nominal operations, gracefully degrades during subtle sensor drift, and precipitously collapses below the $0.40$ isolation threshold within a single polling cycle ($13.72\text{ ms}$) upon cryptographic tampering or physical threshold violation.*
 
@@ -588,7 +588,7 @@ In cyber-physical protection systems, algorithmic precision is worthless if deci
 | **Stage 9** | Edge GPIO 25 Optocoupler Relay De-energization (NIST SC-7) | $5.700\text{ ms}$ | $5.650\text{ ms}$ | $6.100\text{ ms}$ | $6.200\text{ ms}$ | Mechanical Coil Trip |
 | **TOTAL** | **Complete Closed-Loop Detection-to-Actuation Cycle** | **13.72 ms** | **13.45 ms** | **15.48 ms** | **15.68 ms** | **Sub-16ms Hard Bound** |
 
-![Empirical Latency Budget and Kernel Density Distribution](figures/fig_latency_distribution.png)
+![Empirical Latency Budget and Kernel Density Distribution](../figures/fig_latency_distribution.png)
 
 *Figure 2: Empirical latency breakdown across the complete closed-loop defense pipeline. Total reaction time ($13.72\text{ ms}$) provides an 18.2x safety margin against catastrophic mechanical yield ($250.0\text{ ms}$).*
 
@@ -629,7 +629,7 @@ To quantify financial risk mitigation, an empirical 24-hour simulation of a coor
 | **Mean Time to Isolation (MTTI)** | Uncontained ($> 24\text{ hours}$) | **13.72 milliseconds** | **Instantaneous Mechanical Cutoff** |
 | **Autonomous Isolation Trigger Timestamp** | N/A (Failed Open) | **$t = 18.0\text{ hours}$** | **Fail-Closed Bus Disconnection** |
 
-![FAIR Risk Reduction and Cumulative Financial Loss Exceedance Curve](figures/fig_financial_risk.png)
+![FAIR Risk Reduction and Cumulative Financial Loss Exceedance Curve](../figures/fig_financial_risk.png)
 
 *Figure 3: Real-time financial risk projection and empirical mitigation under an escalating cyber attack (FAIR model). On an individual subsystem ($400,000 baseline asset ceiling), Aegis autonomous isolation at $t=18.0\text{ h}$ caps incurred losses at $361,000, preventing $39,000 in catastrophic yield damages. Aggregated across the full 4-node industrial cluster under multi-stage attack, cumulative mitigated damages total \$1,421,000 prevented (53.5% reduction).*
 
@@ -677,18 +677,18 @@ To evaluate real-time detection efficacy against sophisticated Advanced Persiste
 | **Empirical False Positive Rate** | **1.34%** | Low false alarm rate preventing operator alarm fatigue |
 | **First Detection Timestamp** | **$t = 707\text{s}$** | Detected 107 seconds into subtle multi-variable creep |
 
-![Simulated Coordinated Stress Attack (Stuxnet-style)](figures/fig_stuxnet_attack.png)
+![Simulated Coordinated Stress Attack (Stuxnet-style)](../figures/fig_stuxnet_attack.png)
 
 *Figure 4: Simulation trajectory of a coordinated Stuxnet-style physical stress attack. Driven by genuine Random Forest inference and gateway drift tracking, Aegis successfully detects anomalous divergence at $t = 707\text{s}$ (attack frame detection rate: $54.18\%$ [136/251 frames], nominal false alarm rate: $1.34\%$ [10/749 frames]), triggering fail-closed isolation at $t = 850\text{s}$ and safely returning the process to nominal idle.*
 
 ### C. Receiver Operating Characteristic (ROC) & Decision Boundaries
 The empirical ROC curves for both the 5D Random Forest ensemble and the 6D Neural Safety Policy Network demonstrate high discriminative power under non-ideal noisy sensor conditions:
 
-![Receiver Operating Characteristic (ROC) Ensembles](figures/fig_roc_curves.png)
+![Receiver Operating Characteristic (ROC) Ensembles](../figures/fig_roc_curves.png)
 
 *Figure 5: Empirical ROC curves for Random Forest ($AUC = 0.9755$) and Neural Safety Policy Network ($AUC = 0.9738$). Evaluated on 15,000 and 12,000 samples respectively under 5% injected Gaussian sensor noise and 2% label noise.*
 
-![NSPN Non-Linear Safety Decision Surface Heatmap](figures/fig_nspn_heatmap.png)
+![NSPN Non-Linear Safety Decision Surface Heatmap](../figures/fig_nspn_heatmap.png)
 
 *Figure 6: NSPN safety probability heatmap across temperature setpoint range ($[10^\circ\text{C}, 70^\circ\text{C}]$) and live vessel operating pressure ($[0.5\text{ bar}, 10.0\text{ bar}]$). The sharp non-linear decision boundary demonstrates how the neural barrier function learns coupled multi-variable hazards that escape traditional orthogonal threshold alarms.*
 

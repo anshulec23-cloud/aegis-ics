@@ -8,15 +8,25 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Offline Air-Gapped Vendor Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='subway.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='xp.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='components/PixelSwap.css') }}">
     <!-- Offline Chart.js -->
     <script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
     <!-- PixelSwap Engine -->
     <script src="{{ url_for('static', filename='components/pixel_swap.js') }}"></script>
 </head>
-<body class="theme-green select-none min-h-screen flex flex-col bg-[#090a0f] text-[#ffffff]">
+<body class="theme-green xp-has-taskbar select-none min-h-screen flex flex-col">
+
+    <!-- XP window title bar -->
+    <div class="xp-titlebar">
+        <img class="xp-title-ico" src="{{ url_for('static', filename='icon.png') }}" alt="" onerror="this.style.display='none'">
+        <span class="xp-title-text">Aegis ICS &mdash; Industrial Control System Security</span>
+        <span class="xp-caption-btns">
+            <span class="xp-cap" title="Minimize">&#8211;</span>
+            <span class="xp-cap" title="Maximize">&#9633;</span>
+            <a class="xp-cap close" href="/logout" title="Log out">&times;</a>
+        </span>
+    </div>
 
     <!-- ======================================================================
          TOP BAR: INDUSTRIAL TRANSIT ROUTE & OPERATOR CREDENTIALS
@@ -29,11 +39,11 @@
             </div>
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold tracking-wider text-white">AEGIS TRANSIT ROUTE LINE 1</span>
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30">OPERATIONAL</span>
+                    <span class="text-xs font-bold tracking-wide">Aegis ICS Security Console</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/30">OPERATIONAL</span>
                 </div>
-                <div class="text-[11px] text-slate-400 font-mono">
-                    SUPERVISORY PROCESS ENFORCER // DEC VT-220 COMPLIANT
+                <div class="text-[11px] text-slate-400">
+                    Zero-Trust Industrial Control System Gateway
                 </div>
             </div>
         </div>
@@ -59,6 +69,10 @@
             <div class="bg-[#050608] px-2.5 py-1 rounded border border-[#1c2333] text-slate-300 text-xs font-mono tabular-numbers">
                 <span id="utc-clock">00:00:00 UTC</span>
             </div>
+            <!-- Pending device enrollment badge (zero-touch enrollment, ADR 0006) -->
+            <button id="pending-devices-badge" onclick="switchStation(5)" class="hidden px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold animate-pulse">
+                <span id="pending-devices-count">0</span> DEVICE(S) AWAITING APPROVAL
+            </button>
             <!-- Logout Button -->
             <a href="/logout" class="px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold transition-colors">
                 LOGOUT
@@ -232,47 +246,31 @@
                     <canvas id="telemetryChart"></canvas>
                 </div>
 
+                <!-- One card per field node, created dynamically for however many slaves are enrolled. -->
                 <div id="chart-view-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-                                ESP32_001 (Reactor 01)
-                            </span>
-                            <span id="grid-val-001" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_001"></canvas></div>
+                    <div id="node-grid-empty" class="col-span-full text-xs font-mono text-slate-500 p-4 border border-dashed border-[#1c2333] rounded">
+                        No field devices yet. Connect the gateway in Station 06 and approve the devices it discovers.
                     </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-                                ESP32_002 (Pump 02)
-                            </span>
-                            <span id="grid-val-002" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_002"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Aggregate fused SCADA view: all slaves across all sensors, switchable radar/bar -->
+            <div class="subway-card p-4 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                    <span class="font-mono font-bold text-white">AGGREGATE PLANT VIEW &mdash; ALL NODES &times; ALL SENSORS</span>
+                    <div class="inline-flex rounded bg-[#050608] p-0.5 border border-[#1c2333]">
+                        <button id="btn-agg-radar" onclick="setAggregateMode('radar')" class="px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white">RADAR</button>
+                        <button id="btn-agg-bar" onclick="setAggregateMode('bar')" class="px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white">GROUPED BAR</button>
                     </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                                ESP32_003 (Cryo 03)
-                            </span>
-                            <span id="grid-val-003" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_003"></canvas></div>
-                    </div>
-                    <div class="bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="font-bold text-white flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                                ESP32_004 (Turbine 04)
-                            </span>
-                            <span id="grid-val-004" class="text-blue-400 font-mono text-[10px] truncate max-w-[130px]">NOMINAL</span>
-                        </div>
-                        <div class="h-32"><canvas id="nodeChart_ESP32_004"></canvas></div>
-                    </div>
+                </div>
+                <p class="text-[10px] font-mono text-slate-500">
+                    Every sensor is normalised to its nominal ceiling (100% = envelope limit), so all five transducers fuse onto one
+                    comparable scale. A node pushing past the 100% ring/line is running out of envelope &mdash; the shape of an attack.
+                    Isolated nodes are drawn dashed red.
+                </p>
+                <div class="relative w-full h-72"><canvas id="aggregateChart"></canvas></div>
+                <div id="aggregate-empty" class="hidden text-xs font-mono text-slate-500 p-4 border border-dashed border-[#1c2333] rounded">
+                    No field devices yet. Connect the gateway in Station 06 and approve the devices it discovers.
                 </div>
             </div>
 
@@ -332,68 +330,18 @@
             </div>
 
             <div class="subway-card p-4 space-y-4">
-                <div class="overflow-x-auto bg-[#050608] p-4 rounded border border-[#161d2a]">
+                <div class="overflow-x-auto bg-[#050608] p-4 rounded">
                     <svg id="plant-twin-svg" viewBox="0 0 1000 520" class="w-full h-auto min-w-[750px] select-none">
                         <defs>
                             <linearGradient id="reactorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#182030"/>
-                                <stop offset="100%" stop-color="#0f1422"/>
+                                <stop offset="0%" stop-color="#ffffff"/>
+                                <stop offset="100%" stop-color="#dCE8F7"/>
                             </linearGradient>
                         </defs>
 
-                        <!-- Grid -->
-                        <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
-                            <line x1="0" y1="130" x2="1000" y2="130"/>
-                            <line x1="0" y1="260" x2="1000" y2="260"/>
-                            <line x1="0" y1="390" x2="1000" y2="390"/>
-                        </g>
-
-                        <!-- Piping Connectors (Cobalt / Ice Blue) -->
-                        <g stroke="#38bdf8" stroke-width="3" fill="none" opacity="0.85">
-                            <path d="M 230 180 L 400 180 L 400 120 L 520 120" stroke-dasharray="6 4"/>
-                            <path d="M 680 140 L 760 140 L 760 260 L 680 260" stroke-dasharray="6 4"/>
-                            <path d="M 480 380 L 320 380 L 320 280 L 230 280" stroke-dasharray="6 4" stroke="#60a5fa"/>
-                            <path d="M 680 380 L 780 380 L 780 440 L 200 440 L 200 320" stroke-dasharray="6 4" stroke="#818cf8"/>
-                        </g>
-
-                        <!-- Node 1: Catalytic Reactor -->
-                        <g id="twin-node-ESP32_001" onclick="selectTwinNode('ESP32_001')" class="cursor-pointer group">
-                            <rect x="70" y="110" width="160" height="210" rx="10" fill="url(#reactorGrad)" stroke="#38bdf8" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="150" y="145" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CATALYTIC REACTOR</text>
-                            <text x="150" y="165" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="11">NODE: ESP32_001</text>
-                            <rect x="90" y="190" width="120" height="26" rx="4" fill="#050608" stroke="#1c2333"/>
-                            <text id="twin-t1" x="150" y="208" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="12">T: 25.0 C</text>
-                            <rect x="90" y="224" width="120" height="26" rx="4" fill="#050608" stroke="#1c2333"/>
-                            <text id="twin-p1" x="150" y="242" text-anchor="middle" fill="#38bdf8" font-family="monospace" font-size="12">P: 4.0 bar</text>
-                            <circle id="twin-status-001" cx="150" cy="285" r="7" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 2: Centrifugal Pump -->
-                        <g id="twin-node-ESP32_002" onclick="selectTwinNode('ESP32_002')" class="cursor-pointer group">
-                            <rect x="520" y="320" width="160" height="120" rx="10" fill="url(#reactorGrad)" stroke="#60a5fa" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="600" y="350" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CENTRIFUGAL PUMP</text>
-                            <text x="600" y="368" text-anchor="middle" fill="#60a5fa" font-family="monospace" font-size="11">NODE: ESP32_002</text>
-                            <text id="twin-t2" x="600" y="398" text-anchor="middle" fill="#60a5fa" font-family="monospace" font-size="12">VIB: 1.2 g</text>
-                            <circle id="twin-status-002" cx="600" cy="420" r="6" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 3: Cryo Exchanger -->
-                        <g id="twin-node-ESP32_003" onclick="selectTwinNode('ESP32_003')" class="cursor-pointer group">
-                            <rect x="480" y="220" width="160" height="85" rx="10" fill="url(#reactorGrad)" stroke="#818cf8" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="560" y="248" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">CRYO EXCHANGER</text>
-                            <text x="560" y="266" text-anchor="middle" fill="#818cf8" font-family="monospace" font-size="11">NODE: ESP32_003</text>
-                            <text id="twin-t3" x="560" y="290" text-anchor="middle" fill="#818cf8" font-family="monospace" font-size="11">CRYO: NOMINAL</text>
-                            <circle id="twin-status-003" cx="625" cy="235" r="5" fill="#38bdf8"/>
-                        </g>
-
-                        <!-- Node 4: Main Turbine Generator -->
-                        <g id="twin-node-ESP32_004" onclick="selectTwinNode('ESP32_004')" class="cursor-pointer group">
-                            <rect x="520" y="60" width="160" height="120" rx="10" fill="url(#reactorGrad)" stroke="#f472b6" stroke-width="2" class="group-hover:stroke-white transition-all"/>
-                            <text x="600" y="90" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="13" font-weight="bold">MAIN TURBINE GEN</text>
-                            <text x="600" y="108" text-anchor="middle" fill="#f472b6" font-family="monospace" font-size="11">NODE: ESP32_004</text>
-                            <text id="twin-t4" x="600" y="138" text-anchor="middle" fill="#f472b6" font-family="monospace" font-size="12">RPM: 2200</text>
-                            <circle id="twin-status-004" cx="600" cy="160" r="6" fill="#38bdf8"/>
-                        </g>
+                        <!-- Nodes are rendered from live device data by renderTwin(); the layout grows with the number of slaves. -->
+                        <g id="twin-nodes"></g>
+                        <text id="twin-empty" x="500" y="260" text-anchor="middle" fill="#5a7296" font-family="Tahoma, sans-serif" font-size="14">No enrolled field devices yet</text>
                     </svg>
                 </div>
             </div>
@@ -428,12 +376,7 @@
 
                     <div class="space-y-1.5">
                         <label class="block text-xs font-mono text-slate-300">TARGET MICROCONTROLLER / PLC:</label>
-                        <select id="control-device-select" onchange="onControlDeviceChange()" class="subway-input w-full">
-                            <option value="ESP32_001">ESP32_001 — Catalytic Reactor Unit (Tier-1)</option>
-                            <option value="ESP32_002">ESP32_002 — Centrifugal Feed Pump (Tier-2)</option>
-                            <option value="ESP32_003">ESP32_003 — Cryogenic Exchanger (Tier-2)</option>
-                            <option value="ESP32_004">ESP32_004 — Turbine Generator (Tier-1)</option>
-                        </select>
+                        <select id="control-device-select" onchange="onControlDeviceChange()" class="subway-input w-full"></select>
                     </div>
 
                     <div class="space-y-2 bg-[#050608] p-3.5 rounded border border-[#1c2333]">
@@ -528,54 +471,107 @@
                         RED TEAM ADVERSARIAL DRILL SANDBOX
                     </h2>
                 </div>
-                <button onclick="resetAttackVectors()" class="subway-btn subway-btn-primary text-xs">
-                    RESTORE NOMINAL BASELINE
-                </button>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-danger">VECTOR 01</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-01</span>
-                    </div>
-                    <h3 class="text-sm font-bold text-white font-mono">Stuxnet Multi-Variable Drift</h3>
-                    <p class="text-xs text-slate-400">
-                        Ramps core temperature while suppressing pressure reports to evade single-variable alarms.
-                    </p>
-                    <button onclick="injectAttackVector('stuxnet')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE STUXNET VECTOR
-                    </button>
-                </div>
-
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-warning">VECTOR 02</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-02</span>
-                    </div>
-                    <h3 class="text-sm font-bold text-white font-mono">Cryptographic Replay Attack</h3>
-                    <p class="text-xs text-slate-400">
-                        Re-transmits stale valid telemetry frames to blind supervisor while physical conditions run unchecked.
-                    </p>
-                    <button onclick="injectAttackVector('replay')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE REPLAY VECTOR
-                    </button>
-                </div>
-
-                <div class="subway-card p-5 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="subway-badge subway-badge-danger">VECTOR 03</span>
-                        <span class="text-xs font-mono text-slate-500">CVE-SIM-03</span>
-                    </div>
-                    <h3 class="text-sm font-bold text-white font-mono">HMAC-SHA256 Tampering</h3>
-                    <p class="text-xs text-slate-400">
-                        Injects forged wire packets with invalid cryptographic signatures testing edge gateway rejection.
-                    </p>
-                    <button onclick="injectAttackVector('tamper')" class="subway-btn subway-btn-danger w-full mt-2">
-                        EXECUTE HMAC SPOOF
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-mono text-slate-400" for="drill-device-select">TARGET (SIMULATOR):</label>
+                    <select id="drill-device-select" class="subway-input text-xs"></select>
+                    <button onclick="resetAttackVectors()" class="subway-btn subway-btn-primary text-xs">
+                        RESTORE NOMINAL BASELINE
                     </button>
                 </div>
             </div>
+            <p class="text-xs font-mono text-slate-400">
+                Launch the staged adversarial campaign &mdash; the same eight attacks the portable USB drill
+                (<span class="font-bold">tools/redteam</span>) fires at this software. Perimeter stages are rejected at the door;
+                physical-process stages drive the live detection pipeline, which micro-segments the affected node while the loss
+                engine prices the incident in real time. Physical stages target the software simulator (Station&nbsp;06); drills
+                are refused on real hardware.
+            </p>
+
+            <!-- Campaign control + live financial response -->
+            <div class="subway-card p-5 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="subway-badge subway-badge-danger">LIVE CAMPAIGN</span>
+                        <span id="campaign-progress" class="text-xs font-mono text-slate-400">8 stages ready</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="campaign-launch" onclick="launchCampaign()" class="subway-btn subway-btn-danger text-xs">
+                            &#9876; LAUNCH RED-TEAM CAMPAIGN
+                        </button>
+                        <button onclick="resetCampaign()" class="subway-btn subway-btn-primary text-xs">
+                            RESTORE PLANT
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">STAGES DEFENDED</div>
+                        <div id="campaign-defended" class="text-xl font-bold text-blue-400 font-mono mt-1">0 / 8</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Perimeter + physical-process</div>
+                    </div>
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">DOWNTIME COST INCURRED</div>
+                        <div id="campaign-actual" class="text-xl font-bold text-white font-mono mt-1">$0</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Cost of defending (isolation)</div>
+                    </div>
+                    <div class="subway-card p-4">
+                        <div class="text-[11px] font-mono text-slate-400 uppercase">CATASTROPHE PREVENTED</div>
+                        <div id="campaign-prevented" class="text-xl font-bold text-blue-400 font-mono mt-1">$0</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Equipment loss averted</div>
+                    </div>
+                </div>
+
+                <div id="campaign-stages" class="space-y-2"></div>
+            </div>
+
+            <!-- Granular single-vector injection (kept for manual testing) -->
+            <details class="subway-card p-4">
+                <summary class="text-xs font-bold text-white font-mono cursor-pointer">MANUAL SINGLE-VECTOR INJECTION</summary>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-danger">VECTOR 01</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-01</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">Stuxnet Multi-Variable Drift</h3>
+                        <p class="text-xs text-slate-400">
+                            Ramps core temperature while suppressing pressure reports to evade single-variable alarms.
+                        </p>
+                        <button onclick="injectAttackVector('stuxnet')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE STUXNET VECTOR
+                        </button>
+                    </div>
+
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-warning">VECTOR 02</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-02</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">Cryptographic Replay Attack</h3>
+                        <p class="text-xs text-slate-400">
+                            Re-transmits stale valid telemetry frames to blind supervisor while physical conditions run unchecked.
+                        </p>
+                        <button onclick="injectAttackVector('replay')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE REPLAY VECTOR
+                        </button>
+                    </div>
+
+                    <div class="subway-card p-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="subway-badge subway-badge-danger">VECTOR 03</span>
+                            <span class="text-xs font-mono text-slate-500">CVE-SIM-03</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white font-mono">HMAC-SHA256 Tampering</h3>
+                        <p class="text-xs text-slate-400">
+                            Injects forged wire packets with invalid cryptographic signatures testing edge gateway rejection.
+                        </p>
+                        <button onclick="injectAttackVector('tamper')" class="subway-btn subway-btn-danger w-full mt-2">
+                            EXECUTE HMAC SPOOF
+                        </button>
+                    </div>
+                </div>
+            </details>
         </div>
 
         <!-- ==================================================================
@@ -667,6 +663,37 @@
                 </div>
                 <div id="gateway-connection-pill" class="subway-badge subway-badge-warning">
                     SCANNING BUS...
+                </div>
+            </div>
+
+            <!-- Field device enrollment (zero-touch, one-click approval: ADR 0006) -->
+            <div class="subway-card p-5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#1c2333] pb-3">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">FIELD DEVICE ENROLLMENT</h3>
+                    <span class="text-[11px] font-mono text-slate-400">HOST FINGERPRINT: <span id="host-fingerprint" class="text-white">--</span></span>
+                </div>
+                <p class="text-xs text-slate-400">
+                    Slaves discovered on the bus appear here as <span class="text-amber-300">PENDING</span>. Compare the fingerprint with the one the
+                    device prints on its USB console, then approve it: the device and this host derive a shared key (X25519) and the
+                    device starts streaming signed telemetry. Nothing to configure, no keys to copy.
+                </p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="text-slate-400 border-b border-[#1c2333]">
+                            <tr>
+                                <th class="py-2 pr-3">DEVICE</th>
+                                <th class="py-2 pr-3">NAME</th>
+                                <th class="py-2 pr-3">STATUS</th>
+                                <th class="py-2 pr-3">FINGERPRINT</th>
+                                <th class="py-2 pr-3">SENSORS</th>
+                                <th class="py-2 pr-3">LAST SEEN</th>
+                                <th class="py-2">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registry-tbody">
+                            <tr><td colspan="7" class="py-4 text-slate-500">No devices discovered yet.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -887,6 +914,43 @@
     <!-- ======================================================================
          DEVICE TRUST BREAKDOWN MODAL
          ====================================================================== -->
+    <!-- Device approval / financial profile modal (zero-touch enrollment) -->
+    <div id="fin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="subway-card max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-[#1c2333] pb-3">
+                <h3 id="fin-modal-title" class="text-sm font-bold text-white font-mono">APPROVE DEVICE</h3>
+                <button onclick="closeFinModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono">
+                Set this node's financial profile. These figures drive the live loss accounting and the
+                NIST incident report, so enter the plant's real equipment value and downtime cost.
+            </p>
+            <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+                <label class="col-span-2 space-y-1"><span class="text-slate-300">DEVICE NAME</span>
+                    <input id="fin-name" class="subway-input w-full" maxlength="80" placeholder="e.g. Catalytic reactor 01"></label>
+                <label class="space-y-1"><span class="text-slate-300">ROLE</span>
+                    <select id="fin-role" class="subway-input w-full" onchange="finApplyRoleDefaults()"></select></label>
+                <label class="space-y-1"><span class="text-slate-300">CRITICALITY</span>
+                    <select id="fin-criticality" class="subway-input w-full"></select></label>
+                <label class="col-span-2 space-y-1"><span class="text-slate-300">ZONE / LOCATION</span>
+                    <input id="fin-zone" class="subway-input w-full" maxlength="80" placeholder="e.g. Reactor bay north"></label>
+                <label class="space-y-1"><span class="text-slate-300">EQUIPMENT VALUE ($)</span>
+                    <input id="fin-equipment_value" type="number" min="0" step="1000" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">DOWNTIME ($ / hr)</span>
+                    <input id="fin-downtime_rate_per_hour" type="number" min="0" step="500" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">CLEANUP / REMEDIATION ($)</span>
+                    <input id="fin-cleanup_cost" type="number" min="0" step="1000" class="subway-input w-full"></label>
+                <label class="space-y-1"><span class="text-slate-300">REGULATORY EXPOSURE ($)</span>
+                    <input id="fin-regulatory_exposure" type="number" min="0" step="1000" class="subway-input w-full"></label>
+            </div>
+            <div id="fin-error" class="hidden text-[11px] text-red-400 font-mono"></div>
+            <div class="flex justify-end gap-2 pt-1 border-t border-[#1c2333]">
+                <button onclick="closeFinModal()" class="subway-btn text-xs">CANCEL</button>
+                <button id="fin-submit" onclick="submitFinModal()" class="subway-btn subway-btn-nominal text-xs">APPROVE &amp; ENROLL</button>
+            </div>
+        </div>
+    </div>
+
     <div id="trust-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="subway-card max-w-lg w-full p-6 space-y-4">
             <div class="flex justify-between items-center border-b border-[#1c2333] pb-3">
@@ -980,7 +1044,8 @@
         let monteCarloChart = null;
 
         let currentDevices = {};
-        let selectedDeviceId = 'ESP32_001';
+        let selectedDeviceId = null;
+        let lastDevices = [];
 
         // Test compatibility stubs
         function setCRTTheme(theme) {}
@@ -1200,10 +1265,45 @@
                 });
             }
 
-            const subNodeColors = ['#38bdf8', '#3b82f6', '#fb923c', '#f472b6', '#c084fc'];
-            ['ESP32_001', 'ESP32_002', 'ESP32_003', 'ESP32_004'].forEach(id => {
-                const canvas = document.getElementById('nodeChart_' + id);
-                if (canvas && window.Chart) {
+            // Activate default split layout
+            setChartDisplayMode('split');
+        }
+
+        // Per-node charts are created on demand, one per field device (any number of slaves).
+        const subNodeColors = ['#38bdf8', '#3b82f6', '#fb923c', '#f472b6', '#c084fc'];
+        const nodeValueEls = {};
+        const nodeNames = {};
+
+        function ensureNodeChart(id) {
+            if (!id || nodeCharts[id] || !window.Chart) return nodeCharts[id];
+            const grid = document.getElementById('chart-view-grid');
+            if (!grid) return null;
+            const empty = document.getElementById('node-grid-empty');
+            if (empty) empty.remove();
+
+            const card = document.createElement('div');
+            card.className = 'bg-[#050608] p-3 rounded border border-[#1c2333] hover:border-slate-700 transition-colors';
+            const head = document.createElement('div');
+            head.className = 'flex justify-between items-center text-xs font-mono mb-2';
+            const title = document.createElement('span');
+            title.className = 'font-bold text-white flex items-center gap-1.5 truncate max-w-[160px]';
+            title.textContent = nodeNames[id] ? `${id} (${nodeNames[id]})` : id;
+            const val = document.createElement('span');
+            val.className = 'text-blue-400 font-mono text-[10px] truncate max-w-[130px]';
+            val.textContent = 'WAITING';
+            head.appendChild(title);
+            head.appendChild(val);
+            const holder = document.createElement('div');
+            holder.className = 'h-32';
+            const canvas = document.createElement('canvas');
+            holder.appendChild(canvas);
+            card.appendChild(head);
+            card.appendChild(holder);
+            grid.appendChild(card);
+            nodeValueEls[id] = { val, title };
+
+            {
+                {
                     nodeCharts[id] = new Chart(canvas, {
                         type: 'line',
                         data: {
@@ -1235,10 +1335,8 @@
                         }
                     });
                 }
-            });
-
-            // Activate default split layout
-            setChartDisplayMode('split');
+            }
+            return nodeCharts[id];
         }
 
         function setChartDisplayMode(mode) {
@@ -1331,7 +1429,7 @@
                     if (data.telemetry_by_node) {
                         Object.keys(data.telemetry_by_node).forEach(nid => {
                             const logs = data.telemetry_by_node[nid];
-                            if (nodeCharts[nid] && Array.isArray(logs) && logs.length > 0) {
+                            if (Array.isArray(logs) && logs.length > 0 && ensureNodeChart(nid)) {
                                 const nc = nodeCharts[nid];
                                 nc.data.labels = logs.map(l => new Date((l.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString());
                                 nc.data.datasets[0].data = logs.map(l => l.temperature !== undefined && l.temperature !== null ? l.temperature : null);
@@ -1342,7 +1440,7 @@
                                 nc.update('none');
 
                                 const lastP = logs[logs.length - 1];
-                                const valEl = document.getElementById('grid-val-' + nid.replace('ESP32_', ''));
+                                const valEl = nodeValueEls[nid] && nodeValueEls[nid].val;
                                 if (valEl && lastP) {
                                     const tempStr = lastP.temperature !== undefined && lastP.temperature !== null ? `${lastP.temperature.toFixed(1)}°C` : '--';
                                     const presStr = lastP.pressure !== undefined && lastP.pressure !== null ? `${lastP.pressure.toFixed(1)}b` : '--';
@@ -1381,7 +1479,7 @@
                     telemetryChart.update('none');
                 }
 
-                if (p.device_id && nodeCharts[p.device_id] && !isForensicScrubActive) {
+                if (p.device_id && !isForensicScrubActive && ensureNodeChart(p.device_id)) {
                     const nc = nodeCharts[p.device_id];
                     const timeLabel = new Date((p.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
                     nc.data.labels.push(timeLabel);
@@ -1398,7 +1496,7 @@
                     nc.update('none');
 
                     // Update live indicator in grid card header
-                    const valEl = document.getElementById('grid-val-' + p.device_id.replace('ESP32_', ''));
+                    const valEl = nodeValueEls[p.device_id] && nodeValueEls[p.device_id].val;
                     if (valEl) {
                         const tempStr = p.temperature !== undefined && p.temperature !== null ? `${p.temperature.toFixed(1)}°C` : '--';
                         const presStr = p.pressure !== undefined && p.pressure !== null ? `${p.pressure.toFixed(1)}b` : '--';
@@ -1446,6 +1544,7 @@
         }
 
         function updateHeartbeat(hb) {
+            if (hb && hb.pending_devices !== undefined) updatePendingBadge(hb.pending_devices);
             if (hb.isolated && hb.isolated.length > 0) {
                 document.getElementById('st-beacon-0').className = 'station-status-beacon alert';
             } else {
@@ -1527,6 +1626,18 @@
         // ====================================================================
         // DEVICE CONTROLS, SETPOINTS & ISOLATION
         // ====================================================================
+        // Escape any server-supplied string before it is placed in HTML (debug report S7).
+        // Values that reach the page can come from unauthenticated sources (login usernames,
+        // device ids), so nothing from the API is trusted as markup.
+        function escapeHtml(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function refreshDevicesList() {
             fetch('/api/devices')
                 .then(r => r.json())
@@ -1536,18 +1647,15 @@
                         const controlSelect = document.getElementById('control-device-select');
                         if (container) container.innerHTML = '';
 
-                        // Synchronize control select dropdown with detected devices
-                        if (controlSelect) {
-                            const existingIds = Array.from(controlSelect.options).map(o => o.value);
-                            res.devices.forEach(d => {
-                                if (!existingIds.includes(d.device_id)) {
-                                    const opt = document.createElement('option');
-                                    opt.value = d.device_id;
-                                    opt.innerText = `${d.device_id} — ${d.name} (${d.criticality || 'STANDARD'})`;
-                                    controlSelect.appendChild(opt);
-                                }
-                            });
-                        }
+                        lastDevices = res.devices;
+                        syncDeviceSelects(res.devices);
+                        renderTwin(res.devices);
+                        res.devices.forEach(d => {
+                            nodeNames[d.device_id] = d.name;
+                            if (nodeValueEls[d.device_id]) {
+                                nodeValueEls[d.device_id].title.textContent = d.name && d.name !== d.device_id ? `${d.device_id} (${d.name})` : d.device_id;
+                            }
+                        });
 
                         res.devices.forEach(dev => {
                             currentDevices[dev.device_id] = dev;
@@ -1561,12 +1669,12 @@
                             card.innerHTML = `
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center gap-2">
-                                        <span class="font-mono text-xs font-bold text-white">${dev.device_id}</span>
+                                        <span class="font-mono text-xs font-bold text-white">${escapeHtml(dev.device_id)}</span>
                                         <span class="px-1.5 py-0.5 rounded text-[9px] font-mono ${dev.is_active ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' : 'bg-slate-700/40 text-slate-400 border border-slate-600/30'}">${dev.is_active ? 'LIVE' : 'IDLE'}</span>
                                     </div>
                                     <span class="subway-badge ${isIso ? 'subway-badge-danger' : 'subway-badge-nominal'}">${isIso ? 'ISOLATED' : 'TRUSTED'}</span>
                                 </div>
-                                <div class="text-xs font-semibold text-slate-300 font-mono">${dev.name}</div>
+                                <div class="text-xs font-semibold text-slate-300 font-mono">${escapeHtml(dev.name)}</div>
                                 <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs font-mono pt-1">
                                     <div class="flex justify-between text-slate-400">
                                         <span>TEMP:</span>
@@ -1590,7 +1698,7 @@
                                     </div>
                                     <div class="flex justify-between text-slate-400">
                                         <span>SENSORS:</span>
-                                        <span class="text-blue-400 font-bold">${activeSensors}/5</span>
+                                        <span class="text-blue-400 font-bold">${escapeHtml(activeSensors)}/5</span>
                                     </div>
                                 </div>
                                 <div class="pt-1 flex justify-between items-center text-xs font-mono border-t border-[#1c2333]">
@@ -1598,16 +1706,118 @@
                                     <span class="${dev.trust_score < 0.4 ? 'text-red-400' : 'text-blue-400'} font-bold">${trustPct}%</span>
                                 </div>
                                 <div class="pt-1 flex gap-2">
-                                    <button onclick="event.stopPropagation(); manualIsolate('${dev.device_id}', ${!isIso})" class="subway-btn ${isIso ? 'subway-btn-nominal' : 'subway-btn-danger'} text-[10px] w-full py-1">
+                                    <button data-role="isolate-toggle" class="subway-btn ${isIso ? 'subway-btn-nominal' : 'subway-btn-danger'} text-[10px] w-full py-1">
                                         ${isIso ? 'REARM NODE' : 'TRIP ISOLATE'}
                                     </button>
                                 </div>
                             `;
+                            const isoBtn = card.querySelector('[data-role="isolate-toggle"]');
+                            if (isoBtn) {
+                                isoBtn.addEventListener('click', (event) => {
+                                    event.stopPropagation();
+                                    manualIsolate(dev.device_id, !isIso);
+                                });
+                            }
                             if (container) container.appendChild(card);
                         });
                     }
+                    renderAggregateChart();
                 })
                 .catch(err => console.error(err));
+        }
+
+        // ====================================================================
+        // AGGREGATE PLANT VIEW: all nodes x all sensors, fused, switchable radar/bar
+        // ====================================================================
+        let aggregateChart = null;
+        let aggregateMode = 'radar';
+        // Nominal ceiling per sensor (100% = envelope limit) so mixed units fuse onto one scale.
+        const AGG_SENSORS = [
+            { key: 'latest_temp', label: 'Temp', max: 60 },
+            { key: 'latest_pres', label: 'Pressure', max: 8 },
+            { key: 'latest_vib', label: 'Vibration', max: 4 },
+            { key: 'latest_hall', label: 'RPM/Hall', max: 2500 },
+            { key: 'latest_curr', label: 'Current', max: 8 },
+        ];
+        const AGG_PALETTE = ['#15559e', '#2a7a22', '#8a5d00', '#6b3fa0', '#0f766e', '#b45309', '#9d174d', '#1d6a6a'];
+
+        function aggPercent(dev, s) {
+            const v = dev[s.key];
+            if (v === null || v === undefined || isNaN(v)) return 0;
+            return Math.round((v / s.max) * 100);
+        }
+
+        function setAggregateMode(mode) {
+            aggregateMode = mode;
+            const on = 'px-2.5 py-1 text-xs font-semibold rounded bg-[#1e2638] text-white';
+            const off = 'px-2.5 py-1 text-xs font-semibold rounded text-slate-400 hover:text-white';
+            document.getElementById('btn-agg-radar').className = mode === 'radar' ? on : off;
+            document.getElementById('btn-agg-bar').className = mode === 'bar' ? on : off;
+            renderAggregateChart();
+        }
+
+        function renderAggregateChart() {
+            const canvas = document.getElementById('aggregateChart');
+            if (!canvas || !window.Chart) return;
+            const empty = document.getElementById('aggregate-empty');
+            const devices = Object.values(currentDevices).filter(d => d && d.device_id);
+            if (!devices.length) {
+                if (aggregateChart) { aggregateChart.destroy(); aggregateChart = null; }
+                if (empty) empty.classList.remove('hidden');
+                return;
+            }
+            if (empty) empty.classList.add('hidden');
+
+            const labels = AGG_SENSORS.map(s => s.label);
+            let maxVal = 100;
+            const datasets = devices.map((dev, i) => {
+                const base = AGG_PALETTE[i % AGG_PALETTE.length];
+                const iso = !!dev.is_isolated;
+                const data = AGG_SENSORS.map(s => { const p = aggPercent(dev, s); if (p > maxVal) maxVal = p; return p; });
+                return {
+                    label: (dev.name && dev.name !== dev.device_id) ? dev.name : dev.device_id,
+                    data,
+                    borderColor: iso ? '#a3281a' : base,
+                    backgroundColor: aggregateMode === 'radar' ? (base + '22') : base,
+                    borderWidth: iso ? 3 : 1.5,
+                    borderDash: iso ? [5, 3] : [],
+                    pointRadius: aggregateMode === 'radar' ? 2 : 0,
+                    pointBackgroundColor: iso ? '#a3281a' : base,
+                };
+            });
+
+            const ink = '#334155';
+            const grid = '#cbd5e1';
+            if (aggregateChart) aggregateChart.destroy();
+            if (aggregateMode === 'radar') {
+                aggregateChart = new Chart(canvas, {
+                    type: 'radar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { r: {
+                            suggestedMin: 0, suggestedMax: Math.max(150, maxVal + 10),
+                            angleLines: { color: grid }, grid: { color: grid },
+                            pointLabels: { color: ink, font: { size: 11, weight: 'bold' } },
+                            ticks: { color: ink, backdropColor: 'transparent', stepSize: 50, callback: v => v + '%' },
+                        } },
+                        plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12, font: { size: 11 } } } },
+                    },
+                });
+            } else {
+                aggregateChart = new Chart(canvas, {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            x: { ticks: { color: ink, font: { size: 11 } }, grid: { color: grid } },
+                            y: { beginAtZero: true, suggestedMax: Math.max(150, maxVal + 10), ticks: { color: ink, callback: v => v + '%' }, grid: { color: grid } },
+                        },
+                        plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12, font: { size: 11 } } } },
+                    },
+                });
+            }
         }
 
         function manualIsolate(devId, isolate) {
@@ -1617,7 +1827,11 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
                 body: JSON.stringify({ device_id: devId })
-            }).then(() => {
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) alert(res.error || 'Command failed.');
+                else if (res.details) console.info(res.details);
                 refreshDevicesList();
                 fetchAuditLogs();
                 refreshRiskView();
@@ -1663,40 +1877,46 @@
             if (sel) selectedDeviceId = sel.value;
         }
 
+        // Sends temperature and pressure setpoints to the selected device. For protocol-v1 devices
+        // the server returns only after the device has acknowledged (or rejected) the command.
+        function postSetpoint(devId, type, value) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            return fetch('/api/setpoint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({ type, value, target_device: devId })
+            }).then(r => r.json().then(body => ({ ok: r.ok, body })));
+        }
+
         function updateSetpoint() {
             const temp = parseFloat(document.getElementById('temp-setpoint-slider').value);
             const pres = parseFloat(document.getElementById('pres-setpoint-slider').value);
             const devId = document.getElementById('control-device-select').value;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!devId) {
+                alert('No target device selected. Approve a field device first (Station 06).');
+                return;
+            }
+            Promise.all([postSetpoint(devId, 'set_temp', temp), postSetpoint(devId, 'set_pressure', pres)])
+                .then(results => {
+                    const lines = results.map(({ ok, body }, i) => {
+                        const label = i === 0 ? `TEMPERATURE ${temp.toFixed(1)} C` : `PRESSURE ${pres.toFixed(2)} bar`;
+                        return ok ? `[OK] ${label}: ${body.details}` : `[BLOCKED] ${label}: ${body.error}`;
+                    });
+                    alert(lines.join('\n\n'));
+                    fetchAuditLogs();
+                })
+                .catch(e => alert('Error dispatching command: ' + e));
+        }
 
-            fetch('/api/setpoint', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId, temperature: temp, pressure: pres, setpoint: temp })
-            })
-            .then(r => r.json())
-            .then(res => {
-                if (res.status === 'APPROVED' || res.status === 'SUCCESS') {
-                    alert('SUPERVISORY COMMAND APPROVED & DISPATCHED.');
-                } else {
-                    alert('SAFETY ENFORCER REJECTED: ' + (res.reason || res.status || 'Envelope violation'));
-                }
-            })
-            .catch(e => alert('Error dispatching command: ' + e));
+        function isDeviceIsolated(devId) {
+            const d = lastDevices.find(x => x.device_id === devId);
+            return !!(d && d.is_isolated);
         }
 
         function toggleIsolation() {
             const devId = document.getElementById('control-device-select').value;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/device/isolate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId })
-            }).then(() => {
-                refreshDevicesList();
-                refreshRiskView();
-                refreshTopology();
-            });
+            if (!devId) return;
+            manualIsolate(devId, !isDeviceIsolated(devId));
         }
 
         function emergencyShutdown() {
@@ -1724,7 +1944,7 @@
         function openTrustModal(devId) {
             document.getElementById('modal-device-id').innerText = devId;
             document.getElementById('trust-modal').classList.remove('hidden');
-            fetch(`/api/device/${devId}/trust_breakdown`)
+            fetch(`/api/device/${encodeURIComponent(devId)}/trust_breakdown`)
                 .then(r => r.json())
                 .then(data => {
                     const info = data.data || data;
@@ -1780,30 +2000,27 @@
 
         function toggleModalIsolation() {
             const devId = document.getElementById('modal-device-id').innerText;
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/device/isolate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ device_id: devId })
-            }).then(() => {
-                closeTrustModal();
-                refreshDevicesList();
-                fetchAuditLogs();
-                refreshRiskView();
-                refreshTopology();
-            });
+            closeTrustModal();
+            manualIsolate(devId, !isDeviceIsolated(devId));
         }
 
         function injectAttackVector(type) {
+            const devId = document.getElementById('drill-device-select').value;
+            if (!devId) {
+                alert('Start the software simulator in Station 06 and approve its devices first.');
+                return;
+            }
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch('/api/simulate-attack', {
+            fetch('/api/simulate/attack', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body: JSON.stringify({ attack_type: type, target_device: 'ESP32_001', duration: 30 })
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({ attack_type: type, device_id: devId })
             })
             .then(r => r.json())
-            .then(() => {
-                alert(`ATTACK VECTOR [${type.toUpperCase()}] INJECTED INTO TELEMETRY BUS.`);
+            .then(res => {
+                alert(res.success
+                    ? `DRILL [${type.toUpperCase()}] ACTIVE ON ${devId}. Watch Station 01/02 and the audit log for the live response.`
+                    : `Drill refused: ${res.error}`);
                 fetchAuditLogs();
                 refreshRiskView();
             })
@@ -1818,6 +2035,133 @@
             })
             .then(() => {
                 alert('ALL ADVERSARIAL VECTORS PURGED. NOMINAL BASELINE RESTORED.');
+                fetchAuditLogs();
+                refreshRiskView();
+            })
+            .catch(e => console.error(e));
+        }
+
+        // ====================================================================
+        // STATION 04: STAGED RED-TEAM CAMPAIGN (mirrors the portable USB drill)
+        // ====================================================================
+        let campaignPlan = [];
+        let campaignRunning = false;
+
+        function campaignRow(stage, i) {
+            const kindBadge = stage.kind === 'perimeter'
+                ? '<span class="subway-badge subway-badge-blue text-[10px]">PERIMETER</span>'
+                : '<span class="subway-badge subway-badge-danger text-[10px]">PHYSICAL</span>';
+            return `<div class="subway-card p-3 flex items-center gap-3">
+                <span class="text-xs font-mono text-slate-500" style="width:1.25rem">${i + 1}</span>
+                ${kindBadge}
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold text-white font-mono">${stage.name}</div>
+                    <div id="camp-detail-${stage.id}" class="text-[10px] text-slate-400">${stage.expect || ''}</div>
+                </div>
+                <span id="camp-status-${stage.id}" class="subway-badge subway-badge-warning text-[10px]">PENDING</span>
+            </div>`;
+        }
+
+        function loadCampaignPlan() {
+            fetch('/api/campaign/plan')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    campaignPlan = data.campaign;
+                    const host = document.getElementById('campaign-stages');
+                    if (host) host.innerHTML = campaignPlan.map(campaignRow).join('');
+                    const prog = document.getElementById('campaign-progress');
+                    if (prog) prog.innerText = `${campaignPlan.length} stages ready`;
+                })
+                .catch(e => console.error('campaign plan', e));
+        }
+
+        function setStageStatus(id, label, variant) {
+            const el = document.getElementById('camp-status-' + id);
+            if (!el) return;
+            el.className = `subway-badge subway-badge-${variant} text-[10px]`;
+            el.innerText = label;
+        }
+
+        function money(v) { return '$' + Math.round(v || 0).toLocaleString(); }
+
+        async function launchCampaign() {
+            if (campaignRunning) return;
+            campaignRunning = true;
+            const launchBtn = document.getElementById('campaign-launch');
+            if (launchBtn) { launchBtn.disabled = true; launchBtn.innerText = 'CAMPAIGN RUNNING...'; }
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const devId = document.getElementById('drill-device-select')?.value || null;
+
+            let defended = 0, actualTotal = 0, preventedMax = 0;
+            document.getElementById('campaign-defended').innerText = `0 / ${campaignPlan.length}`;
+            document.getElementById('campaign-actual').innerText = '$0';
+            document.getElementById('campaign-prevented').innerText = '$0';
+            campaignPlan.forEach(s => setStageStatus(s.id, 'PENDING', 'warning'));
+
+            for (let i = 0; i < campaignPlan.length; i++) {
+                const stage = campaignPlan[i];
+                setStageStatus(stage.id, 'RUNNING...', 'warning');
+                document.getElementById('campaign-progress').innerText = `stage ${i + 1} / ${campaignPlan.length}: ${stage.name}`;
+                let res = {};
+                try {
+                    const r = await fetch('/api/campaign/stage', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                        body: JSON.stringify({ id: stage.id, device_id: devId })
+                    });
+                    res = (await r.json()).result || {};
+                } catch (e) { res = { ok: false, error: 'request failed' }; }
+
+                const detailEl = document.getElementById('camp-detail-' + stage.id);
+                if (!res.ok) {
+                    setStageStatus(stage.id, 'SKIPPED', 'warning');
+                    if (detailEl) detailEl.innerText = res.error || 'could not run';
+                } else {
+                    if (res.defended) { defended++; setStageStatus(stage.id, 'DEFENDED', 'nominal'); }
+                    else setStageStatus(stage.id, 'BREACH', 'danger');
+                    if (detailEl) {
+                        if (res.kind === 'physical' && res.incident) {
+                            const inc = res.incident;
+                            actualTotal += inc.actual_loss || 0;
+                            preventedMax = Math.max(preventedMax, inc.prevented_loss || 0);
+                            detailEl.innerText = `${res.action} · actual ${money(inc.actual_loss)}, projected-if-unfixed ${money(inc.projected_loss)}, prevented ${money(inc.prevented_loss)}, fix ${inc.time_to_fix_hours}h`;
+                        } else {
+                            detailEl.innerText = res.detail || res.action || 'defended';
+                        }
+                    }
+                }
+                document.getElementById('campaign-defended').innerText = `${defended} / ${campaignPlan.length}`;
+                document.getElementById('campaign-actual').innerText = money(actualTotal);
+                document.getElementById('campaign-prevented').innerText = money(preventedMax);
+                await new Promise(r => setTimeout(r, 350));
+            }
+
+            document.getElementById('campaign-progress').innerText =
+                `complete · ${defended} / ${campaignPlan.length} defended · ${money(preventedMax)} catastrophe prevented`;
+            if (launchBtn) { launchBtn.disabled = false; launchBtn.innerHTML = '&#9876; LAUNCH RED-TEAM CAMPAIGN'; }
+            campaignRunning = false;
+            fetchAuditLogs();
+            refreshRiskView();
+        }
+
+        function resetCampaign() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch('/api/campaign/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
+            })
+            .then(r => r.json())
+            .then(() => {
+                campaignPlan.forEach(s => setStageStatus(s.id, 'PENDING', 'warning'));
+                campaignPlan.forEach(s => {
+                    const d = document.getElementById('camp-detail-' + s.id);
+                    if (d) d.innerText = s.expect || '';
+                });
+                document.getElementById('campaign-defended').innerText = `0 / ${campaignPlan.length}`;
+                document.getElementById('campaign-actual').innerText = '$0';
+                document.getElementById('campaign-prevented').innerText = '$0';
+                document.getElementById('campaign-progress').innerText = `${campaignPlan.length} stages ready`;
                 fetchAuditLogs();
                 refreshRiskView();
             })
@@ -1904,9 +2248,9 @@
                             tr.className = 'border-b border-[#1c2333]/50 hover:bg-white/5 transition-colors font-mono';
                             const isIso = sub.is_isolated;
                             tr.innerHTML = `
-                                <td class="py-2.5 font-bold text-white">${sub.name} <span class="text-slate-500 text-[10px]">(${sub.device_id})</span></td>
-                                <td class="py-2.5 text-slate-400">${sub.zone}</td>
-                                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[9px] border ${sub.criticality && sub.criticality.includes('TIER-1') ? 'bg-red-500/10 text-red-400 border-red-500/30 font-bold' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}">${sub.criticality || 'STANDARD'}</span></td>
+                                <td class="py-2.5 font-bold text-white">${escapeHtml(sub.name)} <span class="text-slate-500 text-[10px]">(${escapeHtml(sub.device_id)})</span></td>
+                                <td class="py-2.5 text-slate-400">${escapeHtml(sub.zone)}</td>
+                                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[9px] border ${sub.criticality && sub.criticality.includes('TIER-1') ? 'bg-red-500/10 text-red-400 border-red-500/30 font-bold' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}">${escapeHtml(sub.criticality || 'STANDARD')}</span></td>
                                 <td class="py-2.5 text-slate-300 font-mono">$${(sub.equipment_value || 0).toLocaleString()}</td>
                                 <td class="py-2.5 text-slate-300 font-mono">$${(sub.downtime_rate_per_hour || 0).toLocaleString()} / hr</td>
                                 <td class="py-2.5"><span class="subway-badge ${isIso ? 'subway-badge-danger' : 'subway-badge-nominal'} text-[9px]">${isIso ? 'ISOLATED' : 'ONLINE'}</span></td>
@@ -1959,9 +2303,14 @@
                 body: JSON.stringify({ port: port, baud: baud, mock_mode: port === 'MOCK' })
             })
             .then(r => r.json())
-            .then(() => {
+            .then(res => {
+                if (!res.success) {
+                    alert('Gateway connection failed: ' + (res.error || 'unknown error'));
+                    return;
+                }
                 document.getElementById('gateway-connection-pill').className = 'subway-badge subway-badge-nominal';
                 document.getElementById('gateway-connection-pill').innerText = 'CONNECTED: ' + port;
+                setTimeout(refreshRegistry, 1500);
                 fetchAuditLogs();
                 refreshModelStatus();
                 streamUartPackets();
@@ -2118,9 +2467,7 @@
                 // Operator display badge
                 const op = log.operator || log.username || 'System';
                 let opBadgeClass = 'bg-slate-500/20 text-slate-300 border-slate-500/30';
-                if (op.toLowerCase() === 'noodles') {
-                    opBadgeClass = 'bg-blue-500/20 text-blue-400 border-blue-500/30 font-bold';
-                } else if (op.toLowerCase() === 'admin') {
+                if (op.toLowerCase() === 'admin') {
                     opBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold';
                 } else if (op.toLowerCase() === 'system') {
                     opBadgeClass = 'bg-slate-700/40 text-slate-400 border-slate-600/30';
@@ -2143,6 +2490,8 @@
                     sevBadgeClass = 'bg-red-500/20 text-red-400 border-red-500/30 font-bold';
                 } else if (sev === 'WARNING') {
                     sevBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold';
+                } else if (sev === 'SIMULATED') {
+                    sevBadgeClass = 'bg-purple-500/20 text-purple-300 border-purple-500/30 font-bold';
                 }
 
                 // Location / IP
@@ -2152,13 +2501,13 @@
                 const nist = log.nist_control || 'NIST AU-2';
 
                 tr.innerHTML = `
-                    <td class="py-2.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">${timeStr}</td>
-                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] border ${opBadgeClass}">${op}</span></td>
-                    <td class="py-2.5 px-4 ${actColor} font-bold text-[11px] whitespace-nowrap">${action}</td>
-                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[140px] truncate" title="${loc}">${loc}</td>
-                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-1.5 py-0.5 rounded text-[10px] border ${sevBadgeClass}">${sev}</span></td>
-                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[160px] truncate" title="${nist}">${nist}</td>
-                    <td class="py-2.5 px-4 text-slate-300 text-[11px] max-w-xs truncate" title="${log.details || ''}">${log.details || ''}</td>
+                    <td class="py-2.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">${escapeHtml(timeStr)}</td>
+                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] border ${opBadgeClass}">${escapeHtml(op)}</span></td>
+                    <td class="py-2.5 px-4 ${actColor} font-bold text-[11px] whitespace-nowrap">${escapeHtml(action)}</td>
+                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[140px] truncate" title="${escapeHtml(loc)}">${escapeHtml(loc)}</td>
+                    <td class="py-2.5 px-4 whitespace-nowrap"><span class="px-1.5 py-0.5 rounded text-[10px] border ${sevBadgeClass}">${escapeHtml(sev)}</span></td>
+                    <td class="py-2.5 px-4 text-slate-400 text-[10px] max-w-[160px] truncate" title="${escapeHtml(nist)}">${escapeHtml(nist)}</td>
+                    <td class="py-2.5 px-4 text-slate-300 text-[11px] max-w-xs truncate" title="${escapeHtml(log.details)}">${escapeHtml(log.details)}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -2166,6 +2515,270 @@
 
         function selectTwinNode(devId) {
             openTrustModal(devId);
+        }
+
+        function syncDeviceSelects(devices) {
+            ['control-device-select', 'drill-device-select'].forEach(selId => {
+                const sel = document.getElementById(selId);
+                if (!sel) return;
+                const previous = sel.value;
+                const ids = devices.map(d => d.device_id);
+                Array.from(sel.options).forEach(o => { if (!ids.includes(o.value)) o.remove(); });
+                const existing = Array.from(sel.options).map(o => o.value);
+                devices.forEach(d => {
+                    if (!existing.includes(d.device_id)) {
+                        const opt = document.createElement('option');
+                        opt.value = d.device_id;
+                        sel.appendChild(opt);
+                    }
+                    const opt = Array.from(sel.options).find(o => o.value === d.device_id);
+                    opt.textContent = d.name && d.name !== d.device_id ? `${d.device_id} — ${d.name}` : d.device_id;
+                });
+                if (previous && ids.includes(previous)) sel.value = previous;
+                if (selId === 'control-device-select') selectedDeviceId = sel.value || null;
+            });
+        }
+
+        // Digital twin: one tile per device, laid out in rows of four (grows with the cluster).
+        function renderTwin(devices) {
+            const svg = document.getElementById('plant-twin-svg');
+            const group = document.getElementById('twin-nodes');
+            const empty = document.getElementById('twin-empty');
+            if (!svg || !group) return;
+            const NS = 'http://www.w3.org/2000/svg';
+            while (group.firstChild) group.removeChild(group.firstChild);
+            if (empty) empty.style.display = devices.length ? 'none' : '';
+            const cols = 4, w = 210, h = 130, gx = 40, gy = 30, ox = 35, oy = 30;
+            const rows = Math.max(1, Math.ceil(devices.length / cols));
+            svg.setAttribute('viewBox', `0 0 1000 ${Math.max(520, oy * 2 + rows * (h + gy))}`);
+            const fmt = (v, d, u) => (v === null || v === undefined) ? '--' : `${Number(v).toFixed(d)}${u}`;
+            devices.forEach((d, i) => {
+                const x = ox + (i % cols) * (w + gx), y = oy + Math.floor(i / cols) * (h + gy);
+                const color = d.is_isolated ? '#a3281a' : (d.is_active ? '#15559e' : '#5a7296');
+                const fillBg = d.is_isolated ? '#fbe5e0' : (d.is_active ? '#eaf2fd' : '#eef1f6');
+                const g = document.createElementNS(NS, 'g');
+                g.setAttribute('class', 'cursor-pointer');
+                g.addEventListener('click', () => selectTwinNode(d.device_id));
+                const rect = document.createElementNS(NS, 'rect');
+                Object.entries({ x, y, width: w, height: h, rx: 6, fill: fillBg, stroke: color, 'stroke-width': 2 })
+                    .forEach(([k, v]) => rect.setAttribute(k, v));
+                g.appendChild(rect);
+                const lines = [
+                    [d.name && d.name !== d.device_id ? d.name : 'FIELD NODE', '#0f2a52', 13, 'bold'],
+                    [`NODE: ${d.device_id}`, color, 11, 'normal'],
+                    [`T ${fmt(d.latest_temp, 1, ' C')}   P ${fmt(d.latest_pres, 2, ' bar')}`, '#334155', 11, 'normal'],
+                    [`V ${fmt(d.latest_vib, 2, ' g')}   RPM ${fmt(d.latest_hall, 0, '')}`, '#334155', 11, 'normal'],
+                    [d.is_isolated ? 'ISOLATED' : `${d.status || ''} ${fmt(d.trust_percentage, 0, '%')}`, color, 11, 'bold'],
+                ];
+                lines.forEach(([text, fill, size, weight], li) => {
+                    const t = document.createElementNS(NS, 'text');
+                    Object.entries({ x: x + w / 2, y: y + 26 + li * 22, 'text-anchor': 'middle', fill, 'font-family': 'Tahoma, sans-serif', 'font-size': size, 'font-weight': weight })
+                        .forEach(([k, v]) => t.setAttribute(k, v));
+                    t.textContent = text;
+                    g.appendChild(t);
+                });
+                group.appendChild(g);
+            });
+        }
+
+        // ---- Field device enrollment (Station 06) ----
+        // Names being typed survive the periodic table refresh.
+        const registryNameDrafts = {};
+
+        function refreshRegistry() {
+            fetch('/api/registry')
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) return;
+                    updatePendingBadge(res.pending_count);
+                    const fp = document.getElementById('host-fingerprint');
+                    if (fp) fp.textContent = res.host_fingerprint || '--';
+                    const tbody = document.getElementById('registry-tbody');
+                    if (!tbody) return;
+                    const focused = document.activeElement;
+                    const focusId = focused && tbody.contains(focused) && focused.dataset ? focused.dataset.deviceId : null;
+                    tbody.innerHTML = '';
+                    if (!res.devices.length) {
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
+                        td.colSpan = 7;
+                        td.className = 'py-4 text-slate-500';
+                        td.textContent = 'No devices discovered yet. Connect the gateway above; slaves announce themselves automatically.';
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                        return;
+                    }
+                    const statusClass = { pending: 'text-amber-300', approved: 'text-emerald-400', revoked: 'text-red-400' };
+                    res.devices.forEach(d => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-b border-[#1c2333]/50';
+                        const cell = (text, cls) => {
+                            const td = document.createElement('td');
+                            td.className = 'py-2 pr-3 ' + (cls || 'text-slate-300');
+                            td.textContent = text;
+                            tr.appendChild(td);
+                            return td;
+                        };
+                        cell(d.device_id, 'text-white font-bold');
+                        const nameTd = cell('');
+                        const nameInput = document.createElement('input');
+                        nameInput.className = 'subway-input text-xs py-0.5 w-40';
+                        nameInput.placeholder = 'e.g. Boiler feed pump';
+                        nameInput.dataset.deviceId = d.device_id;
+                        nameInput.value = registryNameDrafts[d.device_id] !== undefined ? registryNameDrafts[d.device_id] : (d.name || '');
+                        nameInput.maxLength = 80;
+                        nameInput.addEventListener('input', () => { registryNameDrafts[d.device_id] = nameInput.value; });
+                        nameTd.appendChild(nameInput);
+                        const confirmed = d.status === 'approved' && !d.enrollment_confirmed ? ' (KEY DELIVERY PENDING)' : '';
+                        cell(d.status.toUpperCase() + confirmed, (statusClass[d.status] || '') + ' font-bold');
+                        cell(d.fingerprint || '--', 'text-slate-300');
+                        cell((d.sensors || []).join(', ') || '--', 'text-slate-400');
+                        cell(d.last_seen ? new Date(d.last_seen * 1000).toLocaleTimeString() : '--', 'text-slate-400');
+                        const actions = cell('', '');
+                        const button = (label, cls, handler) => {
+                            const b = document.createElement('button');
+                            b.className = 'subway-btn text-[10px] py-0.5 px-2 mr-1 ' + cls;
+                            b.textContent = label;
+                            b.addEventListener('click', handler);
+                            actions.appendChild(b);
+                        };
+                        const id = d.device_id;
+                        if (d.status === 'pending') {
+                            button('APPROVE', 'subway-btn-nominal', () => openFinModal('approve', d, nameInput.value));
+                            button('REJECT', 'subway-btn-danger', () => registryAction(id, 'reject'));
+                        } else if (d.status === 'approved') {
+                            button('EDIT $', '', () => openFinModal('financials', d, nameInput.value));
+                            button('RENAME', '', () => registryAction(id, 'rename', { name: nameInput.value }));
+                            button('REVOKE', 'subway-btn-danger', () => {
+                                if (confirm(`Revoke ${id}? Its key is erased and its relay is tripped.`)) registryAction(id, 'reject');
+                            });
+                        } else {
+                            button('FORGET', '', () => registryAction(id, 'forget'));
+                        }
+                        tbody.appendChild(tr);
+                    });
+                    if (focusId) {
+                        const again = tbody.querySelector(`input[data-device-id="${CSS.escape(focusId)}"]`);
+                        if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // ---- Device approval + financial profile modal ----
+        const FIN_FIELDS = ['equipment_value', 'downtime_rate_per_hour', 'cleanup_cost', 'regulatory_exposure'];
+        let financialRoles = [];
+        let finModalState = { mode: 'approve', deviceId: null };
+
+        function loadRoles() {
+            fetch('/api/registry/roles').then(r => r.json()).then(res => {
+                if (!res.success) return;
+                financialRoles = res.roles;
+                const roleSel = document.getElementById('fin-role');
+                const critSel = document.getElementById('fin-criticality');
+                if (roleSel && !roleSel.options.length) {
+                    res.roles.forEach(r => {
+                        const o = document.createElement('option');
+                        o.value = r.key; o.textContent = r.label;
+                        roleSel.appendChild(o);
+                    });
+                }
+                if (critSel && !critSel.options.length) {
+                    res.criticality.forEach(c => {
+                        const o = document.createElement('option');
+                        o.value = c; o.textContent = c;
+                        critSel.appendChild(o);
+                    });
+                }
+            }).catch(() => {});
+        }
+
+        function finApplyRoleDefaults() {
+            const role = document.getElementById('fin-role').value;
+            const spec = financialRoles.find(r => r.key === role);
+            if (!spec) return;
+            document.getElementById('fin-criticality').value = spec.criticality;
+            FIN_FIELDS.forEach(f => { document.getElementById('fin-' + f).value = spec[f]; });
+        }
+
+        function openFinModal(mode, device, nameDraft) {
+            finModalState = { mode, deviceId: device.device_id };
+            const fin = device.financials || {};
+            document.getElementById('fin-modal-title').textContent =
+                (mode === 'approve' ? 'APPROVE DEVICE // ' : 'FINANCIAL PROFILE // ') + device.device_id;
+            document.getElementById('fin-submit').textContent = mode === 'approve' ? 'APPROVE & ENROLL' : 'SAVE PROFILE';
+            document.getElementById('fin-name').value = nameDraft || device.name || '';
+            document.getElementById('fin-zone').value = fin.zone || '';
+            document.getElementById('fin-role').value = fin.role || 'generic';
+            document.getElementById('fin-criticality').value = fin.criticality || 'TIER-2 HIGH';
+            // Approving a fresh device: prefill money from the role defaults. Editing: show stored values.
+            if (mode === 'approve' && !fin.is_custom) {
+                finApplyRoleDefaults();
+            } else {
+                FIN_FIELDS.forEach(f => { document.getElementById('fin-' + f).value = fin[f] !== undefined ? fin[f] : ''; });
+            }
+            document.getElementById('fin-error').classList.add('hidden');
+            document.getElementById('fin-modal').classList.remove('hidden');
+        }
+
+        function closeFinModal() { document.getElementById('fin-modal').classList.add('hidden'); }
+
+        function submitFinModal() {
+            const err = document.getElementById('fin-error');
+            const financials = { role: document.getElementById('fin-role').value, criticality: document.getElementById('fin-criticality').value, zone: document.getElementById('fin-zone').value };
+            for (const f of FIN_FIELDS) {
+                const v = parseFloat(document.getElementById('fin-' + f).value);
+                if (isNaN(v) || v < 0) {
+                    err.textContent = 'Enter a valid non-negative number for every dollar field.';
+                    err.classList.remove('hidden');
+                    return;
+                }
+                financials[f] = v;
+            }
+            const id = finModalState.deviceId;
+            const name = document.getElementById('fin-name').value;
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const endpoint = finModalState.mode === 'approve'
+                ? `/api/registry/${encodeURIComponent(id)}/approve`
+                : `/api/registry/${encodeURIComponent(id)}/financials`;
+            const body = finModalState.mode === 'approve' ? { name, financials } : financials;
+            fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body) })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) { err.textContent = res.error || 'Failed.'; err.classList.remove('hidden'); return; }
+                    delete registryNameDrafts[id];
+                    closeFinModal();
+                    refreshRegistry();
+                    refreshDevicesList();
+                    fetchAuditLogs();
+                })
+                .catch(e => { err.textContent = 'Request failed: ' + e; err.classList.remove('hidden'); });
+        }
+
+        function registryAction(deviceId, action, body) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch(`/api/registry/${encodeURIComponent(deviceId)}/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify(body || {})
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) alert(res.error || 'Action failed.');
+                else delete registryNameDrafts[deviceId];
+                refreshRegistry();
+                refreshDevicesList();
+                fetchAuditLogs();
+            })
+            .catch(e => alert('Registry action failed: ' + e));
+        }
+
+        function updatePendingBadge(count) {
+            const badge = document.getElementById('pending-devices-badge');
+            const num = document.getElementById('pending-devices-count');
+            if (!badge || !num) return;
+            num.textContent = count || 0;
+            badge.classList.toggle('hidden', !count);
         }
 
         setInterval(() => {
@@ -2176,8 +2789,12 @@
             }
         }, 1000);
 
+        setInterval(refreshRegistry, 3000);
+
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
+            loadRoles();
+            refreshRegistry();
             fetchFullData();          // Seed charts and tables immediately!
             fetchAuditLogs();         // Load audit history immediately!
             refreshModelStatus();     // Load ML model status
@@ -2186,6 +2803,7 @@
             scanComPorts();
             refreshTopology();        // Dynamic node and sensor topology
             refreshRiskView();        // Seed financial analytics and Monte Carlo curve
+            loadCampaignPlan();       // Station 04 staged red-team campaign
 
             // Background polling for active station views
             setInterval(() => {
@@ -2210,6 +2828,82 @@
             });
 
             checkHashRoute();
+        });
+    </script>
+    <!-- XP taskbar -->
+    <div id="xp-taskbar">
+        <div id="xp-start" onclick="toggleStartMenu(event)"><span class="start-orb"></span>start</div>
+        <div class="xp-task-btns" id="xp-task-btns"></div>
+        <div id="xp-tray"><span class="tray-clock" id="xp-tray-clock">--:--</span></div>
+    </div>
+    <div id="xp-startmenu">
+        <div class="sm-header">Aegis ICS &nbsp;&middot;&nbsp; {{ username or 'operator' }}</div>
+        <div id="xp-startmenu-items"></div>
+        <div class="sm-sep"></div>
+        <div class="sm-item" onclick="location.href='/api/report/download'">&#128196;&nbsp; Generate NIST 800 report</div>
+        <div class="sm-footer"><a href="/logout" class="subway-btn subway-btn-danger text-xs">Log off</a></div>
+    </div>
+
+    <script>
+        // ---- Windows XP taskbar + start menu ----
+        const XP_STATIONS = [
+            { i: 0, label: 'Process Monitor', icon: '📊' },
+            { i: 1, label: 'Plant Twin', icon: '🏭' },
+            { i: 2, label: 'Safety Enforcer', icon: '🛡' },
+            { i: 3, label: 'Red Team Drills', icon: '⚔' },
+            { i: 4, label: 'Risk Analytics', icon: '💰' },
+            { i: 5, label: 'Hardware Gateway', icon: '🔌' },
+            { i: 6, label: 'Forensic Audit', icon: '📋' },
+        ];
+        function buildTaskbar() {
+            const bar = document.getElementById('xp-task-btns');
+            const menu = document.getElementById('xp-startmenu-items');
+            if (!bar) return;
+            XP_STATIONS.forEach(st => {
+                const b = document.createElement('button');
+                b.className = 'xp-task-btn'; b.dataset.index = st.i;
+                b.innerHTML = `<span>${st.icon}</span><span>${st.label}</span>`;
+                b.addEventListener('click', () => switchStation(st.i));
+                bar.appendChild(b);
+                const m = document.createElement('div');
+                m.className = 'sm-item';
+                m.innerHTML = `<span style="font-size:16px">${st.icon}</span> ${st.label}`;
+                m.addEventListener('click', () => { switchStation(st.i); closeStartMenu(); });
+                menu.appendChild(m);
+            });
+        }
+        function setActiveTask(index) {
+            document.querySelectorAll('#xp-task-btns .xp-task-btn').forEach(b => {
+                b.classList.toggle('active', Number(b.dataset.index) === Number(index));
+            });
+        }
+        function toggleStartMenu(e) { if (e) e.stopPropagation(); document.getElementById('xp-startmenu').classList.toggle('open'); }
+        function closeStartMenu() { document.getElementById('xp-startmenu').classList.remove('open'); }
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('xp-startmenu');
+            if (menu && menu.classList.contains('open') && !menu.contains(e.target) && e.target.id !== 'xp-start' && !document.getElementById('xp-start').contains(e.target)) {
+                closeStartMenu();
+            }
+        });
+        function tickTrayClock() {
+            const el = document.getElementById('xp-tray-clock');
+            if (el) {
+                const now = new Date();
+                let h = now.getHours(); const m = String(now.getMinutes()).padStart(2, '0');
+                const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+                el.textContent = `${h}:${m} ${ap}`;
+            }
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            buildTaskbar();
+            setActiveTask(0);
+            tickTrayClock();
+            setInterval(tickTrayClock, 10000);
+            // Keep the taskbar in sync with whatever triggers a station change.
+            if (typeof window.switchStation === 'function') {
+                const _origSwitch = window.switchStation;
+                window.switchStation = function (i) { _origSwitch(i); setActiveTask(i); closeStartMenu(); };
+            }
         });
     </script>
 </body>

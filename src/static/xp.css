@@ -1,0 +1,275 @@
+/* ============================================================================
+   Aegis ICS — Windows XP "Luna (Blue)" theme
+   Replaces the dark terminal/subway theme. Keeps Tailwind for layout only;
+   this file re-skins the widgets and overrides the old dark palette to the
+   classic XP light look (silver/blue, Tahoma, window chrome + taskbar).
+   ============================================================================ */
+
+:root {
+  --xp-face: #ece9d8;          /* classic XP control face (beige-grey) */
+  --xp-face-2: #f1efe6;
+  --xp-window: #ffffff;
+  --xp-title-a: #0058e6;       /* title bar gradient */
+  --xp-title-b: #3f8cf3;
+  --xp-title-c: #2a6ae0;
+  --xp-blue: #003c74;          /* control outline blue */
+  --xp-field-border: #7f9db9;
+  --xp-text: #0a0a0a;
+  --xp-text-soft: #3a3a3a;
+  --xp-text-faint: #5a5a5a;
+  --xp-sel: #316ac5;           /* selection blue */
+  --xp-task-a: #3168d5;
+  --xp-task-b: #2157d6;
+  --xp-green-a: #3c9a3c;
+  --xp-green-b: #2a7a22;
+  --xp-font: Tahoma, "Segoe UI", "MS Sans Serif", Geneva, sans-serif;
+}
+
+/* ---- desktop + base ------------------------------------------------------- */
+html, body { height: 100%; }
+body, body.theme-green {
+  font-family: var(--xp-font) !important;
+  font-size: 11px;
+  color: var(--xp-text) !important;
+  background: #5a7edc !important;              /* fallback */
+  background: linear-gradient(180deg, #4b86d6 0%, #6ba4e6 38%, #8cc63f 38%, #6aa82e 55%, #4f8f22 100%) !important;
+  background-attachment: fixed !important;
+}
+* { scrollbar-width: thin; scrollbar-color: #c4d2e8 #f0f3f9; }
+*::-webkit-scrollbar { width: 16px; height: 16px; }
+*::-webkit-scrollbar-track { background: #e8edf5; }
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #d7e3f4, #a9c2e8); border: 1px solid #7f9db9; border-radius: 2px;
+}
+*::-webkit-scrollbar-button {
+  background: linear-gradient(#fff, #cdd9ec); border: 1px solid #7f9db9; height: 16px;
+}
+
+/* XP accent text colours (kept semantic, darkened for white panels) */
+.text-white, .text-\[\#ffffff\] { color: var(--xp-text) !important; }
+.text-slate-200, .text-slate-300 { color: var(--xp-text) !important; }
+.text-slate-400 { color: var(--xp-text-soft) !important; }
+.text-slate-500, .text-slate-600 { color: var(--xp-text-faint) !important; }
+.text-blue-300, .text-blue-400, .text-sky-300, .text-cyan-400, .text-indigo-400 { color: #0a3e8c !important; }
+.text-red-400, .text-red-500 { color: #c20000 !important; }
+.text-amber-300, .text-amber-400, .text-yellow-400 { color: #9a6700 !important; }
+.text-emerald-400, .text-green-400 { color: #1d7a1d !important; }
+.text-purple-300, .text-purple-400 { color: #5a3a9a !important; }
+
+/* Flatten the dark backgrounds/borders used throughout the markup */
+.bg-\[\#090a0f\], .bg-\[\#080b12\], .bg-\[\#0e121a\] { background: transparent !important; }
+.bg-\[\#050608\] { background: var(--xp-window) !important; border: 1px solid #b9c9de !important; }
+.bg-\[\#1c2333\], .bg-\[\#1e2638\] { background: #dfe7f3 !important; }
+.border-\[\#1c2333\], .border-\[\#161d2a\], .border-\[\#1c2333\]\/50, .border-\[\#1c2333\]\/80 {
+  border-color: #b9c9de !important;
+}
+.backdrop-blur-sm { backdrop-filter: none !important; }
+.bg-black\/80, .bg-black\/70, .bg-black\/60 { background: rgba(10,30,70,0.35) !important; }
+
+/* Semantic tint backgrounds -> soft XP tints */
+[class*="bg-blue-500/1"], [class*="bg-blue-500/2"], [class*="bg-blue-500/3"] { background: #e3edfb !important; }
+[class*="bg-red-500/1"], [class*="bg-red-500/2"], [class*="bg-red-500/3"] { background: #fbe4e4 !important; }
+[class*="bg-amber-500/1"], [class*="bg-amber-500/2"] { background: #fbf2d9 !important; }
+[class*="bg-emerald-500/1"], [class*="bg-green-500/1"] { background: #e3f6e1 !important; }
+[class*="bg-purple-500/1"] { background: #efe8fb !important; }
+[class*="bg-slate-700"], [class*="bg-slate-800"] { background: #dfe7f3 !important; }
+
+/* ---- XP window (the app shell + dialogs) ---------------------------------- */
+.xp-window {
+  background: var(--xp-window);
+  border: 1px solid var(--xp-blue);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 0 0 1px #0f3f8a, 2px 2px 10px rgba(0,0,0,0.4);
+}
+.xp-titlebar {
+  height: 28px; display: flex; align-items: center; gap: 6px;
+  padding: 0 4px 0 6px;
+  background: linear-gradient(180deg, #2f8bf4 0%, var(--xp-title-a) 8%, #0a53d8 40%, var(--xp-title-c) 90%, #1d5fd6 100%);
+  border-radius: 7px 7px 0 0;
+  color: #fff; font-weight: bold; font-size: 12px;
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+  user-select: none;
+}
+.xp-titlebar .xp-title-ico { width: 16px; height: 16px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+.xp-titlebar .xp-title-text { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.xp-caption-btns { display: flex; gap: 2px; }
+.xp-cap {
+  width: 22px; height: 22px; border: 1px solid #fff; border-radius: 3px; color: #fff;
+  font: bold 12px var(--xp-font); display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #5a9bf5, #1f63d8); cursor: default;
+}
+.xp-cap.close { background: linear-gradient(180deg, #f08a6b, #d6401f); }
+.xp-cap:hover { filter: brightness(1.12); }
+
+/* ---- cards / panels (subway-card) ----------------------------------------- */
+.subway-card, .login-card {
+  background: var(--xp-window) !important;
+  border: 1px solid #a9bcd6 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 0 #fff inset, 1px 1px 4px rgba(0,0,0,0.12) !important;
+  color: var(--xp-text) !important;
+}
+/* Section header stripes read as XP task-pane headers */
+.subway-card > .border-b, .subway-card .border-b.border-\[\#1c2333\] {
+  background: linear-gradient(180deg, #f8fafd, #e8eef8);
+  border-bottom: 1px solid #c3d2e8 !important;
+}
+
+/* ---- buttons (subway-btn family) ------------------------------------------ */
+.subway-btn, button.subway-btn, .xp-btn {
+  font-family: var(--xp-font) !important; font-size: 11px !important; font-weight: 400 !important;
+  color: #0a0a0a !important;
+  padding: 3px 14px !important; min-width: 68px;
+  border: 1px solid #003c74 !important; border-radius: 3px !important;
+  background: linear-gradient(180deg, #fdfefe 0%, #f0eee4 46%, #e3ddcc 52%, #ecebe3 100%) !important;
+  box-shadow: 0 0 0 1px #fff inset !important;
+  cursor: default !important; transition: none !important;
+}
+.subway-btn:hover, .xp-btn:hover {
+  border-color: #e9a900 !important;
+  box-shadow: 0 0 0 1px #fff inset, 0 0 3px 1px rgba(255,187,0,0.55) !important;
+}
+.subway-btn:active, .xp-btn:active {
+  background: linear-gradient(180deg, #d9d3c4, #ecebe3) !important;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.25) inset !important;
+}
+.subway-btn-nominal { background: linear-gradient(180deg, #e8f7e4, #c9ebc1 55%, #e2f3dc) !important; border-color: #2a7a22 !important; }
+.subway-btn-danger  { background: linear-gradient(180deg, #fdecea, #f6c6bd 55%, #fbe2dc) !important; border-color: #a3281a !important; }
+.subway-btn-primary, .subway-btn-blue { background: linear-gradient(180deg, #eaf2fd, #c3ddf6 55%, #e1eefb) !important; border-color: #15559e !important; }
+
+/* ---- inputs / selects ----------------------------------------------------- */
+.subway-input, input.subway-input, select.subway-input, textarea.subway-input,
+input[type="text"], input[type="password"], input[type="number"], select, textarea {
+  font-family: var(--xp-font) !important; font-size: 11px !important;
+  color: #0a0a0a !important;
+  background: #fff !important;
+  border: 1px solid var(--xp-field-border) !important; border-radius: 2px !important;
+  box-shadow: 1px 1px 1px rgba(0,0,0,0.08) inset !important;
+  padding: 3px 5px !important;
+}
+.subway-input:focus, input:focus, select:focus, textarea:focus {
+  outline: none !important; border-color: #2f6fd0 !important;
+  box-shadow: 0 0 2px 1px rgba(47,111,208,0.5) !important;
+}
+::placeholder { color: #8a8a8a !important; }
+
+/* ---- badges --------------------------------------------------------------- */
+.subway-badge {
+  font-family: var(--xp-font) !important; font-size: 10px !important; font-weight: 700 !important;
+  border-radius: 9px !important; padding: 1px 9px !important; border: 1px solid #9fb3cf !important;
+  background: #eef3fb !important; color: #15427e !important;
+}
+.subway-badge-nominal { background: #e2f3dc !important; color: #1d6a1d !important; border-color: #78b36f !important; }
+.subway-badge-danger  { background: #fbe0da !important; color: #a3281a !important; border-color: #d78a7b !important; }
+.subway-badge-warning { background: #fbf1d4 !important; color: #8a5d00 !important; border-color: #d9b45e !important; }
+.subway-badge-blue    { background: #e0ecfb !important; color: #15559e !important; border-color: #8fb3e0 !important; }
+
+/* ---- tables (enrollment / audit / subsystems) ----------------------------- */
+table { border-collapse: collapse; }
+thead tr, table thead {
+  background: linear-gradient(180deg, #fbfcfe, #e7edf6) !important; color: #2a3b54 !important;
+}
+thead th { border-bottom: 1px solid #b9c9de !important; font-weight: 700 !important; }
+tbody tr { border-bottom: 1px solid #e4eaf3 !important; }
+tbody tr:nth-child(even) { background: #f5f8fc !important; }
+tbody tr:hover { background: #dce8fb !important; }
+
+/* ---- top station nav (subway rail) as an XP toolbar ----------------------- */
+.subway-rail, .subway-nav { background: transparent !important; }
+
+/* ---- scanline / crt / glow effects from the old theme: kill them ---------- */
+.crt-overlay, .scanlines, [class*="scanline"], [class*="phosphor"] { display: none !important; }
+.animate-pulse { animation: none !important; }
+
+/* ---- XP taskbar ----------------------------------------------------------- */
+#xp-taskbar {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 30px; z-index: 60;
+  display: flex; align-items: stretch;
+  background: linear-gradient(180deg, #3f8cf4 0%, #2a6ae0 8%, var(--xp-task-a) 45%, var(--xp-task-b) 90%, #1d4fc4 100%);
+  border-top: 1px solid #2f6fd0;
+  box-shadow: 0 -1px 0 #5a9bf5 inset;
+  font-family: var(--xp-font);
+}
+#xp-start {
+  display: flex; align-items: center; gap: 6px; padding: 0 16px 0 10px; margin-right: 8px;
+  font-style: italic; font-weight: bold; font-size: 15px; color: #fff;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5); cursor: default;
+  background: linear-gradient(180deg, #5bc24a 0%, #3c9a3c 45%, #2a7a22 100%);
+  border-right: 2px solid #1e5c17;
+  border-radius: 0 10px 10px 0;
+}
+#xp-start:hover { filter: brightness(1.08); }
+#xp-start .start-orb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff6b4a, #d6401f);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #c0c0c0;
+}
+.xp-task-btns { display: flex; align-items: center; gap: 3px; padding: 3px 4px; flex: 1; overflow-x: auto; }
+.xp-task-btn {
+  min-width: 120px; max-width: 170px; height: 23px; padding: 0 8px;
+  display: flex; align-items: center; gap: 6px;
+  color: #fff; font-size: 11px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(180deg, #4a90f0, #2f6fd8); border: 1px solid #1d4fb0; border-radius: 3px;
+  cursor: default;
+}
+.xp-task-btn.active { background: linear-gradient(180deg, #1a4aad, #2f6fd8); box-shadow: 1px 1px 2px rgba(0,0,0,0.3) inset; }
+.xp-task-btn:hover { filter: brightness(1.08); }
+#xp-tray {
+  display: flex; align-items: center; gap: 8px; padding: 0 10px; margin-left: auto;
+  background: linear-gradient(180deg, #1f8ad0, #1766c0); border-left: 1px solid #3f8cf4;
+  color: #fff; font-size: 11px;
+}
+#xp-tray .tray-clock { font-weight: 400; }
+
+/* Start menu */
+#xp-startmenu {
+  position: fixed; left: 4px; bottom: 30px; width: 320px; z-index: 61; display: none;
+  background: #fff; border: 1px solid #0a3e8c; border-radius: 8px 8px 0 0; overflow: hidden;
+  box-shadow: 3px 3px 12px rgba(0,0,0,0.45);
+}
+#xp-startmenu.open { display: block; }
+#xp-startmenu .sm-header {
+  background: linear-gradient(180deg, #3f8cf3, #0a53d8); color: #fff; font-weight: bold; font-size: 14px;
+  padding: 10px 12px; text-shadow: 1px 1px 1px rgba(0,0,0,0.4);
+}
+#xp-startmenu .sm-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 14px; font-size: 12px; color: #0a0a0a; cursor: default;
+}
+#xp-startmenu .sm-item:hover { background: var(--xp-sel); color: #fff; }
+#xp-startmenu .sm-sep { height: 1px; background: #c3d2e8; margin: 3px 10px; }
+#xp-startmenu .sm-footer { background: linear-gradient(180deg, #5a9bf5, #1f63d8); padding: 6px; display: flex; justify-content: flex-end; }
+
+/* leave room for the taskbar */
+body.xp-has-taskbar { padding-bottom: 32px; }
+
+/* ---- dashboard client area + header/nav (override old subway chrome) ------- */
+body.xp-has-taskbar {
+  background: #d6dff0 !important;          /* light client area; desktop not visible when maximized */
+}
+/* top header toolbar */
+.bg-\[\#0e121a\] {
+  background: linear-gradient(180deg, #fbfcfe, #e9eef7 60%, #dde6f3) !important;
+  border-bottom: 1px solid #a9bcd6 !important;
+}
+.subway-nav-bar {
+  background: linear-gradient(180deg, #f3f6fb, #e4ebf6) !important;
+  border-bottom: 1px solid #b4c4db !important;
+  padding-top: 6px; padding-bottom: 6px;
+}
+/* the decorative "subway line" rail is off-theme in XP: hide it */
+.subway-rail-bg, .subway-rail-active, .subway-rail { display: none !important; }
+/* station nav nodes -> XP toolbar tabs */
+.subway-station-node {
+  font-family: var(--xp-font) !important; font-size: 11px !important; color: #15427e !important;
+  padding: 4px 10px !important; border: 1px solid transparent !important; border-radius: 4px !important;
+  background: transparent !important; white-space: nowrap;
+}
+.subway-station-node:hover { background: #dce8fb !important; border-color: #9fb9de !important; }
+.subway-station-node.active {
+  background: linear-gradient(180deg, #eaf2fd, #c7ddf6) !important;
+  border: 1px solid #5a8bd0 !important; font-weight: 700 !important; color: #0a3e8c !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12) !important;
+}
+/* the brand "L1" tile */
+.bg-blue-600\/20 { background: linear-gradient(180deg, #eaf2fd, #c7ddf6) !important; }
+/* header info pill (bg-[#050608] already white); keep status dot coloured */

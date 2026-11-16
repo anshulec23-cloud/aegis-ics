@@ -1,7 +1,7 @@
 """
 Aegis ICS — Continuous Mathematical Trust Scoring Engine
 ========================================================
-Implements the 4-parameter mathematical trust scoring formalism specified in docs/trust_scoring.md:
+Implements the 4-parameter mathematical trust scoring formalism specified in docs/06-research/trust-scoring.md:
 
     T_score = 0.35 * (1.0 - S_anomaly) + 0.30 * S_signature + 0.20 * S_history + 0.15 * S_stability
 
@@ -18,7 +18,7 @@ def compute_device_trust_score(
     latest_is_anomaly: Optional[bool] = None,
     latest_sig_valid: Optional[bool] = None,
     anomaly_prob: float = 0.0,
-    model_confidence: float = 0.85
+    model_confidence: float = 0.85,
 ) -> Dict[str, Any]:
     """
     Computes real-time 4-parameter continuous trust score for a specific ESP32 node.
@@ -36,7 +36,7 @@ def compute_device_trust_score(
             "s_signature": 0.0,
             "s_history": 0.0,
             "s_stability": 0.0,
-            "details": "Device quarantined by Zero-Trust microsegmentation policy"
+            "details": "Device quarantined by Zero-Trust microsegmentation policy",
         }
 
     # 2. Query historical telemetry for this device (last 15 readings)
@@ -49,8 +49,9 @@ def compute_device_trust_score(
     )
 
     if not logs:
-        known_devices = {"ESP32_001", "ESP32_002", "ESP32_003", "ESP32_004"}
-        if device_id in known_devices:
+        from device_keys import provisioned_devices
+
+        if device_id in provisioned_devices():
             return {
                 "device_id": device_id,
                 "trust_score": 0.50,
@@ -61,7 +62,7 @@ def compute_device_trust_score(
                 "s_signature": 1.0,
                 "s_history": 0.5,
                 "s_stability": 0.5,
-                "details": "Registered device — building baseline trust profile"
+                "details": "Registered device — building baseline trust profile",
             }
         else:
             return {
@@ -74,7 +75,7 @@ def compute_device_trust_score(
                 "s_signature": 0.0,
                 "s_history": 0.0,
                 "s_stability": 0.0,
-                "details": "Unknown device ID — requires registration before trust elevation"
+                "details": "Unknown device ID — requires registration before trust elevation",
             }
 
     # --- Metric 1: Anomaly Frequency (S_anomaly) ---
@@ -116,12 +117,7 @@ def compute_device_trust_score(
         s_stability = 0.50
 
     # --- Combine Scores ---
-    t_score = (
-        0.35 * (1.0 - s_anomaly)
-        + 0.30 * s_signature
-        + 0.20 * s_history
-        + 0.15 * s_stability
-    )
+    t_score = 0.35 * (1.0 - s_anomaly) + 0.30 * s_signature + 0.20 * s_history + 0.15 * s_stability
 
     # Smooth Zero-Trust warming from 0.50 registration baseline across first 10 observations
     if len(logs) < 10:
@@ -164,8 +160,9 @@ def compute_device_trust_score(
         "s_signature": round(s_signature, 2),
         "s_history": round(s_history, 2),
         "s_stability": round(s_stability, 2),
-        "details": f"{status} operational profile"
+        "details": f"{status} operational profile",
     }
+
 
 def get_device_trust_score(device_id: str, db_session) -> float:
     """Convenience helper returning the trust percentage float (0.0 - 100.0)."""
@@ -183,16 +180,52 @@ def get_trust_breakdown(device_id: str, db_session) -> Dict[str, Any]:
     is_isolated = bool(dev_state.is_isolated) if dev_state else False
 
     total_packets = db_session.query(TelemetryLog).filter_by(device_id=device_id).count()
-    recent_anomalies = db_session.query(TelemetryLog).filter_by(device_id=device_id, is_anomaly=True).count()
-    latest_log = db_session.query(TelemetryLog).filter_by(device_id=device_id).order_by(TelemetryLog.timestamp.desc()).first()
+    recent_anomalies = (
+        db_session.query(TelemetryLog).filter_by(device_id=device_id, is_anomaly=True).count()
+    )
+    latest_log = (
+        db_session.query(TelemetryLog)
+        .filter_by(device_id=device_id)
+        .order_by(TelemetryLog.timestamp.desc())
+        .first()
+    )
 
     zones = {
-        "ESP32_001": {"name": "Catalytic Reactor 01", "zone": "Zone A: High-Exotherm Reaction Unit", "type": "Microcontroller Unit (MCU)"},
-        "ESP32_002": {"name": "Centrifugal Pump 02", "zone": "Zone B: Secondary Feed Booster", "type": "High-Pressure Impeller"},
-        "ESP32_003": {"name": "Cooling Cryo 03", "zone": "Zone C: Primary Cryogenic Heat Exchanger", "type": "Chilled Liquid Loop"},
-        "ESP32_004": {"name": "Turbine Generator 04", "zone": "Zone D: Main Turbine Hall Generation", "type": "High-Speed Alternator"},
+        "ESP32_001": {
+            "name": "Catalytic Reactor 01",
+            "zone": "Zone A: High-Exotherm Reaction Unit",
+            "type": "Microcontroller Unit (MCU)",
+        },
+        "ESP32_002": {
+            "name": "Centrifugal Pump 02",
+            "zone": "Zone B: Secondary Feed Booster",
+            "type": "High-Pressure Impeller",
+        },
+        "ESP32_003": {
+            "name": "Cooling Cryo 03",
+            "zone": "Zone C: Primary Cryogenic Heat Exchanger",
+            "type": "Chilled Liquid Loop",
+        },
+        "ESP32_004": {
+            "name": "Turbine Generator 04",
+            "zone": "Zone D: Main Turbine Hall Generation",
+            "type": "High-Speed Alternator",
+        },
     }
-    zone_meta = zones.get(device_id, {"name": f"Slave Node {device_id}", "zone": "Auxiliary Field Bus", "type": "Field Sensor"})
+    try:
+        import registry
+
+        reg = registry.device_info(device_id) or {}
+    except Exception:
+        reg = {}
+    zone_meta = zones.get(
+        device_id,
+        {
+            "name": reg.get("name") or f"Slave Node {device_id}",
+            "zone": "Field bus",
+            "type": "ESP32 field node",
+        },
+    )
 
     return {
         "device_id": device_id,
@@ -209,29 +242,29 @@ def get_trust_breakdown(device_id: str, db_session) -> Dict[str, Any]:
                 "value": score_info["s_anomaly"],
                 "weight": 0.35,
                 "contribution_pct": round(0.35 * (1.0 - score_info["s_anomaly"]) * 100.0, 1),
-                "desc": "Random Forest anomaly probability evaluation"
+                "desc": "Random Forest anomaly probability evaluation",
             },
             "s_signature": {
                 "name": "Cryptographic HMAC Integrity",
                 "value": score_info["s_signature"],
                 "weight": 0.30,
                 "contribution_pct": round(0.30 * score_info["s_signature"] * 100.0, 1),
-                "desc": "HMAC-SHA256 frame payload signature verification"
+                "desc": "HMAC-SHA256 frame payload signature verification",
             },
             "s_history": {
                 "name": "Historical Mean Deviation",
                 "value": score_info["s_history"],
                 "weight": 0.20,
                 "contribution_pct": round(0.20 * score_info["s_history"] * 100.0, 1),
-                "desc": "Euclidean deviation from 15-packet rolling mean"
+                "desc": "Euclidean deviation from 15-packet rolling mean",
             },
             "s_stability": {
                 "name": "Sensor Signal Stability",
                 "value": score_info["s_stability"],
                 "weight": 0.15,
                 "contribution_pct": round(0.15 * score_info["s_stability"] * 100.0, 1),
-                "desc": "Population variance of sensor jitter"
-            }
+                "desc": "Population variance of sensor jitter",
+            },
         },
         "stats": {
             "total_packets": total_packets,
@@ -239,7 +272,5 @@ def get_trust_breakdown(device_id: str, db_session) -> Dict[str, Any]:
             "last_seen": latest_log.timestamp if latest_log else None,
             "last_temp": latest_log.temperature if latest_log else None,
             "last_pres": latest_log.pressure if latest_log else None,
-        }
+        },
     }
-
-

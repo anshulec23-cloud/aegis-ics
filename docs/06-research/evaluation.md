@@ -105,7 +105,7 @@ Empirical results from running `tests/benchmark_suite.py` against active softwar
 - **First Detection Time**: $t = 707\text{ s}$ (early detection within the covert attack ramp).
 - **Figure**: Generated empirical waveform saved to `docs/figures/fig_stuxnet_attack.png`.
 
-![Coordinated Stuxnet Attack Simulation](figures/fig_stuxnet_attack.png)
+![Coordinated Stuxnet Attack Simulation](../figures/fig_stuxnet_attack.png)
 
 ### 6.2 Real-Time Cyber-Financial Loss Mitigation (FAIR Model, 24-Hour Simulation)
 - **Single-Subsystem Empirical Benchmark (`fig_financial_risk.png`)**:
@@ -119,7 +119,7 @@ Empirical results from running `tests/benchmark_suite.py` against active softwar
   - **Net Damages Prevented across Cluster**: **$1,421,000** (**53.5% loss reduction**)
 - **Figure**: Generated loss trajectory curve saved to `docs/figures/fig_financial_risk.png`.
 
-![FAIR Financial Risk Reduction](figures/fig_financial_risk.png)
+![FAIR Financial Risk Reduction](../figures/fig_financial_risk.png)
 
 ### 6.3 Additional Benchmark Empirical Figures
 - **NSPN Non-Linear Safety Decision Surface Heatmap**: `docs/figures/fig_nspn_heatmap.png`

@@ -11,23 +11,36 @@
 
 NAME="aegis-ics"
 DAEMON="/opt/aegis-ics/AegisICS"
-DAEMON_ARGS="--server --port 5000 --host 0.0.0.0"
+# Loopback only; expose remotely through a TLS reverse proxy.
+DAEMON_ARGS="--server --port 5000 --host 127.0.0.1"
 PIDFILE="/var/run/${NAME}.pid"
-LOGFILE="/var/log/${NAME}.log"
-USER="root"
+LOG_DIR="/var/log/${NAME}"
+LOGFILE="${LOG_DIR}/${NAME}.log"
+RUN_USER="aegis"
+RUN_GROUP="aegis"
 DATA_DIR="/var/lib/aegis-ics"
 
 export AEGIS_SERVER_MODE=1
 export AEGIS_DATA_DIR="${DATA_DIR}"
 export FLASK_PORT=5000
 
+# Site secrets and overrides (ADMIN_PASSWORD, FLASK_SECRET_KEY, DEVICE_KEY_*, ...).
+if [ -r /etc/default/aegis-ics ]; then
+  set -a
+  . /etc/default/aegis-ics
+  set +a
+fi
+
 test -x "$DAEMON" || exit 0
 
 case "$1" in
   start)
     echo "Starting Aegis ICS Gateway..."
-    mkdir -p "$DATA_DIR"
+    mkdir -p "$DATA_DIR" "$LOG_DIR"
+    chown "$RUN_USER:$RUN_GROUP" "$DATA_DIR" "$LOG_DIR"
+    # Runs as the unprivileged 'aegis' user (member of dialout for serial access).
     start-stop-daemon --start --background --make-pidfile --pidfile "$PIDFILE" \
+      --chuid "$RUN_USER:$RUN_GROUP" --chdir "$DATA_DIR" \
       --startas /bin/sh -- -c "exec $DAEMON $DAEMON_ARGS >> $LOGFILE 2>&1"
     echo "Aegis ICS started."
     ;;

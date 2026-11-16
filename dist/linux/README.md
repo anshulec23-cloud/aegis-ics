@@ -48,8 +48,10 @@ chmod +x AegisICS
 # 3B. Launch in 24/7 Headless SCADA Server Mode (Localhost port 5000)
 ./AegisICS --server --port 5000
 
-# 3C. Launch for Remote Network Workstations (All interfaces 0.0.0.0)
-./AegisICS --server --host 0.0.0.0 --port 5000
+# 3C. Remote workstations: keep the app on loopback and publish it through a TLS
+#     reverse proxy (see docs/05-operations/runbook.md). Binding to 0.0.0.0 serves
+#     plain HTTP to the whole network -- avoid it outside an isolated lab.
+./AegisICS --server --host 127.0.0.1 --port 5000
 ```
 
 Open a web browser on any networked workstation and navigate to:

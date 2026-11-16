@@ -3,43 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis ICS — Central Transit Terminal [OPERATOR ACCESS]</title>
+    <title>Aegis ICS — Operator Sign In</title>
     <!-- Offline Air-Gapped Vendor Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='subway.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='xp.css') }}">
     <style>
-        .login-card {
-            max-width: 480px;
-            width: 100%;
-            background-color: #0e121a;
-            border: 1px solid #1c2333;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-        }
+        /* Sizing only — colours come from xp.css (.login-card = XP window). */
+        .login-card { max-width: 420px; width: 100%; }
     </style>
 </head>
-<body class="theme-green bg-[#090a0f] text-white flex items-center justify-center min-h-screen p-4 select-none">
+<body class="theme-green flex items-center justify-center min-h-screen p-4 select-none">
 
     <div class="login-card p-6 md:p-8 space-y-6">
-        <!-- Station Transit Header -->
-        <div class="border-b border-[#1c2333] pb-5 text-center space-y-2">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[11px] tracking-wider uppercase">
-                <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-                CLASSIFIED INDUSTRIAL FACILITY // TRANSIT ROUTE L1
+        <!-- Header -->
+        <div class="border-b pb-5 text-center space-y-2">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[11px] tracking-wide uppercase">
+                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                Aegis Industrial Control System
             </div>
-            <h1 class="text-lg font-bold tracking-tight text-white font-mono">
-                AEGIS ICS // CENTRAL OPERATING STATION
+            <h1 class="text-lg font-bold tracking-tight text-white">
+                Operator Sign In
             </h1>
-            <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 px-1 pt-1">
-                <span>TERMINAL: TTY-01 (115200 8N1)</span>
-                <span class="text-blue-400 font-semibold">[ HARDWARE GPS LOCK ]</span>
+            <div class="text-[11px] text-slate-400 pt-1">
+                Secure SCADA Supervisory Console
             </div>
         </div>
 
         {% if error %}
-        <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono text-center rounded">
-            [ACCESS DENIED] {{ error }}
+        <div class="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center rounded">
+            {{ error }}
         </div>
         {% endif %}
 
@@ -47,34 +39,24 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="username">
-                    OPERATOR IDENTIFICATION (LOGIN):
-                </label>
-                <div class="flex items-center">
-                    <span class="px-3 py-2 bg-[#050608] border border-r-0 border-[#1c2333] font-mono text-xs text-slate-400 rounded-l">UID:</span>
-                    <input class="subway-input w-full rounded-l-none" type="text" id="username" name="username" placeholder="admin" required autocomplete="username" autofocus>
-                </div>
+                <label class="block text-xs text-slate-300 tracking-wide" for="username">Username</label>
+                <input class="subway-input w-full" type="text" id="username" name="username" placeholder="admin" required autocomplete="username" autofocus>
             </div>
 
             <div class="space-y-1.5">
-                <label class="block text-xs font-mono text-slate-300 tracking-wider" for="password">
-                    SECURITY ACCESS KEY (TOKEN):
-                </label>
-                <div class="flex items-center">
-                    <span class="px-3 py-2 bg-[#050608] border border-r-0 border-[#1c2333] font-mono text-xs text-slate-400 rounded-l">KEY:</span>
-                    <input class="subway-input w-full rounded-l-none" type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
-                </div>
+                <label class="block text-xs text-slate-300 tracking-wide" for="password">Password</label>
+                <input class="subway-input w-full" type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
             </div>
 
-            <!-- Terminal Spatial Coordinates Box -->
-            <div class="p-3 bg-[#050608] border border-[#1c2333] rounded space-y-1 font-mono text-[11px]">
+            <!-- Control station identity (recorded with the sign-in for the audit trail). -->
+            <div class="p-3 bg-[#050608] border border-[#1c2333] rounded space-y-1 text-[11px]">
                 <div class="flex justify-between text-slate-400">
-                    <span>STATION COORDINATES:</span>
-                    <span class="text-white font-bold">Lat 37.77490, Lon -122.41940</span>
+                    <span>Control station:</span>
+                    <span class="text-white font-semibold">Central Station Alpha</span>
                 </div>
                 <div class="flex justify-between text-slate-400">
-                    <span>CONTROL SECTOR:</span>
-                    <span class="text-slate-300">Central Station Alpha (18.5m)</span>
+                    <span>Location:</span>
+                    <span class="text-slate-300">Lat 37.7749, Lon -122.4194</span>
                 </div>
                 <input type="hidden" id="location_coords" name="location_coords" value="Lat: 37.77490, Lon: -122.41940, Elev: 18.5m [Grid H-01]">
                 <input type="hidden" id="latitude" name="latitude" value="37.77490">
@@ -82,15 +64,15 @@
                 <input type="hidden" id="elevation" name="elevation" value="18.5">
             </div>
 
-            <button class="w-full subway-btn subway-btn-primary py-3 text-xs tracking-wider font-bold" type="submit">
-                INITIATE SUPERVISORY SESSION &rarr;
+            <button class="w-full subway-btn subway-btn-primary py-3 text-xs tracking-wide font-bold" type="submit">
+                Sign In &rarr;
             </button>
         </form>
 
-        <!-- Status Footer -->
-        <div class="pt-3 border-t border-[#1c2333] flex items-center justify-between text-[11px] font-mono text-slate-500">
-            <span>[ SYSTEM: ONLINE // TRANSIT ROUTE L1 ]</span>
-            <span class="text-slate-400">DEC VT-220 COMPLIANT</span>
+        <!-- Footer -->
+        <div class="pt-3 border-t flex items-center justify-between text-[11px] text-slate-500">
+            <span>Aegis ICS</span>
+            <span class="text-slate-400">Secure Operator Console</span>
         </div>
     </div>
 
