@@ -910,7 +910,10 @@ def index():
 
 
 @app.route("/login", methods=["GET", "POST"])
-@limiter.limit("120 per minute")
+# Throttle credential submissions hard (anti-brute-force): 10 POST attempts/min per IP.
+# Scoped to POST so loading the login page (GET) is never throttled; a legitimate operator
+# never needs that many tries a minute. Under TESTING the limiter is disabled (see csrf_protect).
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username")

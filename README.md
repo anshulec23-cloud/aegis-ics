@@ -1,13 +1,13 @@
 # Aegis ICS - Industrial Zero-Trust Security Gateway and Physical Enforcer
 
-[![Release Version](https://img.shields.io/badge/release-v2.5.2-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2)
+[![Release Version](https://img.shields.io/badge/release-v2.6.0-blue.svg)](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.6.0)
 [![Application Status](https://img.shields.io/badge/status-functioning_software_application-success.svg)](#software-application-overview)
-[![Tests Status](https://img.shields.io/badge/tests-65%2F65%20passing-brightgreen.svg)](#quality-assurance-and-testing)
+[![Tests Status](https://img.shields.io/badge/tests-174%2F174%20passing-brightgreen.svg)](#quality-assurance-and-testing)
 [![Dependabot Alerts](https://img.shields.io/badge/dependabot-0%20vulnerabilities-brightgreen.svg)](#security-hardening-and-vulnerability-remediation)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-informational.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> Official Software Application Release (v2.5.2 - Final Production Release): Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application engineered for Industrial Control Systems (ICS) and Operational Technology (OT) environments. Concludes the v2.x architecture cycle, subject to future LTS maintenance or security updates as needed.
+> Official Software Application Release (v2.6.0 - Final Production Release): Aegis ICS is a fully functioning, production-ready zero-trust security gateway, physical safety enforcer, and real-time SCADA monitoring application engineered for Industrial Control Systems (ICS) and Operational Technology (OT) environments. v2.6.0 is a major rebuild on top of the v2.5.x line, adding zero-touch hardware enrollment, a trained attack-type classifier, a live financial loss engine, a portable red-team drill backend, an aggregate SCADA view, an ML-driven NIST report, and a Windows XP (Luna) interface.
 
 > **Documentation:** the complete, code-accurate docs live in [`docs/`](docs/README.md). Start with [Architecture](docs/01-architecture/ARCHITECTURE.md), the [Debug Report](docs/07-reports/DEBUG_REPORT.md) and the [Restructure Plan](docs/08-roadmap/RESTRUCTURE_PLAN.md). Where this README and `docs/` disagree, `docs/` reflects the actual code.
 
@@ -15,6 +15,7 @@
 
 ## Table of Contents
 - [Software Application Overview](#software-application-overview)
+- [What's New in v2.6.0](#whats-new-in-v260)
 - [The Problem Aegis ICS Solves](#the-problem-aegis-ics-solves)
 - [System Architecture and Data Flow](#system-architecture-and-data-flow)
   - [High-Level Architectural Flowchart](#high-level-architectural-flowchart)
@@ -43,6 +44,50 @@ Aegis ICS is a cyber-physical security gateway engineered to bridge physical edg
 Unlike conventional Intrusion Detection Systems (IDS) that passively sniff industrial network traffic and report alerts minutes after anomalous commands have reached physical actuators, Aegis ICS operates inline as an active physical enforcer at Purdue Enterprise Reference Architecture Levels 1 and 2. It evaluates telemetry freshness, verifies cryptographic payload signatures, tests supervisory setpoints against non-linear physical stability manifolds, continuously scores device trustworthiness, and can trigger autonomous hardware micro-segmentation (de-energizing an optocoupler relay on GPIO 25 within 12.74 ms) when safety thresholds or cryptographic signatures are violated.
 
 Aegis ICS is distributed as both a standalone desktop application (AegisICS.exe) powered by PyWebView and an enterprise Flask web gateway with real-time SCADA interactive dashboards.
+
+---
+
+## What's New in v2.6.0
+
+v2.6.0 is a ground-up rebuild of the gateway on top of the v2.5.x security baseline. It keeps every v2.5 capability and adds:
+
+- **Zero-touch hardware enrollment (protocol v1).** Any number of unknown ESP32 slaves auto-discover over the bus and announce themselves; the operator approves each with one click. Session keys are derived per device via **X25519 + HKDF-SHA256** (no shared or pre-provisioned keys), and every frame carries boot + sequence numbers for replay protection. One firmware image serves all slaves (MAC-derived IDs).
+- **Attack-type ML classifier (the "detection brain").** A trained offline Random Forest names the physical attack behind a node's telemetry — `fdi_spike`, `stuxnet`, `thermal_drift`, `sensor_fault`, or `normal` — and feeds the result (with confidence and MITRE ATT&CK for ICS technique) into the loss engine and the incident report. The deterministic rules + trust score still *trigger* quarantine; the classifier *names* the attack, so a mute classifier can never weaken the defensive response.
+- **Live financial loss engine.** Per-device financial profiles are entered at approval. For every active incident the engine computes, in real time, the **actual loss**, **projected loss if unfixed**, **catastrophe prevented**, **time-to-fix (MTTR)**, and **restabilization cost**, with FAIR and regulatory exposure.
+- **Portable red-team attack-drill backend.** A localhost-only, token-authenticated engine drives a staged 8-attack campaign (perimeter + physical) against the running software and records the live defense + financial impact. (The portable USB runner is distributed separately, not in this repository.)
+- **Aggregate SCADA view.** Station 01 now fuses all slaves across all five sensors into one switchable **radar / grouped-bar** graph, normalized to each sensor's nominal envelope — a node pushing past the 100% ring is visibly out of envelope.
+- **ML-driven NIST SP 800 report.** The one-click incident report gains a dedicated section that names each active attack via the classifier, prices it via the loss engine, and lists ML-selected mitigation with recovery time and NIST controls.
+- **Windows XP (Luna) interface.** The dark terminal theme is replaced by a classic Windows XP desktop, title-bar windows, taskbar and Start menu.
+- **Security hardening.** Login submissions are rate-limited (10/min per IP), on top of the existing gateway-token ingestion, CSRF/CSP, first-run setup (no default password), and persistent session secret.
+
+### v2.6.0 Detection, Loss, and Reporting Pipeline
+
+```mermaid
+graph LR
+    subgraph Field Enrollment
+        HELLO["ESP32 slave: HELLO + X25519 pubkey"] --> REG["Device Registry (registry.py)"]
+        REG -->|one-click approve| KEY["Per-device session key (X25519 + HKDF)"]
+    end
+
+    subgraph Signed Telemetry
+        KEY --> TEL["Signed TEL frame (boot + seq, HMAC-SHA256)"]
+        TEL --> ING["Ingestion + replay check (app.py / protocol.py)"]
+    end
+
+    subgraph Detection and Response
+        ING --> RULES["Rules + 4-factor Trust Engine"]
+        RULES -->|trust < 0.40| ISO["Auto micro-segmentation (quarantine)"]
+        ING --> CLF["Attack-type Classifier (detection.py)"]
+        CLF -->|attack_type + confidence| LOSS["Live Loss Engine (loss_engine.py)"]
+        ISO --> LOSS
+    end
+
+    subgraph Operator Outcomes
+        LOSS --> FIN["Financial tab: actual / projected / prevented / MTTR"]
+        LOSS --> RPT["NIST SP 800 report: ML-named attack + mitigation + cost"]
+        ISO --> SCADA["Aggregate SCADA view (radar / grouped bar)"]
+    end
+```
 
 ---
 
@@ -203,7 +248,7 @@ graph LR
 
 ## Dual-Engine AI/ML Intelligence Pipeline
 
-Aegis ICS employs two complementary, specialized machine-learning architectures operating across Purdue Levels 1 and 2:
+Aegis ICS employs three complementary, specialized machine-learning models operating across Purdue Levels 1 and 2. The Random Forest and NSPN (below) decide *whether* a frame is anomalous and *whether* a command is safe; v2.6.0 adds a third model — the attack-type classifier — that decides *what kind* of attack is underway:
 
 ### 1. 5D Telemetry Anomaly Detection Ensemble
 - Architecture: 50-tree Random Forest Classifier optimized via Gini impurity reduction.
@@ -227,19 +272,27 @@ Aegis ICS employs two complementary, specialized machine-learning architectures 
   - Hazard Detection Recall: 0.9700
   - Hazard Detection F1-Score: 0.9647
 
+### 3. 5D Attack-Type Classifier — the Detection Brain (new in v2.6.0)
+- Architecture: 120-tree Random Forest multi-class classifier (`src/detection.py`, trained by `src/train_classifier.py`, shipped as `src/model/attack_classifier.pkl` with a SHA-256 sidecar verified before load).
+- Input Features: the same five sensors as the anomaly detector (Temperature, Pressure, Vibration, Hall-Effect RPM, Current).
+- Classes: `normal`, `fdi_spike`, `stuxnet`, `thermal_drift`, `sensor_fault`.
+- Role: it does **not** trigger isolation — the deterministic rules + trust score do. The classifier *names* the attack from the quarantined/anomalous node's telemetry and feeds `{attack_type, confidence}` to the loss engine and the NIST report. It abstains (returns nothing) on normal behaviour and on protocol attacks (replay/tamper leave no malicious telemetry), so the deterministic/audit view stays authoritative there.
+- Empirical Performance (synthetic benchmark): 96.3% accuracy, 0.96 macro-F1 across the five classes, with realistic class overlap and label noise.
+- **Honesty note:** like the anomaly and safety models, this classifier is trained on synthetic data whose envelopes are centred on the attack profiles the red-team drill injects. The reported accuracy measures how well the model recovers that generator and confirms the detection→loss→report wiring end-to-end; it is an engineering benchmark, not an independent real-world or peer-reviewed validation. See `docs/01-architecture/components/ml-engines.md` for the full scientific caveats.
+
 ---
 
 ## Empirical Benchmark Visualizations
 
-All figures below are generated directly from actual machine-learning model inference and 1,000-step attack simulation benchmarks (recorded in tests/benchmark_results/):
+All figures below are regenerated directly from the current-code benchmark run — actual machine-learning model inference and 1,000-step attack simulation benchmarks, recorded in `tests/benchmark_results/` and plotted by `tests/generate_graphs.py`. The underlying data is **synthetic** (hand-placed operating envelopes with injected noise); the figures show how the shipped software and models behave on those benchmarks, not an independent field validation. Reproduce with `python tests/benchmark_suite.py && python tests/generate_graphs.py`.
 
 ### Coordinated Stuxnet Stress Attack Trajectory
 ![Coordinated Stuxnet Stress Attack](docs/figures/fig_stuxnet_attack.png)
-During covert multi-variable manipulation (t = 600 to 850s), the adversary ramps core temperature to 55 C and pressure to 7.0 bar while falsifying SCADA sensor reports. Aegis detects anomalous divergence starting at t = 707s (attack detection rate 54.2%, nominal false positive rate 1.34%) and triggers autonomous fail-closed isolation at t = 850s.
+During covert multi-variable manipulation (t = 600 to 850s), the adversary ramps core temperature and pressure while falsifying SCADA sensor reports. Aegis's anomaly score diverges from the spoofed readings during the attack window (attack detection rate 57.0%, nominal false positive rate 1.87%, first detection at t = 693s) and triggers autonomous fail-closed isolation. Regenerated from the current-code benchmark run.
 
 ### Real-Time Financial Risk Projection and Mitigation (FAIR)
 ![FAIR Financial Risk Mitigation](docs/figures/fig_financial_risk.png)
-Real-time Factor Analysis of Information Risk (FAIR) modeling during an escalating cyber attack. Autonomous micro-segmentation at t = 18.0h caps single-unit incurred losses at $55,000 (preventing $345,000 against the $400,000 asset ceiling). Aggregated across the 4-node cluster, Aegis prevented $1,421,000 in projected physical damages (a 53.5% net risk reduction).
+Real-time Factor Analysis of Information Risk (FAIR) modeling during an escalating cyber attack. Autonomous micro-segmentation at t = 18.0h caps single-unit incurred losses at $55,000 (preventing $345,000 against the $400,000 asset ceiling). Aggregated across the 4-node cluster, Aegis prevented $950,000 in projected physical damages (a 63.3% net risk reduction).
 
 ### Neural Safety Policy Network Non-Linear Decision Surface
 ![NSPN Decision Boundary Heatmap](docs/figures/fig_nspn_heatmap.png)
@@ -251,7 +304,7 @@ Real-time trust evolution across 5 operational phases: Nominal (0.985), Subtle D
 
 ### Inference and Actuation Latency Kernel Density
 ![Inference Latency Distribution](docs/figures/fig_latency_distribution.png)
-Kernel density estimation of CPU execution latencies: Random Forest fast path (mean 1.071 ms), Neural Safety Policy NumPy engine (mean 0.019 ms), HMAC-SHA256 verification (mean 0.0025 ms), and complete closed-loop trip (13.72 ms).
+Kernel density estimation of CPU execution latencies from the current-code benchmark run: Random Forest fast path (mean 2.12 ms), Neural Safety Policy NumPy engine (mean 0.03 ms), and HMAC-SHA256 verification (mean 0.0024 ms). All inference stays well under the closed-loop hardware trip budget.
 
 ### Receiver Operating Characteristic (ROC) Curves
 ![ROC Curves](docs/figures/fig_roc_curves.png)
@@ -296,7 +349,7 @@ Aegis ICS maps empirical telemetry anomalies directly to the Factor Analysis of 
 
 ## Security Hardening and Vulnerability Remediation
 
-Aegis ICS v2.5.2 incorporates systematic fixes for 9 security vulnerabilities (8 architectural + 1 comprehensive supply-chain dependency suite), verified by automated regression tests and GitHub Dependabot audit:
+Aegis ICS v2.6.0 inherits the full v2.5.x remediation baseline — systematic fixes for 9 security vulnerabilities (8 architectural + 1 comprehensive supply-chain dependency suite), each verified by an automated regression test and the GitHub Dependabot audit — and adds the v2.6.0 hardening listed below the table:
 
 | ID | Severity | CWE | Vulnerability Description | Remediated Architecture | Regression Test |
 |---|---|---|---|---|---|
@@ -310,13 +363,21 @@ Aegis ICS v2.5.2 incorporates systematic fixes for 9 security vulnerabilities (8
 | V8 | LOW | CWE-285 | Parameter Override Bypass: Provided HMAC keys ignored | Corrected parameter precedence in serial_gateway.py to strictly prioritize passed hmac_key arguments. | test_serial_gateway_parsing |
 | V9 | HIGH | CWE-1395 | Third-Party Dependency Vulnerabilities: 9 Dependabot CVEs in cryptography, requests, flask | Upgraded to cryptography>=50.0.0, requests>=2.34.0, and Flask>=3.1.3; all 9 Dependabot alerts resolved to 0 open vulnerabilities. | test_full_suite.py / GitHub Dependabot Audit |
 
+### Additional hardening in v2.6.0
+
+- **No default credentials.** There is no built-in operator password; a first-run setup screen (gated by a one-time token written to the data directory) forces the administrator to set one. The Flask session secret is a persisted random 32-byte token (0600), never hard-coded.
+- **No shared/pre-provisioned device keys.** Every field device gets a unique session key derived at enrollment via X25519 + HKDF-SHA256; telemetry is per-device HMAC-SHA256 signed with boot + sequence replay protection.
+- **Machine-to-machine ingestion is token-gated.** `/api/telemetry` requires a gateway token and is CSRF-exempt by design; the red-team drill endpoints are localhost-only and token-authenticated.
+- **Rate limiting.** In server/web mode a global default of 200 requests/min + 10,000/hour per IP applies to all non-exempt routes; credential submissions to `/login` are additionally capped at **10 POSTs/min per IP** (anti-brute-force), and first-run setup at 20/min.
+- **Model integrity.** All ML pickles (`rf_model.pkl`, `attack_classifier.pkl`) are SHA-256-verified before unpickling; non-finite values are sanitized out of JSON responses.
+
 ---
 
 ## Installation and Quickstart Guide
 
 ### Option A: Running Standalone Executable (Windows)
 
-1. Download [`AegisICS.exe`](https://github.com/anshulec23-cloud/aegis-ics/releases/download/v2.5.2/AegisICS.exe) directly from the official [v2.5.2 Releases page](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.5.2).
+1. Download [`AegisICS.exe`](https://github.com/anshulec23-cloud/aegis-ics/releases/download/v2.6.0/AegisICS.exe) directly from the official [v2.6.0 Releases page](https://github.com/anshulec23-cloud/aegis-ics/releases/tag/v2.6.0).
 2. Double-click `AegisICS.exe` to launch the native desktop application.
 3. The embedded SCADA dashboard interface will open automatically in a dedicated PyWebView desktop window.
 
@@ -374,64 +435,27 @@ Firmware source code:
 
 ## Quality Assurance and Testing
 
-Aegis ICS includes an exhaustive automated pytest test suite covering unit logic, cryptography, physical safety interlocks, fuzzing, concurrency stress, and report generation:
+Aegis ICS includes an exhaustive automated pytest suite covering unit logic, cryptography, protocol-v1 enrollment and replay protection, physical safety interlocks, the financial loss engine, the attack-type classifier, the red-team drill backend, the NIST report, fuzzing, and concurrency stress. As of v2.6.0 the suite is **174 passing (1 xfailed), 0 warnings**, and `ruff` reports no lint issues.
 
 ```powershell
-python -m pytest tests/ -v
+python -m pytest tests/ -q
+ruff check src/ tests/
 ```
 
 ### Test Suite Execution Output
 ```text
-tests/test_full_suite.py::test_database_init_and_users PASSED            [  2%]
-tests/test_full_suite.py::test_security_hmac_and_tokens PASSED           [  4%]
-tests/test_full_suite.py::test_safety_enforcer_rules PASSED              [  6%]
-tests/test_full_suite.py::test_neural_safety_policy_model_loading PASSED [  8%]
-tests/test_full_suite.py::test_neural_safety_enforcer_adversarial_rejection PASSED [ 10%]
-tests/test_full_suite.py::test_neural_policy_fallback_handling PASSED    [ 13%]
-tests/test_full_suite.py::test_financial_analytics PASSED                [ 15%]
-tests/test_full_suite.py::test_pdf_report_generation PASSED              [ 17%]
-tests/test_full_suite.py::test_serial_gateway_parsing PASSED             [ 19%]
-tests/test_full_suite.py::test_flask_api_routes PASSED                   [ 21%]
-tests/test_full_suite.py::test_stress_concurrent_telemetry_and_api PASSED [ 23%]
-tests/test_full_suite.py::test_stress_all_3_simulation_attacks_and_pdf_download PASSED [ 26%]
-tests/test_full_suite.py::test_fuzzing_and_boundary_conditions PASSED    [ 28%]
-tests/test_full_suite.py::test_multi_device_cluster_endpoints PASSED     [ 30%]
-tests/test_full_suite.py::test_attack_simulation_suite PASSED            [ 32%]
-tests/test_full_suite.py::test_trust_breakdown_endpoint PASSED           [ 34%]
-tests/test_full_suite.py::test_audit_logs_streaming_endpoint PASSED      [ 36%]
-tests/test_full_suite.py::test_financial_analytics_endpoints PASSED      [ 39%]
-tests/test_full_suite.py::test_financial_loss_distribution_endpoint PASSED [ 41%]
-tests/test_full_suite.py::test_financial_subsystems_endpoint PASSED      [ 43%]
-tests/test_full_suite.py::test_device_locations_endpoint PASSED          [ 45%]
-tests/test_full_suite.py::test_pdf_report_special_characters_safety PASSED [ 47%]
-tests/test_full_suite.py::test_safety_enforcer_type_safety_and_nan PASSED [ 50%]
-tests/test_full_suite.py::test_rules_inversion_rejection_and_audit_trail PASSED [ 52%]
-tests/test_full_suite.py::test_devices_metadata_enrichment PASSED        [ 54%]
-tests/test_full_suite.py::test_semver_parsing_robustness PASSED          [ 56%]
-tests/test_full_suite.py::test_comprehensive_nist800_pdf_content PASSED  [ 58%]
-tests/test_full_suite.py::test_pdf_download_and_view_endpoints PASSED    [ 60%]
-tests/test_full_suite.py::test_firmware_cryptographic_parity PASSED      [ 63%]
-tests/test_full_suite.py::test_multi_node_keys_parity PASSED             [ 65%]
-tests/test_full_suite.py::test_serial_gateway_firmware_packet_forwarding PASSED [ 67%]
-tests/test_full_suite.py::test_serial_command_queue_dispatch PASSED      [ 69%]
-tests/test_full_suite.py::test_audit_log_baseline_seeding_and_api PASSED [ 71%]
-tests/test_full_suite.py::test_esp32_004_turbine_generator_rpm_handling PASSED [ 73%]
-tests/test_full_suite.py::test_isolated_device_telemetry_returns_403 PASSED [ 76%]
-tests/test_full_suite.py::test_hardware_isolation_command_dispatched PASSED [ 78%]
-tests/test_full_suite.py::test_airgap_offline_assets PASSED              [ 80%]
-tests/test_full_suite.py::test_ml_model_synthetic_inference PASSED       [ 82%]
-tests/test_full_suite.py::test_sse_stream_endpoint PASSED                [ 84%]
-tests/test_full_suite.py::test_terminal_css_and_1980s_assets PASSED      [ 86%]
-tests/test_full_suite.py::test_forensic_time_scrubber_slicing PASSED     [ 89%]
-tests/test_full_suite.py::test_terminal_dashboard_routes_and_html_render PASSED [ 91%]
-tests/test_full_suite.py::test_v1_telemetry_staleness_fail_closed PASSED [ 93%]
-tests/test_full_suite.py::test_v2_safe_pickle_deserialization_flags PASSED [ 95%]
-tests/test_full_suite.py::test_v4_new_device_trust_initialization PASSED [ 97%]
-tests/test_full_suite.py::test_v5_neural_policy_exception_fail_closed PASSED [100%]
+tests/security/test_enrollment_v1.py ....................   (protocol v1, X25519 enrollment, replay)
+tests/security/test_financials.py ......                    (per-device financial profiles)
+tests/security/test_loss_engine.py .......                  (live incident loss accounting)
+tests/security/test_detection.py ...........                (attack-type classifier + model status)
+tests/security/test_redteam.py .....................        (red-team drill engine + endpoints)
+tests/security/test_reporting.py ...                        (NIST SP 800 report, ML section)
+tests/security/test_firmware_contract.py ...                (firmware/Python crypto parity)
+tests/security/test_debug_findings.py ................x     (debug-report regression fixes)
+tests/test_full_suite.py ...............................    (safety, API, SSE, PDF, fuzzing, stress)
+tests/test_security_hardening.py / test_multi_slave_discovery.py / test_production_hardware_integration.py ...
 
-tests/test_production_hardware_integration.py (10 tests) ..........                   [100%]
-
-============================= 60 passed in 12.47s =============================
+======================= 174 passed, 1 xfailed in ~83s =======================
 ```
 
 ---
@@ -472,8 +496,8 @@ aegis-ics/
 │   ├── build_linux.py         # Automated Linux executable builder
 │   ├── package_deb.py         # Debian package builder
 │   └── package_tarball.py     # Portable tarball packager
-├── dist/                      # Compiled deliverables
-│   └── AegisICS.exe           # Standalone Windows executable (348 MB)
+├── dist/                      # Compiled deliverables (not committed)
+│   └── AegisICS.exe           # Standalone Windows executable (~95 MB, attached to the GitHub release)
 ├── docs/                      # Full documentation — start at docs/README.md
 │   ├── 00-overview/           # Project overview, glossary
 │   ├── 01-architecture/       # ARCHITECTURE.md, data model, protocols, per-component pages
@@ -492,12 +516,25 @@ aegis-ics/
 ├── src/                       # Core Python application source code
 │   ├── analytics.py           # FAIR quantitative risk modeling and Monte Carlo engine
 │   ├── app.py                 # Flask REST API gateway and SSE streaming server
+│   ├── protocol.py            # Protocol v1 frames (HELLO/WELCOME/TEL/CMD/ACK), boot+seq replay
+│   ├── enrollment.py          # X25519 + HKDF-SHA256 zero-touch key agreement
+│   ├── registry.py            # Device registry (pending -> approved), one-click approval
+│   ├── simulator.py           # N-slave protocol-v1 software simulator
+│   ├── financials.py          # Per-device financial profiles entered at approval
+│   ├── loss_engine.py         # Live incident loss accounting (actual/projected/prevented/MTTR)
+│   ├── attacks.py             # Attack catalog (MITRE ATT&CK for ICS, NIST controls, mitigations)
+│   ├── detection.py           # Attack-type ML classifier runtime (the "detection brain")
+│   ├── train_classifier.py    # Offline trainer for the attack-type classifier
+│   ├── redteam.py             # Red-team drill engine (localhost + token-authenticated)
+│   ├── bootstrap.py           # First-run setup token + admin account bootstrap
+│   ├── version.py             # Single source of truth for the version string
 │   ├── database.py            # SQLAlchemy models, SQLite WAL configuration, and audit engine
 │   ├── main.py                # Desktop PyWebView wrapper entrypoint
 │   ├── model/                 # Serialized machine learning models and metrics
 │   │   ├── neural_safety_policy.npz # Exported NumPy weights for zero-overhead CPU inference
 │   │   ├── neural_safety_policy.pt  # PyTorch model checkpoint
-│   │   ├── rf_model.pkl             # Trained 5D Random Forest classifier
+│   │   ├── rf_model.pkl             # Trained 5D Random Forest anomaly detector
+│   │   ├── attack_classifier.pkl    # Trained attack-type classifier (+ .sha256 + meta JSON)
 │   │   └── training_metrics.json    # Empirical model validation metrics and ROC coordinates
 │   ├── neural_policy.py       # 6D Local Deep Neural Safety Policy Network (NSPN)
 │   ├── reporting.py           # ReportLab PDF security audit report generator
@@ -513,17 +550,31 @@ aegis-ics/
 │   ├── benchmark_results/     # Raw empirical benchmark JSON exports
 │   ├── benchmark_suite.py     # Real attack simulation and latency benchmark runner
 │   ├── generate_graphs.py     # Publication-quality matplotlib graph generator
-│   └── test_full_suite.py     # Comprehensive 46-test pytest automated verification suite
+│   ├── security/              # Enrollment, financials, loss engine, detection, redteam, reporting tests
+│   └── test_full_suite.py     # Comprehensive pytest verification suite (174 passing overall)
 ├── pyproject.toml             # Project metadata and pytest configuration
 └── README.md                  # Comprehensive project documentation
 ```
+
+> Note: the portable USB red-team drill runner (`tools/redteam/`) is intentionally **not** included in this repository; it is distributed separately to field operators.
 
 ---
 
 ## Release Notes and Changelog
 
+Version 2.6.0 Summary (current — final release):
+- Zero-touch hardware loop: protocol v1 (signed frames, boot+seq replay protection), X25519 + HKDF per-device enrollment, device registry with one-click approval, N-slave simulator, and a single rewritten firmware image that compiles on ESP32 core 3.3.x.
+- Detection brain: a trained offline attack-type classifier (`detection.py`) names the physical attack behind a node's telemetry and feeds the loss engine and NIST report; the deterministic rules + trust score still trigger quarantine.
+- Live financial loss engine + per-device profiles entered at approval (actual / projected / prevented / MTTR / restabilization / regulatory).
+- Portable red-team drill backend (localhost + token), staged 8-attack campaign with live defense and financial impact; Station 04 live campaign view.
+- Aggregate SCADA view (switchable radar / grouped bar) fusing all slaves and sensors.
+- ML-driven NIST SP 800 report section (attack named by the classifier, priced by the loss engine, mitigation + recovery time + NIST controls).
+- Windows XP (Luna) interface replacing the dark terminal theme.
+- Security hardening: first-run setup (no default password), gateway-token ingestion, login rate limit (10/min), SHA-256-verified model loads.
+- Verification: 174 tests passing (1 xfailed), ruff clean; Windows executable rebuilt and self-test verified.
+
 Version 2.5.2 Summary:
-- Security Vulnerability Hardening (V1-V8): Fixed telemetry staleness bypass with fail-closed gating, secured deserialization against pickle attacks, configured operator credentials (noodles/noodles), enforced zero-trust node initialization, and prevented WSGI thread blocking.
+- Security Vulnerability Hardening (V1-V8): Fixed telemetry staleness bypass with fail-closed gating, secured deserialization against pickle attacks, replaced the default operator credential with a generated secret and startup warning, enforced zero-trust node initialization, and prevented WSGI thread blocking.
 - Honest and Realistic AI/ML Pipeline: Retrained 5-feature Random Forest achieving 0.9755 ROC-AUC (5-fold CV F1: 0.9623) and 6D Deep Neural Safety Policy Network achieving 96.46% accuracy on realistic noisy sensor datasets.
 - Real Empirical Benchmarks and Figures: Replaced all synthetic illustrations with 6 publication-grade figures derived from actual software and AI model execution.
 - Sub-15ms Closed-Loop Hardware Isolation: Validated 13.72 ms actuation loop de-energizing GPIO 25 optocoupler relays on edge ESP32 nodes.

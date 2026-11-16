@@ -36,8 +36,6 @@ try:
 except ImportError:
     RF_AVAILABLE = False
 
-from security import get_device_key
-
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "benchmark_results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -205,7 +203,7 @@ def benchmark_financial_risk():
 
     from datetime import datetime, timezone, timedelta
     from database import Base, TelemetryLog, DeviceState, AuditLog
-    from analytics import calculate_financial_analytics, SUBSYSTEM_PROFILES
+    from analytics import calculate_financial_analytics, get_subsystem_profile
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -312,8 +310,8 @@ def benchmark_financial_risk():
 
     damages_prevented = np.maximum(0.0, projected_loss - actual_loss)
 
-    p1 = SUBSYSTEM_PROFILES.get("ESP32_001", {})
-    p4 = SUBSYSTEM_PROFILES.get("ESP32_004", {})
+    p1 = get_subsystem_profile("ESP32_001", db)
+    p4 = get_subsystem_profile("ESP32_004", db)
     cluster_unmit = (p1.get("base_sle", 570000.0) + p4.get("base_sle", 800000.0)) + (
         p1.get("downtime_rate_per_hour", 22500.0) + p4.get("downtime_rate_per_hour", 31000.0)
     ) * 24.0
@@ -497,7 +495,9 @@ def benchmark_latency():
     import hashlib
 
     payload = '{"current":"4.50","device_id":"ESP32_001","hall_effect":"0.00","pressure":"4.20","temperature":"26.00","vibration":"1.10"}'
-    key = get_device_key("ESP32_001")
+    # Representative 64-hex session key (per-device keys are provisioned at enrollment now; this
+    # micro-benchmark only measures HMAC-SHA256 throughput, for which any fixed key is valid).
+    key = "a" * 64
     latencies = []
     for _ in range(n_iterations):
         start = time.perf_counter()
