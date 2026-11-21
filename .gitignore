@@ -52,3 +52,6 @@ tests/redteam_token.txt
 # Red-team drill runtime artifacts (written to the data dir at run time)
 redteam_token.txt
 redteam_runtime.json
+
+# Knowledge-graph build artifacts
+graphify-out/

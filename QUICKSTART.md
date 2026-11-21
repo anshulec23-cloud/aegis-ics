@@ -34,17 +34,17 @@ copy .env.example .env
 
 Key environment variables:
 * `FLASK_SECRET_KEY`: Random 64-character hex secret for operator sessions.
-* `DEVICE_KEY_ESP32_001`: Pre-shared HMAC-SHA256 key for ESP32 edge microcontroller 001.
-* `ADMIN_PASSWORD`: Custom master administrator password (defaults to `noodles` in local dev).
+* Device keys are **not** configured by hand: each ESP32 derives a unique session key at enrollment (X25519 + HKDF-SHA256) and the operator approves it with one click.
+* `ADMIN_PASSWORD`: Administrator password (minimum 12 characters). Optional - if unset, the app starts in setup mode and you create the password at `/setup`. There is no default password.
 
 ---
 
 ## 3. Run the Automated Test Suite
 
-Execute the complete 60-test pytest suite (50 core + 10 hardware integration):
+Execute the complete pytest suite (174 passing, 1 xfailed):
 
 ```powershell
-python -m pytest tests/test_full_suite.py tests/test_production_hardware_integration.py -v
+python -m pytest tests -q
 ```
 
 This verifies HMAC cryptographic signatures, Stuxnet multi-variable safety rules, financial analytics modeling, PDF report generation, serial gateway parsers, physical Master Concentrator bridge detection, 5-transducer dynamic profiling, and multi-threaded stress concurrency.
@@ -60,8 +60,7 @@ python src/app.py
 ```
 
 Open your browser and navigate to `http://127.0.0.1:5000`.
-* **Default Operator ID**: `noodles`
-* **Default Access Token**: `noodles`
+* **First run**: there are no default credentials. You are redirected to `/setup` to create the `admin` password; the one-time setup token is printed in the startup log (or `setup_token.txt` in the data directory).
 * **Station Coordinates**: Enter your 3D terminal location (e.g. `X: 12.4, Y: -48.1, Z: 3.5`).
 
 ---

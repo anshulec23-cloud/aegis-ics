@@ -166,10 +166,12 @@ In the SCADA Dashboard, navigate to **Hardware Connection**, click **Scan Ports*
 
 ---
 
-## Default Credentials & Access
+## First-Run Setup & Access
 
-* **Operator Username**: `noodles` (also supports `admin`)
-* **Operator Password**: `noodles` (or configured via `ADMIN_PASSWORD` environment variable)
+* **There are no default credentials.** On first launch the gateway starts in **setup mode**: every page redirects to `/setup`, where you create the `admin` password (minimum 12 characters).
+* **Setup token**: `/setup` requires a one-time token. The desktop app opens the tokenised URL automatically; for headless installs, read it from the startup log line or `setup_token.txt` in the data directory.
+* **Unattended installs**: set `ADMIN_PASSWORD` (>= 12 characters) before first start to create `admin` directly and skip the setup screen.
+* **Upgrading from <= 2.5.x**: an `admin` still using the old default password is locked until setup is completed, and the legacy `noodles` account is deleted. Both actions are audited as `ACCOUNT_BOOTSTRAP`.
 * **Cartesian Station Geolocation**: Input terminal coordinates upon login (e.g., `X: 12.40, Y: -48.10, Z: 3.50`).
 
 ---
