@@ -117,17 +117,28 @@ def _device_dict(d: Device) -> Dict[str, Any]:
     }
 
 
-def _apply_financials(dev: Device, fin: Optional[Dict[str, Any]]) -> None:
-    """Store a validated financial profile (from ``financials.normalize_input``) on a device."""
+def _apply_financials(db, dev: Device, fin: Optional[Dict[str, Any]]) -> None:
+    """Store a validated financial profile (from ``financials.normalize_input``) for a device.
+
+    The profile lives in ``device_financials``, not on the device row itself, so identity and
+    crypto state stay separate from the costing model. Creates the row on first use.
+    """
     if not fin:
         return
-    dev.role = fin.get("role")
-    dev.criticality = fin.get("criticality")
-    dev.zone = fin.get("zone")
-    dev.equipment_value = fin.get("equipment_value")
-    dev.downtime_rate_per_hour = fin.get("downtime_rate_per_hour")
-    dev.cleanup_cost = fin.get("cleanup_cost")
-    dev.regulatory_exposure = fin.get("regulatory_exposure")
+    from database import DeviceFinancials
+
+    row = dev.financials_row
+    if row is None:
+        row = DeviceFinancials(device_id=dev.device_id)
+        db.add(row)
+        dev.financials_row = row
+    row.role = fin.get("role")
+    row.criticality = fin.get("criticality")
+    row.zone = fin.get("zone")
+    row.equipment_value = fin.get("equipment_value")
+    row.downtime_rate_per_hour = fin.get("downtime_rate_per_hour")
+    row.cleanup_cost = fin.get("cleanup_cost")
+    row.regulatory_exposure = fin.get("regulatory_exposure")
 
 
 def set_financials(device_id: str, fin: Dict[str, Any], user_id: Optional[int]) -> bool:
@@ -137,7 +148,7 @@ def set_financials(device_id: str, fin: Dict[str, Any], user_id: Optional[int]) 
         dev = db.query(Device).filter_by(device_id=device_id).first()
         if dev is None:
             return False
-        _apply_financials(dev, fin)
+        _apply_financials(db, dev, fin)
         db.add(
             AuditLog(
                 user_id=user_id,
@@ -298,7 +309,7 @@ def approve(
         dev.host_seq = 0
         if name:
             dev.name = name[:80]
-        _apply_financials(dev, financials)
+        _apply_financials(db, dev, financials)
         if not db.query(DeviceState).filter_by(device_id=device_id).first():
             db.add(DeviceState(device_id=device_id, is_isolated=False))
         db.add(

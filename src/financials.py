@@ -180,7 +180,13 @@ def profile_for(device_id: str, db=None, device_row=None) -> Dict[str, Any]:
             device_row = db.query(Device).filter_by(device_id=device_id).first()
         except Exception:
             device_row = None
-    eff = _effective(device_row)
+    # Money lives in DeviceFinancials (one-to-one with Device). Fall back to the row itself
+    # for callers that hand us an object carrying the fields directly.
+    fin_row = getattr(device_row, "financials_row", None) if device_row is not None else None
+    if fin_row is None and device_row is not None:
+        if any(getattr(device_row, f, None) is not None for f in _MONEY_FIELDS):
+            fin_row = device_row
+    eff = _effective(fin_row)
     name = getattr(device_row, "name", None) if device_row is not None else None
     regulatory = eff["regulatory_exposure"]
     base_sle = eff["equipment_value"] + eff["cleanup_cost"] + regulatory

@@ -164,7 +164,30 @@ class Device(Base):
     seen_boots = Column(Text, nullable=True)  # JSON list of recent boot ids
     # Host -> device command sequence (monotonic per device; the device rejects <= last seen).
     host_seq = Column(Integer, nullable=False, default=0)
-    # Operator-set financial profile (see financials.py). NULL money field = use role defaults.
+    # The operator-set financial profile lives in its own table so this row stays purely
+    # identity + crypto state (see DeviceFinancials below and financials.py).
+    financials_row = relationship(
+        "DeviceFinancials",
+        back_populates="device",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class DeviceFinancials(Base):
+    """Operator-set financial profile for one device (see financials.py).
+
+    Split out of ``Device`` so identity/crypto state and money are separate concerns: the
+    costing model can change without touching the table enrollment and replay protection
+    depend on. One row per device, written when the operator approves it. A NULL money
+    field means "use the role default".
+    """
+
+    __tablename__ = "device_financials"
+    id = Column(Integer, primary_key=True)
+    device_id = Column(
+        String(50), ForeignKey("devices.device_id"), unique=True, nullable=False, index=True
+    )
     role = Column(String(32), nullable=True)
     criticality = Column(String(20), nullable=True)
     zone = Column(String(80), nullable=True)
@@ -172,6 +195,12 @@ class Device(Base):
     downtime_rate_per_hour = Column(Float, nullable=True)
     cleanup_cost = Column(Float, nullable=True)
     regulatory_exposure = Column(Float, nullable=True)
+    updated_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    device = relationship("Device", back_populates="financials_row")
 
 
 class CommandLog(Base):
@@ -239,21 +268,44 @@ def migrate_sqlite_schema():
             if tel_cols and "faults" not in tel_cols:
                 cursor.execute("ALTER TABLE telemetry_logs ADD COLUMN faults VARCHAR(120)")
                 conn.commit()
+            # Financial profiles moved out of `devices` into `device_financials`. Create the
+            # table if missing and migrate any legacy inline columns across, once.
+            cursor.execute(
+                """CREATE TABLE IF NOT EXISTS device_financials (
+                       id INTEGER PRIMARY KEY,
+                       device_id VARCHAR(50) NOT NULL UNIQUE,
+                       role VARCHAR(32), criticality VARCHAR(20), zone VARCHAR(80),
+                       equipment_value FLOAT, downtime_rate_per_hour FLOAT,
+                       cleanup_cost FLOAT, regulatory_exposure FLOAT,
+                       updated_at DATETIME
+                   )"""
+            )
             device_tbl = cursor.execute("PRAGMA table_info('devices')").fetchall()
             if device_tbl:
                 dev_cols = [row[1] for row in device_tbl]
-                for col, decl in (
-                    ("role", "VARCHAR(32)"),
-                    ("criticality", "VARCHAR(20)"),
-                    ("zone", "VARCHAR(80)"),
-                    ("equipment_value", "FLOAT"),
-                    ("downtime_rate_per_hour", "FLOAT"),
-                    ("cleanup_cost", "FLOAT"),
-                    ("regulatory_exposure", "FLOAT"),
-                ):
-                    if col not in dev_cols:
-                        cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {decl}")
-                conn.commit()
+                legacy = [
+                    c
+                    for c in (
+                        "role", "criticality", "zone", "equipment_value",
+                        "downtime_rate_per_hour", "cleanup_cost", "regulatory_exposure",
+                    )
+                    if c in dev_cols
+                ]
+                if legacy:
+                    cols = ", ".join(legacy)
+                    not_null = " OR ".join(f"{c} IS NOT NULL" for c in legacy)
+                    moved = cursor.execute(
+                        f"INSERT OR IGNORE INTO device_financials (device_id, {cols}) "
+                        f"SELECT device_id, {cols} FROM devices "
+                        f"WHERE ({not_null}) AND device_id NOT IN "
+                        f"(SELECT device_id FROM device_financials)"
+                    ).rowcount
+                    if moved:
+                        print(
+                            f"[Database] Migrated {moved} device financial profile(s) "
+                            "into device_financials."
+                        )
+            conn.commit()
             audit_cols = [
                 row[1] for row in cursor.execute("PRAGMA table_info('audit_logs')").fetchall()
             ]

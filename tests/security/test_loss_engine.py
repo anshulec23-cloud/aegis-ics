@@ -6,7 +6,7 @@ import app  # noqa: F401  (triggers init_db so tables exist)
 import attacks
 import financials
 import loss_engine
-from database import AuditLog, Device, DeviceState, SessionLocal
+from database import AuditLog, Device, DeviceFinancials, DeviceState, SessionLocal
 
 
 def _approved_device(db, dev_id, role="reactor", isolated=False, when=None):
@@ -16,11 +16,17 @@ def _approved_device(db, dev_id, role="reactor", isolated=False, when=None):
         db.add(dev)
         db.flush()
     fin = financials.normalize_input({"role": role})
-    dev.role = fin["role"]
-    dev.criticality = fin["criticality"]
-    dev.zone = fin["zone"]
+    # Financial profile lives in device_financials, not on the device row.
+    frow = dev.financials_row
+    if frow is None:
+        frow = DeviceFinancials(device_id=dev_id)
+        db.add(frow)
+        dev.financials_row = frow
+    frow.role = fin["role"]
+    frow.criticality = fin["criticality"]
+    frow.zone = fin["zone"]
     for f in ("equipment_value", "downtime_rate_per_hour", "cleanup_cost", "regulatory_exposure"):
-        setattr(dev, f, fin[f])
+        setattr(frow, f, fin[f])
     st = db.query(DeviceState).filter_by(device_id=dev_id).first()
     if not st:
         st = DeviceState(device_id=dev_id)
