@@ -67,3 +67,12 @@ jobs:
       - run: pip install pip-audit
       - name: Audit dependencies for known CVEs
         run: pip-audit -r src/requirements.txt --progress-spinner off
+
+      - name: Scan for newly introduced hard-coded secrets
+        run: |
+          pip install detect-secrets
+          git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+        # Fails only on a secret that is NOT already in .secrets.baseline. The baselined
+        # entries are alembic revision ids, synthetic protocol test vectors, test fixtures
+        # and the deliberate legacy-password deny-list entry - all reviewed, none live.
+        # To accept a new finding deliberately, re-run `detect-secrets scan` and commit.
