@@ -643,7 +643,7 @@ To guarantee mission-critical software integrity, the entire Aegis architecture 
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
-rootdir: C:\Users\morbi\Desktop\aegis-ics-2.3.0
+rootdir: /path/to/aegis-ics
 configfile: pyproject.toml
 collected 65 items
 
